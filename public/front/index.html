@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RAG Console — PRO (Light)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"></script>
+  <style>
+    :root {
+      --console-bg: #f8f9fa;
+      --console-border: #dee2e6;
+      --console-text: #212529;
+      --zone-border: #cbd5e1;
+      --zone-bg: #ffffff;
+      --zone-hover: #eef2ff;
+    }
+    body { background:#fff; color:#212529; padding-bottom: 300px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+    .card { border-radius: 1rem; }
+    .btn { border-radius: .75rem; }
+    /* Debug console (fixo, claro) */
+    .fixed-console {
+      position: fixed; left:0; right:0; bottom:0; z-index:1030;
+      background: var(--console-bg); border-top: 1px solid var(--console-border); color: var(--console-text);
+      max-height: 260px; overflow: hidden;
+      box-shadow: 0 -6px 30px rgba(0,0,0,.06);
+    }
+    .console-body { max-height: 190px; overflow: auto; }
+    .badge-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .pointer { cursor: pointer; }
+    /* Upload zone (drag & drop) */
+    .dropzone {
+      border: 2px dashed var(--zone-border);
+      background: var(--zone-bg);
+      border-radius: 14px;
+      padding: 20px;
+      transition: background .2s, border-color .2s;
+      text-align: center;
+    }
+    .dropzone.dragover { background: var(--zone-hover); border-color: #94a3b8; }
+    .dz-icon { font-size: 32px; line-height: 1; }
+    .dz-sub { color:#6c757d; }
+    .file-chip {
+      border: 1px solid #e9ecef; border-radius: 999px; padding: 4px 10px; display: inline-flex; gap:8px; align-items:center; margin: 4px 6px 0 0;
+      background: #fff;
+    }
+    .file-chip .x { cursor:pointer; font-weight:bold; color:#dc3545; }
+    .progress { height: 6px; border-radius: 999px; }
+    .table-log td, .table-log th { padding: .25rem .5rem; }
+    .bg-soft { background:#f6f7fb; }
+    code { background: #f8f9fa; padding: .1rem .35rem; border-radius: .25rem; }
+  </style>
+</head>
+<body>
+  <div class="container py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="h4 m-0">RAG Console — <small class="text-secondary">PRO</small></h1>
+      <div class="d-flex gap-2">
+        <button id="btnHealth" class="btn btn-outline-success btn-sm">🩺 Health</button>
+        <button id="btnConfig" class="btn btn-outline-dark btn-sm">⚙️ Configurar</button>
+      </div>
+    </div>
+
+    <div class="alert alert-light border bg-soft" role="alert">
+      Base atual: <span class="mono" id="baseUrlLabel">(mesma origem)</span> ·
+      Modelo padrão: <span class="mono" id="modelLabel">gemini-2.5-flash</span> ·
+      Endpoints: <code>/api/rag/ingest</code>, <code>/api/rag/query</code>, <code>/api/rag/answer</code>, <code>/api/vertex/generate</code>.
+    </div>
+
+    <!-- Abas -->
+    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ing" type="button">Ingest</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#query" type="button">Query</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#answer" type="button">Answer (RAG+LLM)</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#gen" type="button">Vertex Generate</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cost" type="button">Calculadora de Custos</button></li>
+    </ul>
+
+    <div class="tab-content border border-top-0 p-3 rounded-bottom">
+
+      <!-- INGEST -->
+      <div class="tab-pane fade show active" id="ing">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <div class="mb-2">
+              <label class="form-label">Fonte (URL opcional)</label>
+              <input id="ingUrl" class="form-control" placeholder="https://exemplo.com/artigo (opcional)">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Texto</label>
+              <textarea id="ingText" class="form-control" rows="6" placeholder="Cole aqui um texto para ingestão"></textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Arquivos (PDF/Doc/etc.)</label>
+              <div class="dropzone" id="dzIngest">
+                <div class="dz-icon">📄</div>
+                <div class="dz-sub">Arraste e solte arquivos aqui ou <label class="text-primary" style="text-decoration:underline; cursor:pointer;"><input id="ingFiles" type="file" multiple hidden> clique para selecionar</label></div>
+                <div id="ingFileList" class="mt-2"></div>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Metadata (JSON opcional)</label>
+              <textarea id="ingMeta" class="form-control mono" rows="3" placeholder='{"source":"manual","tags":["demo"]}'></textarea>
+            </div>
+            <div class="d-grid"><button id="btnIngest" class="btn btn-primary">Enviar Ingestão</button></div>
+            <div class="mt-2 d-none" id="ingProgressWrap">
+              <div class="progress"><div class="progress-bar" id="ingProgress" role="progressbar" style="width:0%"></div></div>
+              <small class="text-muted" id="ingProgressText"></small>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <h6>Resposta</h6>
+            <pre id="ingestOut" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- QUERY -->
+      <div class="tab-pane fade" id="query">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <div class="mb-2">
+              <label class="form-label">Pergunta</label>
+              <textarea id="qText" class="form-control" rows="6" placeholder="Ex.: O que o documento fala sobre X?"></textarea>
+            </div>
+            <div class="row gx-2">
+              <div class="col-4"><label class="form-label">Top K</label><input id="qTopK" type="number" class="form-control" placeholder="ex.: 4"></div>
+              <div class="col-4"><label class="form-label">Temperature</label><input id="qTemp" type="number" step="0.01" class="form-control" placeholder="ex.: 0.2"></div>
+              <div class="col-4"><label class="form-label">Max Tokens</label><input id="qMaxTokens" type="number" class="form-control" placeholder="ex.: 512"></div>
+            </div>
+            <div class="d-grid mt-2"><button id="btnQuery" class="btn btn-success">Consultar</button></div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <h6>Resposta</h6>
+            <pre id="queryOut" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANSWER -->
+      <div class="tab-pane fade" id="answer">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <div class="mb-2">
+              <label class="form-label">Pergunta</label>
+              <textarea id="aText" class="form-control" rows="6" placeholder="Pergunta para RAG + LLM"></textarea>
+            </div>
+            <div class="row gx-2">
+              <div class="col-4"><label class="form-label">Top K</label><input id="aTopK" type="number" class="form-control" placeholder="ex.: 3"></div>
+              <div class="col-8"><label class="form-label">Modelo (override opcional)</label><input id="aModel" class="form-control" placeholder="ex.: gemini-2.5-flash"></div>
+            </div>
+            <div class="d-grid mt-2"><button id="btnAnswer" class="btn btn-warning">Gerar Resposta</button></div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <h6>Resposta</h6>
+            <pre id="answerOut" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- GENERATE -->
+      <div class="tab-pane fade" id="gen">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <div class="mb-2">
+              <label class="form-label">Prompt</label>
+              <textarea id="gPrompt" class="form-control" rows="6" placeholder="Prompt para Vertex"></textarea>
+            </div>
+            <div class="row gx-2">
+              <div class="col-6"><label class="form-label">Modelo</label><input id="gModel" class="form-control" placeholder="gemini-2.5-flash (padrão)"></div>
+              <div class="col-6"><label class="form-label">Location</label><input id="gLoc" class="form-control" placeholder="global (padrão)"></div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Arquivos (imagens/otros para o prompt)</label>
+              <div class="dropzone" id="dzGen">
+                <div class="dz-icon">🖼️</div>
+                <div class="dz-sub">Arraste e solte aqui ou <label class="text-primary" style="text-decoration:underline; cursor:pointer;"><input id="gFiles" type="file" multiple hidden> clique para selecionar</label></div>
+                <div id="gFileList" class="mt-2"></div>
+              </div>
+            </div>
+            <div class="d-flex gap-2">
+              <button id="btnGenGET" class="btn btn-outline-info">GET /api/vertex/generate</button>
+              <button id="btnGenPOST" class="btn btn-info">POST /api/vertex/generate</button>
+            </div>
+            <div class="mt-2 d-none" id="genProgressWrap">
+              <div class="progress"><div class="progress-bar" id="genProgress" role="progressbar" style="width:0%"></div></div>
+              <small class="text-muted" id="genProgressText"></small>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <h6>Resposta</h6>
+            <pre id="genOut" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- COST CALCULATOR -->
+      <div class="tab-pane fade" id="cost">
+        <div class="row g-3">
+          <div class="col-12 col-xl-8">
+            <div class="alert alert-light border">
+              <div><strong>Tabela (USD)</strong> baseada na página oficial de preços da Vertex AI. Valores por <em>1M tokens</em> (ou <em>1M caracteres</em> quando indicado).</div>
+              <div class="small text-secondary">Última verificação: set/2025. Confirme sempre no site oficial.</div>
+            </div>
+            <label class="form-label">Modelo</label>
+            <select id="ccModel" class="form-select">
+              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+              <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+              <option value="gemini-embedding-001">gemini-embedding-001 (tokens)</option>
+              <option value="text-embedding-004">text-embedding-004 (caracteres)</option>
+            </select>
+            <div class="row gx-2 mt-2">
+              <div class="col-12 col-md-6"><label class="form-label">Entrada (tokens ou caracteres)</label><input id="ccIn" type="number" class="form-control" placeholder="ex.: 2000"></div>
+              <div class="col-12 col-md-6"><label class="form-label">Saída (tokens, quando aplicável)</label><input id="ccOut" type="number" class="form-control" placeholder="ex.: 800"></div>
+            </div>
+            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="ccLongCtx"><label class="form-check-label" for="ccLongCtx">Contexto &gt; 200K tokens</label></div>
+            <div class="form-text">Regra prática: ~4 caracteres ≈ 1 token.</div>
+            <button id="btnCalc" class="btn btn-outline-dark mt-2">Calcular</button>
+            <h6 class="mt-3">Estimativa</h6><pre id="ccOutArea" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+          <div class="col-12 col-xl-4">
+            <div class="card">
+              <div class="card-body">
+                <h6>Preços (por 1M)</h6>
+                <div class="small">
+                  <ul class="mb-2">
+                    <li><span class="mono">gemini-2.5-flash</span>: in $0.30 · out $2.50</li>
+                    <li><span class="mono">gemini-2.5-flash-lite</span>: in $0.10 · out $0.40</li>
+                    <li><span class="mono">gemini-2.5-pro</span>: in $1.25 · out $10</li>
+                    <li><span class="mono">gemini-embedding-001</span>: in $0.15 (tokens)</li>
+                    <li><span class="mono">text-embedding-004</span>: $0.000025 / 1k chars (~$0.025 / 1M chars)</li>
+                  </ul>
+                  <div class="text-secondary">Fonte: Vertex AI pricing.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-content -->
+  </div><!-- /container -->
+
+  <!-- Modal Config -->
+  <div class="modal" tabindex="-1" id="cfgModal"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Configuração</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-2"><label class="form-label">Base URL da API</label><input id="cfgBaseUrl" class="form-control" placeholder="ex.: http://localhost:8000 (vazio = mesma origem)"></div>
+      <div class="mb-2"><label class="form-label">Modelo padrão</label><input id="cfgModel" class="form-control" placeholder="gemini-2.5-flash"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button><button class="btn btn-primary" id="cfgSave">Salvar</button></div>
+  </div></div></div>
+
+  <!-- Debug Console -->
+  <div class="fixed-console">
+    <div class="p-2 d-flex justify-content-between align-items-center">
+      <strong>Debug Console</strong>
+      <div class="d-flex gap-2 align-items-center">
+        <span id="healthDot" class="badge-dot bg-secondary"></span>
+        <small id="healthText" class="text-muted">Sem teste</small>
+        <button id="btnClearLog" class="btn btn-sm btn-outline-dark">Limpar</button>
+        <button id="btnToggleConsole" class="btn btn-sm btn-dark">Ocultar</button>
+      </div>
+    </div>
+    <div class="console-body p-2" id="consoleBody">
+      <table class="table table-striped table-bordered table-log mb-0">
+        <thead class="table-light"><tr><th>#</th><th>Método</th><th>URL</th><th>Status</th><th>ms</th><th>Ver</th></tr></thead>
+        <tbody id="logTable"></tbody>
+      </table>
+      <div id="reqDetail" class="mt-2 d-none">
+        <hr class="border-secondary">
+        <div class="d-flex justify-content-between align-items-center">
+          <h6>Detalhe</h6><button id="btnCopyCurl" class="btn btn-sm btn-outline-primary">Copiar cURL</button>
+        </div>
+        <pre id="detailPre" class="mono p-3 border rounded bg-soft"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ======= CONFIG =======
+    const LS = { baseUrl:"ragpro_base_url", model:"ragpro_model" };
+    function getBaseUrl(){ return localStorage.getItem(LS.baseUrl)||""; }
+    function setBaseUrl(v){ localStorage.setItem(LS.baseUrl, v||""); updateLabels(); }
+    function getModel(){ return localStorage.getItem(LS.model)||"gemini-2.5-flash"; }
+    function setModel(v){ localStorage.setItem(LS.model, v||"gemini-2.5-flash"); updateLabels(); }
+    function updateLabels(){ document.getElementById("baseUrlLabel").textContent=getBaseUrl()||"(mesma origem)"; document.getElementById("modelLabel").textContent=getModel(); }
+    updateLabels();
+
+    // ======= PRICING =======
+    const PRICING = {
+      "gemini-2.5-flash": { unit:"tokens", input_per_1M:{short:0.30,long:0.30}, output_per_1M:{short:2.50,long:2.50} },
+      "gemini-2.5-flash-lite": { unit:"tokens", input_per_1M:{short:0.10,long:0.10}, output_per_1M:{short:0.40,long:0.40} },
+      "gemini-2.5-pro": { unit:"tokens", input_per_1M:{short:1.25,long:2.50}, output_per_1M:{short:10.00,long:15.00} },
+      "gemini-embedding-001": { unit:"tokens", input_per_1M:{short:0.15,long:0.15}, output_per_1M:null },
+      "text-embedding-004": { unit:"chars", input_per_1M_chars:0.025, output_per_1M_chars:0 }
+    };
+
+    // ======= DEBUG CONSOLE =======
+    let LOG=[], LOGSEQ=1;
+    function pushLog(entry){
+      LOG.push(entry);
+      const tr=document.createElement("tr");
+      tr.className="pointer";
+      tr.addEventListener("click",()=>showDetail(entry));
+      tr.innerHTML=`<td>${entry.id}</td><td>${entry.method}</td><td class="mono">${entry.url}</td><td>${entry.status}</td><td>${entry.ms}</td><td>▶</td>`;
+      document.getElementById("logTable").prepend(tr);
+    }
+    function showDetail(entry){
+      const pre=document.getElementById("detailPre");
+      pre.textContent=JSON.stringify(entry,null,2);
+      document.getElementById("reqDetail").classList.remove("d-none");
+      document.getElementById("btnCopyCurl").onclick=()=>{
+        const curl=buildCurl(entry); navigator.clipboard.writeText(curl);
+      };
+    }
+    function buildCurl(e){
+      const headers = e.requestHeaders || {"Content-Type":"application/json"};
+      const hdr = Object.entries(headers).map(([k,v])=>`-H '${k}: ${v}'`).join(" ");
+      let data = "";
+      if (headers["Content-Type"] && headers["Content-Type"].includes("multipart/form-data")) {
+        data = "# multipart form-data (veja os campos abaixo no detalhe do request)";
+      } else if (e.requestBody) {
+        data = `--data '${JSON.stringify(e.requestBody)}'`;
+      }
+      return `curl -s -X ${e.method} ${hdr} ${data} '${e.fullUrl}'`;
+    }
+    document.getElementById("btnClearLog").addEventListener("click",()=>{ LOG=[]; document.getElementById("logTable").innerHTML=""; document.getElementById("reqDetail").classList.add("d-none"); });
+    document.getElementById("btnToggleConsole").addEventListener("click",()=>{ const el=document.getElementById("consoleBody"); el.style.display=(el.style.display==="none")?"block":"none"; });
+
+    function pretty(el,data){ try{ el.textContent=JSON.stringify(data,null,2);}catch{ el.textContent=String(data);} }
+    function buildUrl(path){ const base=getBaseUrl().replace(/\/$/,""); return base? base+path : path; }
+
+    async function doFetchJSON(method,path,bodyObj){
+      const url=buildUrl(path), t0=performance.now(); let status=-1, respHeaders={}, respJson=null, err=null;
+      try{
+        const res=await fetch(url,{ method, headers:{"Content-Type":"application/json"}, body: bodyObj? JSON.stringify(bodyObj): undefined });
+        status=res.status; res.headers.forEach((v,k)=>{respHeaders[k]=v}); respJson=await res.json().catch(()=>({status:res.status,text:"Resposta não-JSON"})); return respJson;
+      }catch(e){ err=e; throw e; }
+      finally{
+        const t1=performance.now();
+        pushLog({ id:LOGSEQ++, method, url:path, fullUrl:url, requestHeaders:{"Content-Type":"application/json"}, requestBody:bodyObj||null, status, ms:Math.round(t1-t0), responseHeaders:respHeaders, response:respJson, error: err? String(err): null });
+      }
+    }
+
+    function xhrMultipart(method, path, formData, onProgress){
+      return new Promise((resolve,reject)=>{
+        const url = buildUrl(path);
+        const xhr = new XMLHttpRequest();
+        const t0 = performance.now();
+        xhr.open(method, url, true);
+        // progress total
+        xhr.upload.addEventListener("progress", (e)=>{
+          if(e.lengthComputable && onProgress){ onProgress(e.loaded, e.total); }
+        });
+        xhr.onreadystatechange = ()=>{
+          if (xhr.readyState === 4){
+            const ms = Math.round(performance.now() - t0);
+            let respJson=null;
+            try{ respJson = JSON.parse(xhr.responseText); } catch(_){ respJson = {status:xhr.status, text:"Resposta não-JSON"}; }
+            pushLog({
+              id:LOGSEQ++,
+              method, url:path, fullUrl:url,
+              requestHeaders: {"Content-Type":"multipart/form-data"},
+              requestBody: null,
+              status: xhr.status, ms,
+              responseHeaders: {"content-type": xhr.getResponseHeader("content-type")||""},
+              response: respJson,
+              error: (xhr.status>=200 && xhr.status<300) ? null : `HTTP ${xhr.status}`
+            });
+            if (xhr.status>=200 && xhr.status<300) resolve(respJson); else reject(new Error("HTTP "+xhr.status));
+          }
+        };
+        xhr.onerror = ()=>reject(new Error("Erro de rede"));
+        xhr.send(formData);
+      });
+    }
+
+    // ======= HEALTH =======
+    document.getElementById("btnHealth").addEventListener("click", async ()=>{
+      const dot=document.getElementById("healthDot"), txt=document.getElementById("healthText");
+      dot.className="badge-dot bg-secondary"; txt.textContent="testando...";
+      try{
+        const data=await doFetchJSON("GET","/api/health");
+        if (data && (data.ok || data.status==="ok")) { dot.className="badge-dot bg-success"; txt.textContent="OK"; }
+        else { dot.className="badge-dot bg-warning"; txt.textContent="Falha lógica"; }
+      } catch {
+        dot.className="badge-dot bg-danger"; txt.textContent="Erro de rede";
+      }
+    });
+
+    // ======= CONFIG MODAL =======
+    document.getElementById("btnConfig").addEventListener("click", ()=>{
+      document.getElementById("cfgBaseUrl").value=getBaseUrl();
+      document.getElementById("cfgModel").value=getModel();
+      new bootstrap.Modal(document.getElementById("cfgModal")).show();
+    });
+    document.getElementById("cfgSave").addEventListener("click", ()=>{
+      setBaseUrl(document.getElementById("cfgBaseUrl").value.trim());
+      setModel(document.getElementById("cfgModel").value.trim());
+      bootstrap.Modal.getInstance(document.getElementById("cfgModal")).hide();
+    });
+
+    // ======= UPLOAD WIDGETS =======
+    function initDropzone(zoneId, inputId, listId){
+      const zone = document.getElementById(zoneId);
+      const input = document.getElementById(inputId);
+      const list = document.getElementById(listId);
+      let files = [];
+
+      function render(){
+        list.innerHTML = "";
+        files.forEach((f, idx)=>{
+          const chip = document.createElement("span");
+          chip.className = "file-chip";
+          chip.innerHTML = `<span class="mono">${f.name}</span><span class="text-muted small">${(f.size/1024).toFixed(1)} KB</span><span class="x" data-idx="${idx}">×</span>`;
+          list.appendChild(chip);
+        });
+        list.querySelectorAll(".x").forEach(x=>{
+          x.addEventListener("click", (e)=>{
+            const i = parseInt(e.target.getAttribute("data-idx"),10);
+            files.splice(i,1);
+            render();
+          });
+        });
+      }
+
+      zone.addEventListener("dragover", (e)=>{ e.preventDefault(); zone.classList.add("dragover"); });
+      zone.addEventListener("dragleave", ()=> zone.classList.remove("dragover"));
+      zone.addEventListener("drop", (e)=>{
+        e.preventDefault(); zone.classList.remove("dragover");
+        if (e.dataTransfer.files && e.dataTransfer.files.length){
+          files = files.concat(Array.from(e.dataTransfer.files));
+          render();
+        }
+      });
+      input.addEventListener("change", ()=>{
+        if (input.files && input.files.length){
+          files = files.concat(Array.from(input.files));
+          render();
+        }
+      });
+
+      return {
+        getFiles: ()=> files.slice(),
+        clear: ()=> { files = []; render(); }
+      };
+    }
+
+    const dzIngest = initDropzone("dzIngest","ingFiles","ingFileList");
+    const dzGen    = initDropzone("dzGen","gFiles","gFileList");
+
+    // ======= INGEST =======
+    document.getElementById("btnIngest").addEventListener("click", async ()=>{
+      const out = document.getElementById("ingestOut");
+      const pWrap = document.getElementById("ingProgressWrap");
+      const pBar  = document.getElementById("ingProgress");
+      const pTxt  = document.getElementById("ingProgressText");
+
+      out.textContent = "Enviando...";
+      const urlVal = document.getElementById("ingUrl").value.trim();
+      const textVal = document.getElementById("ingText").value;
+      const files = dzIngest.getFiles();
+      let meta = undefined;
+      const metaRaw = document.getElementById("ingMeta").value.trim();
+      if (metaRaw) { try { meta = JSON.parse(metaRaw); } catch(e){ out.textContent = "Metadata inválida: " + e.message; return; } }
+
+      try {
+        if (files.length > 0) {
+          // multipart
+          const fd = new FormData();
+          files.forEach(f => fd.append("files[]", f, f.name));
+          if (urlVal) fd.append("url", urlVal);
+          if (textVal) fd.append("text", textVal);
+          if (meta) fd.append("metadata", JSON.stringify(meta));
+
+          pWrap.classList.remove("d-none");
+          pBar.style.width = "0%"; pTxt.textContent = "0%";
+
+          const data = await xhrMultipart("POST","/api/rag/ingest", fd, (loaded,total)=>{
+            const pct = Math.max(1, Math.floor((loaded/total)*100));
+            pBar.style.width = pct+"%"; pTxt.textContent = pct+"%";
+          });
+          pretty(out, data);
+          dzIngest.clear();
+        } else {
+          // json
+          const payload = { url: urlVal || undefined, text: textVal, metadata: meta };
+          const data = await doFetchJSON("POST","/api/rag/ingest", payload);
+          pretty(out, data);
+        }
+      } catch (e) {
+        out.textContent = "Erro: " + e.message;
+      } finally {
+        setTimeout(()=>{ pWrap.classList.add("d-none"); }, 600);
+      }
+    });
+
+    // ======= QUERY =======
+    document.getElementById("btnQuery").addEventListener("click", async ()=>{
+      const out=document.getElementById("queryOut");
+      out.textContent="Consultando...";
+      const payload = {
+        query: document.getElementById("qText").value,
+        top_k: parseInt(document.getElementById("qTopK").value || "3", 10),
+        temperature: parseFloat(document.getElementById("qTemp").value || "0") || undefined,
+        max_tokens: parseInt(document.getElementById("qMaxTokens").value || "0", 10) || undefined
+      };
+      try{
+        const data = await doFetchJSON("POST","/api/rag/query", payload);
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    // ======= ANSWER =======
+    document.getElementById("btnAnswer").addEventListener("click", async ()=>{
+      const out=document.getElementById("answerOut");
+      out.textContent="Gerando...";
+      const payload = {
+        query: document.getElementById("aText").value,
+        top_k: parseInt(document.getElementById("aTopK").value || "3", 10),
+        model: document.getElementById("aModel").value.trim() || getModel()
+      };
+      try{
+        const data = await doFetchJSON("POST","/api/rag/answer", payload);
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    // ======= VERTEX GENERATE (com upload) =======
+    document.getElementById("btnGenGET").addEventListener("click", async ()=>{
+      const out=document.getElementById("genOut");
+      out.textContent="Chamando GET...";
+      const params=new URLSearchParams();
+      const p=document.getElementById("gPrompt").value;
+      const m=document.getElementById("gModel").value.trim();
+      const l=document.getElementById("gLoc").value.trim();
+      if (p) params.set("prompt", p);
+      if (m) params.set("model", m);
+      if (l) params.set("location", l);
+      // GET normalmente ignora corpo/arquivos; usado só para teste rápido
+      try{
+        const data = await doFetchJSON("GET","/api/vertex/generate?"+params.toString());
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnGenPOST").addEventListener("click", async ()=>{
+      const out=document.getElementById("genOut");
+      const pWrap = document.getElementById("genProgressWrap");
+      const pBar  = document.getElementById("genProgress");
+      const pTxt  = document.getElementById("genProgressText");
+
+      out.textContent="Chamando POST...";
+      const files = dzGen.getFiles();
+      const prompt = document.getElementById("gPrompt").value;
+      const model  = document.getElementById("gModel").value.trim();
+      const loc    = document.getElementById("gLoc").value.trim();
+
+      try{
+        if (files.length > 0){
+          const fd = new FormData();
+          fd.append("prompt", prompt);
+          if (model) fd.append("model", model);
+          if (loc)   fd.append("location", loc);
+          files.forEach(f => fd.append("files[]", f, f.name));
+
+          pWrap.classList.remove("d-none");
+          pBar.style.width = "0%"; pTxt.textContent = "0%";
+
+          const data = await xhrMultipart("POST","/api/vertex/generate", fd, (loaded,total)=>{
+            const pct = Math.max(1, Math.floor((loaded/total)*100));
+            pBar.style.width = pct+"%"; pTxt.textContent = pct+"%";
+          });
+          pretty(out, data);
+          dzGen.clear();
+        } else {
+          const payload = { prompt, model: model || undefined, location: loc || undefined };
+          const data = await doFetchJSON("POST","/api/vertex/generate", payload);
+          pretty(out, data);
+        }
+      }catch(e){ out.textContent="Erro: "+e.message; }
+      finally { setTimeout(()=>{ pWrap.classList.add("d-none"); }, 600); }
+    });
+
+    // ======= CALCULADORA =======
+    function calcCost(model, inCount, outCount=0, longCtx=false){
+      const m = PRICING[model]; if(!m) return {error:"Modelo desconhecido"};
+      const res = { model, unit:m.unit };
+      if(m.unit==="tokens"){
+        const inPerM = m.input_per_1M[longCtx?"long":"short"]; const inCost = (inCount/1_000_000)*inPerM;
+        let outCost=0; if(m.output_per_1M){ const outPerM=m.output_per_1M[longCtx?"long":"short"]; outCost=(outCount/1_000_000)*outPerM; }
+        res.input_cost=+inCost.toFixed(6); res.output_cost=+outCost.toFixed(6); res.total=+(inCost+outCost).toFixed(6); return res;
+      } else {
+        const inPerM=m.input_per_1M_chars||0, outPerM=m.output_per_1M_chars||0;
+        const inCost=(inCount/1_000_000)*inPerM, outCost=(outCount/1_000_000)*outPerM;
+        res.input_cost=+inCost.toFixed(6); res.output_cost=+outCost.toFixed(6); res.total=+(inCost+outCost).toFixed(6); return res;
+      }
+    }
+    document.getElementById("btnCalc").addEventListener("click",()=>{
+      const model=document.getElementById("ccModel").value, long=document.getElementById("ccLongCtx").checked;
+      const inp=parseFloat(document.getElementById("ccIn").value||"0"), out=parseFloat(document.getElementById("ccOut").value||"0");
+      const est = calcCost(model, inp, out, long);
+      document.getElementById("ccOutArea").textContent=JSON.stringify(est,null,2);
+    });
+  </script>
+  <!-- ADICIONE esta linha no final do seu index.html, antes de fechar </body> -->
+<script src="./rag-client.js"></script>
+
+</body>
+</html>

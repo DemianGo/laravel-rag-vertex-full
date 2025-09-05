@@ -1,0 +1,31 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+
+class VertexRagController extends Controller
+{
+    public function demo(Request $request)
+    {
+        try {
+            $projectId = config('vertex.project_id', env('GCP_PROJECT_ID', ''));
+            $location  = config('vertex.location', env('GCP_LOCATION', 'us-central1'));
+            $model     = config('vertex.model', env('GCP_VERTEX_MODEL', 'gemini-1.5-flash-001'));
+
+            return response()->json([
+                'ok' => true,
+                'vertex' => [
+                    'project'  => $projectId,
+                    'location' => $location,
+                    'model'    => $model,
+                ],
+                'echo' => $request->all(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('VertexRagController@demo error: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['ok' => false, 'error' => 'Internal error'], 500);
+        }
+    }
+}

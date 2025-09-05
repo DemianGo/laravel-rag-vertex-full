@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+cd "$(dirname "$0")"
+
+# ---- leitura de .env (com defaults) ----
+type read_env >/dev/null 2>&1 || read_env() {
+  local key="$1"; local def="$2"; local v
+  v="$(sed -nE "s/^${key}=(.*)/\1/p" .env 2>/dev/null | tail -n1 | tr -d '"' | tr -d "'")" || true
+  [ -n "${v:-}" ] && echo "$v" || echo "$def"
+}
+APP_HOST="$(read_env APP_HOST 127.0.0.1)"
+APP_PORT="$(read_env APP_PORT 8001)"
+PIDFILE=".serve.pid"
+LOGFILE="/tmp/laravel-serve.log"
+
+echo "[i] (re)start em ${APP_HOST}:${APP_PORT}"
+
+# ---- pré-checagem opcional do Google ADC/Vertex ----
+CHECK_GCP="${CHECK_GCP:-1}"              # 1 = checa (default), 0 = ignora
+AUTO_GCP_LOGIN="${AUTO_GCP_LOGIN:-0}"    # 1 = tenta resetar/login ADC automaticamente
+
+if [ "$CHECK_GCP" = "1" ]; then
+  if ! ./gcp-auth-check.sh --quiet; then
+    echo "[warn] ADC/Vertex inválido."
+    if [ "$AUTO_GCP_LOGIN" = "1" ]; then
+      echo "[i] Tentando ./gcp-auth-reset.sh (login interativo)..."
+      ./gcp-auth-reset.sh || { echo "[erro] Login ADC falhou."; exit 1; }
+      ./gcp-auth-check.sh --quiet || { echo "[erro] Vertex ainda indisponível."; exit 1; }
+    else
+      echo "[hint] Rode: ./gcp-auth-reset.sh   (ou AUTO_GCP_LOGIN=1 ./dev-start.sh)"
+      exit 1
+    fi
+  fi
+fi
+
+# ---- reload do servidor Laravel ----
+php artisan optimize:clear >/dev/null || true
+
+# libera porta
+pkill -f "artisan serve" 2>/dev/null || true
+fuser -k ${APP_PORT}/tcp 2>/dev/null || true
+if [ -f "$PIDFILE" ]; then
+  OLD_PID="$(cat "$PIDFILE" 2>/dev/null || true)"
+  [ -n "${OLD_PID:-}" ] && ps -p "$OLD_PID" >/dev/null 2>&1 && kill "$OLD_PID" 2>/dev/null || true
+  rm -f "$PIDFILE"
+fi
+
+php artisan config:cache >/dev/null || true
+php artisan route:cache  >/dev/null || true
+
+nohup php artisan serve --host="${APP_HOST}" --port="${APP_PORT}" > "${LOGFILE}" 2>&1 &
+echo $! > "$PIDFILE"
+
+sleep 1
+if ss -ltnp 2>/dev/null | grep -q ":${APP_PORT} "; then
+  echo "[ok] rodando em http://${APP_HOST}:${APP_PORT}"
+  echo "[log] tail -f ${LOGFILE}"
+else
+  echo "[erro] não subiu. Veja o log: ${LOGFILE}"
+  exit 1
+fi

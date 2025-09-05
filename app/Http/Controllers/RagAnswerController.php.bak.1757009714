@@ -1,0 +1,144 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use GuzzleHttp\Client;
+use App\Services\VertexClient;
+
+class RagAnswerController extends Controller
+{
+    protected function vertex(): VertexClient
+    {
+        return app(VertexClient::class);
+    }
+
+    public function answer(Request $request)
+    {
+        $tenant = trim((string) $request->input("tenant", "default"));
+        $query  = trim((string) $request->input("query", ""));
+        $topK   = (int) $request->input("top_k", 3);
+        $model  = (string) $request->input("model", env("VERTEX_GENERATION_MODEL", "gemini-1.5-flash"));
+        $temp   = (float) $request->input("temperature", 0.2);
+
+        if ($query === "") {
+            return response()->json(["ok"=>false,"error"=>"Campo \"query\" é obrigatório"], 400);
+        }
+        if ($topK < 1 || $topK > 20) $topK = 3;
+
+        try {
+            // 1) Embedding da pergunta (usa VertexClient já configurado)
+            $qvec = $this->vertex()->embedding($query);
+            if (!is_array($qvec) || count($qvec) === 0) {
+                throw new \RuntimeException("Embedding vazio/indisponível");
+            }
+
+            // Formata vetor em literal pgvector (sem notação científica)
+            $vecStr = implode(",", array_map(function ($v) {
+                return rtrim(rtrim(sprintf("%.10F", (float)$v), "0"), ".");
+            }, $qvec));
+            $vecLiteral = "[" . $vecStr . "]::vector(" . count($qvec) . ")";
+
+            // 2) Busca vetorial
+            $rows = DB::select("
+                SELECT
+                    c.id, c.document_id, c.chunk_index, c.content,
+                    1 - (c.embedding <=> {$vecLiteral}) AS score
+                FROM chunks c
+                JOIN documents d ON d.id = c.document_id
+                WHERE d.tenant_slug = ?
+                ORDER BY c.embedding <=> {$vecLiteral} ASC
+                LIMIT ?
+            ", [ $tenant, $topK ]);
+
+            // 3) Monta contexto
+            $contextParts = [];
+            foreach ($rows as $r) {
+                $content = is_string($r->content) ? $r->content : json_encode($r->content, JSON_UNESCAPED_UNICODE);
+                // corta contextos muito longos (segurança)
+                if (mb_strlen($content) > 1200) {
+                    $content = mb_substr($content, 0, 1200) . " …";
+                }
+                $contextParts[] = "- (doc {$r->document_id} / chunk {$r->chunk_index}) " . $content;
+            }
+            $context = implode("\n", $contextParts);
+
+            // 4) Chamada ao modelo generativo (Gemini) via ADC (gcloud)
+            $cfg      = config("services.vertex");
+            $project  = $cfg["project"]  ?? env("VERTEX_PROJECT", "");
+            $location = $cfg["location"] ?? env("VERTEX_LOCATION", "us-central1");
+            if ($project === "" || $location === "") {
+                return response()->json(["ok"=>false,"error"=>"Config Vertex ausente (project/location)"], 500);
+            }
+
+            $token = trim(shell_exec("gcloud auth application-default print-access-token 2>/dev/null") ?? "");
+            if ($token === "") {
+                return response()->json(["ok"=>false,"error"=>"ADC não encontrado. Rode: gcloud auth application-default login"], 500);
+            }
+
+            $url = sprintf(
+                "https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent",
+                $location, $project, $location, $model
+            );
+
+            $prompt = "Você é um assistente de RAG. Responda em português, com clareza e objetividade.\n"
+                    . "Use APENAS as informações do CONTEXTO. Se não houver informação suficiente, diga: "
+                    . "\"Não encontrei essa informação nos documentos.\" Não invente.\n\n"
+                    . "Pergunta: {$query}\n\n"
+                    . "CONTEXTO:\n{$context}\n";
+
+            $body = [
+                "contents" => [[
+                    "role"  => "user",
+                    "parts" => [["text" => $prompt]],
+                ]],
+                "generationConfig" => [
+                    "temperature"     => $temp,
+                    "maxOutputTokens" => 512,
+                ],
+            ];
+
+            $http = new Client(["timeout" => 45]);
+            $res  = $http->post($url, [
+                "headers" => [
+                    "Authorization" => "Bearer {$token}",
+                    "Content-Type"  => "application/json",
+                    "Accept"        => "application/json",
+                ],
+                "json" => $body,
+            ]);
+
+            $data = json_decode((string) $res->getBody(), true);
+            $answer = "";
+            if (isset($data["candidates"][0]["content"]["parts"])) {
+                foreach ($data["candidates"][0]["content"]["parts"] as $p) {
+                    if (isset($p["text"])) { $answer .= $p["text"]; }
+                }
+            }
+
+            // monta hits para resposta
+            $hits = array_map(function ($r) {
+                return [
+                    "document_id" => $r->document_id,
+                    "chunk_index" => $r->chunk_index,
+                    "content"     => $r->content,
+                    "score"       => (float) $r->score,
+                ];
+            }, $rows);
+
+            return response()->json([
+                "ok"      => true,
+                "tenant"  => $tenant,
+                "model"   => $model,
+                "top_k"   => $topK,
+                "answer"  => $answer,
+                "hits"    => $hits,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("RAG answer error: ".$e->getMessage());
+            return response()->json(["ok"=>false,"error"=>$e->getMessage()], 500);
+        }
+    }
+}

@@ -1,0 +1,17 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', function () {
+    return view('welcome');
+});
+
+// ====== BEGIN:quick-api (testes locais) ======
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\VertexRagController;
+
+Route::get('/api/health', function () {
+    return response()->json(['ok' => true, 'ts' => now()->toISOString()]);
+});
+Route::post('/api/vertex/rag/demo', [VertexRagController::class, 'demo']);
+// ====== END:quick-api ======
