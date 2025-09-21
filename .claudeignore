@@ -1,0 +1,22 @@
+# Ignore tudo
+**
+
+# Permissões básicas
+!.claudeignore
+!CLAUDE.md
+!phpunit.xml
+!composer.json
+!composer.lock
+
+# Código que você edita frequentemente
+!app/
+!app/Http/
+!app/Http/Controllers/
+!app/Http/Controllers/RagAnswerController.php
+
+# Testes que você roda frequentemente
+!tests/
+!tests/Feature/
+!tests/Feature/RagAnswerRealDocAutoIngestTest.php
+
+# (libere outras pastas/arquivos quando precisar)

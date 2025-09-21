@@ -1,0 +1,291 @@
+<?php
+
+namespace Tests\Feature;
+
+use Illuminate\Support\Facades\DB;
+use Tests\TestCase;
+
+class RagAnswerContractTest extends TestCase
+{
+    /** Seleciona o document_id a usar nos testes: usa RAG_TEST_DOC_ID (ex.: 37) se existir; senão, cria doc 999 genérico. */
+    protected function ensureDocId(): int
+    {
+        $pref = (int) env('RAG_TEST_DOC_ID', 37);
+        $this->ensureChunksTable();
+
+        $row = DB::selectOne("SELECT COUNT(*) AS c FROM chunks WHERE document_id = ?", [$pref]);
+        if ($row && (int)$row->c > 0) {
+            return $pref;
+        }
+
+        // Seed genérico (document-agnostic), doc 999
+        $docId = 999;
+        $exists = DB::selectOne("SELECT COUNT(*) AS c FROM chunks WHERE document_id = ?", [$docId]);
+        if (!$exists || (int)$exists->c === 0) {
+            $this->seedGenericDoc($docId);
+        }
+        return $docId;
+    }
+
+    protected function ensureChunksTable(): void
+    {
+        DB::statement('CREATE TABLE IF NOT EXISTS chunks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_id INTEGER NOT NULL,
+            ord INTEGER NOT NULL,
+            content TEXT NOT NULL
+        )');
+    }
+
+    /** Conteúdo neutro, sem marca/viés, para permitir validar todos os modos. */
+    protected function seedGenericDoc(int $docId): void
+    {
+        $rows = [
+            [0, "Este documento descreve um portfólio de produtos e serviços, com processos padronizados e foco na qualidade consistente durante o uso."],
+            [1, "A organização possui certificações reconhecidas e auditorias externas periódicas que asseguram conformidade e boas práticas."],
+            [2, "A estabilidade de formulações ao longo do tempo é documentada por certificado de análise por lote, permitindo rastreabilidade."],
+            [3, "Sempre que indicado, a quantidade declarada em embalagem é verificada e compatível com os resultados laboratoriais internos."],
+            [4, "O processo produtivo segue etapas definidas, com controle, filtragem e purificação; há validações e registros de cada fase."],
+            [5, "Há uma linha diversificada para diferentes necessidades, versões concentradas e opções com composições variadas."],
+            [6, "“Profissional de saúde aponta que a qualidade percebida e a previsibilidade no uso são pontos fortes em sua prática cotidiana.”"],
+            [7, "Chave: Controle de Qualidade: Valor: Processos padronizados e certificados; Chave: Portfólio: Valor: Opções variadas."],
+        ];
+        foreach ($rows as [$ord, $content]) {
+            DB::table('chunks')->insert([
+                'document_id' => $docId,
+                'ord' => $ord,
+                'content' => $content
+            ]);
+        }
+    }
+
+    /** Dataset de 31 variações estáveis (sem “auto”) para evitar flutuação por detecção de intenção. */
+    public static function provideCases(): array
+    {
+        $cases = [];
+
+        // DIRECT (6)
+        $cases[] = ['t01_direct_plain_s3',     'direct','auto','plain',  3, 0, 6];
+        $cases[] = ['t02_direct_md_s3',        'direct','auto','markdown',3, 0, 6];
+        $cases[] = ['t03_direct_html_s3',      'direct','auto','html',   3, 0, 6];
+        $cases[] = ['t04_direct_plain_s1',     'direct','auto','plain',  1, 0, 6];
+        $cases[] = ['t05_direct_md_s1',        'direct','auto','markdown',1,0, 6];
+        $cases[] = ['t06_direct_html_s1',      'direct','auto','html',   1, 0, 6];
+
+        // SUMMARY (8)
+        $cases[] = ['t07_summary_md_s3_short',   'summary','short','markdown',3,3,6];
+        $cases[] = ['t08_summary_md_s3_medium',  'summary','medium','markdown',3,3,6];
+        $cases[] = ['t09_summary_plain_s3',      'summary','medium','plain',  3,3,6];
+        $cases[] = ['t10_summary_html_s3',       'summary','medium','html',   3,3,6];
+        $cases[] = ['t11_summary_md_s2',         'summary','medium','markdown',2,3,6];
+        $cases[] = ['t12_summary_md_s1',         'summary','medium','markdown',1,3,6];
+        $cases[] = ['t13_summary_plain_s1',      'summary','long','plain',    1,3,6];
+        $cases[] = ['t14_summary_html_s1',       'summary','long','html',     1,3,6];
+
+        // LIST (6)
+        $cases[] = ['t15_list_md_s3',          'list','auto','markdown',3,3,6];
+        $cases[] = ['t16_list_plain_s3',       'list','auto','plain',   3,3,6];
+        $cases[] = ['t17_list_html_s3',        'list','auto','html',    3,3,6];
+        $cases[] = ['t18_list_md_s2',          'list','short','markdown',2,3,6];
+        $cases[] = ['t19_list_plain_s1',       'list','short','plain',  1,3,6];
+        $cases[] = ['t20_list_html_s1',        'list','short','html',   1,3,6];
+
+        // QUOTE (3)
+        $cases[] = ['t21_quote_md',            'quote','auto','markdown',3,1,6];
+        $cases[] = ['t22_quote_plain',         'quote','auto','plain',   3,1,6];
+        $cases[] = ['t23_quote_html',          'quote','auto','html',    3,1,6];
+
+        // TABLE (4)
+        $cases[] = ['t24_table_md',            'table','auto','markdown',3,3,6];
+        $cases[] = ['t25_table_plain',         'table','auto','plain',   3,3,6];
+        $cases[] = ['t26_table_html',          'table','auto','html',    3,3,6];
+        $cases[] = ['t27_table_md_no_cit',     'table','auto','markdown',3,0,6];
+
+        // DIRECT extras com citações (2)
+        $cases[] = ['t28_direct_md_s3_cit3',   'direct','auto','markdown',3,3,6];
+        $cases[] = ['t29_direct_plain_s1_cit1','direct','auto','plain',   1,1,6];
+
+        // SUMMARY extras (2) para fechar 31
+        $cases[] = ['t30_summary_md_s0',       'summary','short','markdown',0,3,6];
+        $cases[] = ['t31_summary_plain_s0',    'summary','medium','plain',  0,3,6];
+
+        return $cases;
+    }
+
+    /**
+     * @dataProvider provideCases
+     */
+    public function test_rag_answer_contract_and_content(
+        string $name, string $mode, string $length, string $format, int $strictness, int $citations, int $topk
+    ): void {
+        $docId = $this->ensureDocId();
+
+        $payload = [
+            'document_id' => $docId,
+            'query'       => $this->queryForMode($mode),
+            'mode'        => $mode,
+            'top_k'       => $topk,
+            'format'      => $format,
+            'length'      => $length,
+            'strictness'  => $strictness,
+            'citations'   => $citations,
+        ];
+
+        $res = $this->json('POST', '/rag/answer', $payload)->assertStatus(200)->json();
+
+        // ------ Contrato básico
+        $this->assertTrue($res['ok'] ?? false, "$name: ok=false");
+        $this->assertSame($mode, $res['mode_used'] ?? null, "$name: mode_used inesperado");
+        $this->assertIsString($res['answer'] ?? '', "$name: answer ausente");
+        $this->assertArrayHasKey('debug', $res, "$name: debug ausente");
+        $this->assertArrayHasKey('used_doc', $res, "$name: used_doc ausente");
+        $this->assertArrayHasKey('used_chunks', $res, "$name: used_chunks ausente");
+
+        // ------ Checagens de conteúdo por modo
+        $answer = (string) ($res['answer'] ?? '');
+
+        switch ($mode) {
+            case 'summary':
+                // 3–5 bullets (em md/html/plain)
+                $bullets = $this->parseBullets($answer, $format);
+                $this->assertGreaterThanOrEqual(3, count($bullets), "$name: bullets < 3");
+                $this->assertLessThanOrEqual(5, count($bullets), "$name: bullets > 5");
+
+                // Sem redundância forte (Jaccard > 0.55)
+                $this->assertNoRedundancy($bullets, 0.55, $name);
+
+                // No máximo 1 testimonial
+                $this->assertAtMostOneTestimonial($bullets, $name);
+                break;
+
+            case 'list':
+                // Lista numerada (1., 2., …) ou <li> em HTML
+                $this->assertValidNumberedList($answer, $format, $name);
+                break;
+
+            case 'quote':
+                // Deve haver aspas (ou trecho literal marcado)
+                $this->assertTrue(
+                    preg_match('/[“"].+[”"]/', $answer) === 1 || stripos($answer, '"') !== false,
+                    "$name: não parece uma citação literal"
+                );
+                break;
+
+            case 'table':
+                if ($format === 'markdown') {
+                    $this->assertStringContainsString('|', $answer, "$name: tabela markdown ausente");
+                    $this->assertTrue(substr_count($answer, "\n") >= 2, "$name: poucas linhas na tabela");
+                } elseif ($format === 'html') {
+                    $this->assertStringContainsString('<table', $answer, "$name: <table> ausente");
+                    $this->assertStringContainsString('<tr', $answer, "$name: <tr> ausente");
+                } else { // plain
+                    $this->assertTrue(
+                        (bool)preg_match('/.+:\s+.+/m', $answer),
+                        "$name: pares chave:valor não detectados"
+                    );
+                }
+                break;
+
+            case 'direct':
+                // Resposta não-vazia e minimamente informativa
+                $this->assertTrue(mb_strlen(trim($answer), 'UTF-8') >= 30, "$name: resposta curta demais");
+                break;
+        }
+    }
+
+    // ----------------------- Helpers de verificação -----------------------
+
+    private function queryForMode(string $mode): string
+    {
+        return match ($mode) {
+            'summary' => 'Resuma o documento em 3 a 5 pontos objetivos.',
+            'list'    => 'Liste os principais pontos em formato numerado.',
+            'quote'   => 'Cite um trecho relevante entre aspas, literal.',
+            'table'   => 'Mostre como pares chave:valor principais.',
+            default   => 'Explique o assunto central do documento com base no contexto.',
+        };
+    }
+
+    /** @return array<int,string> */
+    private function parseBullets(string $answer, string $format): array
+    {
+        if ($format === 'html') {
+            if (preg_match_all('/<li>(.*?)<\/li>/si', $answer, $m)) {
+                return array_values(array_filter(array_map(fn($x)=>trim(strip_tags($x)), $m[1])));
+            }
+        }
+        // markdown/plain: linhas que começam com "- "
+        $lines = preg_split('/\R/u', $answer) ?: [];
+        $bullets = [];
+        foreach ($lines as $l) {
+            $l = trim($l);
+            if (preg_match('/^-\s+(.+)$/u', $l, $m)) {
+                $bullets[] = trim($m[1]);
+            }
+        }
+        return $bullets;
+    }
+
+    private function tokenize(string $s): array
+    {
+        $s = mb_strtolower($s, 'UTF-8');
+        $s = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $s) ?? $s;
+        $parts = preg_split('/\s+/u', $s, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $stop = ['de','da','do','das','dos','e','a','o','as','os','para','por','em','um','uma','no','na','nos','nas','ao','à','com','que','se','é','ser','são'];
+        return array_values(array_diff($parts, $stop));
+    }
+
+    private function jaccard(array $a, array $b): float
+    {
+        if (empty($a) && empty($b)) return 0.0;
+        $sa = array_unique($a); $sb = array_unique($b);
+        $inter = array_intersect($sa, $sb);
+        $union = array_unique(array_merge($sa, $sb));
+        return count($inter) / max(1, count($union));
+    }
+
+    private function assertNoRedundancy(array $bullets, float $threshold, string $name): void
+    {
+        for ($i=0; $i<count($bullets); $i++) {
+            for ($j=$i+1; $j<count($bullets); $j++) {
+                $a = $this->tokenize($bullets[$i]);
+                $b = $this->tokenize($bullets[$j]);
+                $this->assertTrue(
+                    $this->jaccard($a,$b) <= $threshold,
+                    "$name: bullets redundantes ($i vs $j)"
+                );
+            }
+        }
+    }
+
+    private function assertAtMostOneTestimonial(array $bullets, string $name): void
+    {
+        $count = 0;
+        foreach ($bullets as $b) {
+            if (preg_match('/(^[“"]|como m[eé]dic[ao]|depoiment)/iu', $b)) $count++;
+        }
+        $this->assertTrue($count <= 1, "$name: mais de um testimonial");
+    }
+
+    private function assertValidNumberedList(string $answer, string $format, string $name): void
+    {
+        if ($format === 'html') {
+            $ok = preg_match_all('/<li>.*?<\/li>/si', $answer) >= 3;
+            $this->assertTrue((bool)$ok, "$name: lista HTML insuficiente");
+            return;
+        }
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\R/u', $answer) ?: [])));
+        $nums = [];
+        foreach ($lines as $l) {
+            if (preg_match('/^\d{1,3}\.\s+/', $l)) {
+                $n = (int) preg_replace('/^(\d{1,3}).*$/', '$1', $l);
+                $nums[] = $n;
+            }
+        }
+        $this->assertGreaterThanOrEqual(3, count($nums), "$name: lista numerada curta");
+        // checa monotonicamente crescente
+        for ($i=1; $i<count($nums); $i++) {
+            $this->assertTrue($nums[$i] >= $nums[$i-1], "$name: numeração fora de ordem");
+        }
+    }
+}

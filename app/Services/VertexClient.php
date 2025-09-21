@@ -2,111 +2,73 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
-use Google\Auth\ApplicationDefaultCredentials;
-use Throwable;
-
 class VertexClient
 {
-    private string $project;
-    private string $location;
-    private string $embeddingModel;
-    private string $generationModel;
+    private bool $useLocal;
+    private int $dim;
 
     public function __construct()
     {
-        $this->project         = config('services.vertex.project') ?: (env('GOOGLE_CLOUD_PROJECT') ?: env('VERTEX_PROJECT'));
-        $this->location        = config('services.vertex.location', 'us-central1');
-        $this->embeddingModel  = config('services.vertex.embedding_model', 'text-embedding-004');
-        $this->generationModel = config('services.vertex.generation_model', 'gemini-2.5-flash');
+        // Se EMBED_PROVIDER=vertex, tenta Vertex; caso contrário, usa local
+        $mode = strtolower((string) env('EMBED_PROVIDER', env('RAG_EMBED_PROVIDER', 'local')));
+        $this->useLocal = ($mode !== 'vertex');
+        $this->dim = (int) env('EMBED_DIM', env('RAG_EMBED_DIM', 768));
+        if ($this->dim <= 0) $this->dim = 768;
     }
 
-    /** @return array<int, array<float>> */
+    /**
+     * Gera embeddings para um array de textos.
+     * - local: determinístico, estável por texto (hash → [-1,1]).
+     * - vertex: aqui você pode ligar o cliente real depois; por enquanto cai no local.
+     */
     public function embed(array $texts): array
     {
-        if (empty($texts)) return [];
+        if ($this->useLocal) {
+            return $this->embedLocal($texts);
+        }
 
-        $instances = array_map(fn($t) => ['content' => (string)$t], $texts);
-        $url = sprintf(
-            'https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:predict',
-            $this->location, $this->project, $this->location, $this->embeddingModel
-        );
+        // TODO: implementar chamada real ao Vertex (quando quiser).
+        // Por enquanto, mesmo em "vertex", se não estiver implementado, cai no local:
+        return $this->embedLocal($texts);
+    }
 
-        $res = Http::withToken($this->getAccessToken())
-            ->timeout(60)
-            ->asJson()
-            ->post($url, [
-                'instances'  => $instances,
-                'parameters' => ['autoTruncate' => true],
-            ])->json();
+    /**
+     * Gera um texto a partir de "user" + partes de sistema/contexto.
+     * Em modo local: faz um resumo simples (recorta o contexto).
+     */
+    public function generate(string $user, array $parts = []): string
+    {
+        if ($this->useLocal) {
+            $ctx = trim(implode("\n\n", $parts));
+            if ($ctx === '') return '';
+            $plain = preg_replace('/\s+/', ' ', $ctx);
+            $snippet = mb_substr($plain ?? '', 0, 900);
+            return "Resumo (local, sem LLM): " . $snippet;
+        }
 
+        // TODO: implementar chamada real ao Vertex (quando quiser).
+        // Fallback seguro:
+        $ctx = trim(implode("\n\n", $parts));
+        $plain = preg_replace('/\s+/', ' ', $ctx);
+        return "Resumo (fallback): " . mb_substr($plain ?? '', 0, 900);
+    }
+
+    // ----------------- helpers -----------------
+
+    private function embedLocal(array $texts): array
+    {
         $out = [];
-        foreach (($res['predictions'] ?? []) as $p) {
-            if (isset($p['embeddings']['values'])) {
-                $out[] = $p['embeddings']['values'];
-            } elseif (isset($p['values'])) {
-                $out[] = $p['values'];
+        foreach ($texts as $t) {
+            $vec = [];
+            for ($i = 0; $i < $this->dim; $i++) {
+                // sha1 determinístico → pega 8 hex → int → mapeia para [-1,1)
+                $hex = substr(sha1($t . '|' . $i), 0, 8);
+                $h   = hexdec($hex);
+                $v   = (($h % 1000000) / 500000.0) - 1.0; // [-1,1)
+                $vec[] = round($v, 6);
             }
+            $out[] = $vec;
         }
         return $out;
-    }
-
-    public function generate(string $prompt, array $contextParts = []): string
-    {
-        $url = sprintf(
-            'https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent',
-            $this->location, $this->project, $this->location, $this->generationModel
-        );
-
-        $parts = [];
-        foreach ($contextParts as $c) {
-            $parts[] = ['text' => (string)$c];
-        }
-        $parts[] = ['text' => $prompt];
-
-        $res = Http::withToken($this->getAccessToken())
-            ->timeout(60)
-            ->asJson()
-            ->post($url, [
-                'contents' => [[ 'role' => 'user', 'parts' => $parts ]],
-                'safetySettings' => [],
-                'generationConfig' => [
-                    'temperature' => 0.2,
-                    'topK' => 32,
-                    'topP' => 0.95,
-                    'maxOutputTokens' => 1024,
-                ],
-            ])->json();
-
-        $text = '';
-        if (!empty($res['candidates'][0]['content']['parts'])) {
-            foreach ($res['candidates'][0]['content']['parts'] as $p) {
-                if (isset($p['text'])) { $text .= $p['text']; }
-            }
-        }
-        return $text ?: '';
-    }
-
-    private function getAccessToken(): string
-    {
-        // 1) Token via env
-        $envTok = getenv('VERTEX_ACCESS_TOKEN');
-        if ($envTok) return trim($envTok);
-
-        // 2) gcloud (ADC)
-        try {
-            $tok = @shell_exec('gcloud auth print-access-token 2>/dev/null');
-            if ($tok) return trim($tok);
-        } catch (Throwable $e) {}
-
-        // 3) google/auth (ADC via biblioteca)
-        if (class_exists(ApplicationDefaultCredentials::class)) {
-            $scopes = ['https://www.googleapis.com/auth/cloud-platform'];
-            $creds = ApplicationDefaultCredentials::getCredentials($scopes);
-            $token = $creds->fetchAuthToken();
-            if (!empty($token['access_token'])) return $token['access_token'];
-        }
-
-        throw new \RuntimeException('Sem token GCP. Rode "gcloud auth application-default login" ou defina VERTEX_ACCESS_TOKEN.');
     }
 }

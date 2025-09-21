@@ -1,0 +1,1 @@
+Este é um documento de teste com muito mais conteúdo para validar a extração de texto. Aqui temos parágrafos completos com informações relevantes sobre sistemas RAG e processamento de documentos.

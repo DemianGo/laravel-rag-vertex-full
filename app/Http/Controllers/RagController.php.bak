@@ -350,4 +350,59 @@ class RagController extends Controller
             $out = @shell_exec($cmd);
             return trim((string)$out);
         }
+
+        if ($ext === 'docx') {
+            if (!class_exists(ZipArchive::class)) return '';
+            $zip = new ZipArchive();
+            if ($zip->open($path) === true) {
+                $xml = $zip->getFromName('word/document.xml');
+                $zip->close();
+                if ($xml !== false) {
+                    $xml  = preg_replace('/<\/w:p>/', "\n", $xml);
+                    $text = preg_replace('/<[^>]+>/', '', $xml);
+                    return trim(html_entity_decode($text, ENT_QUOTES | ENT_XML1, 'UTF-8'));
+                }
+            }
+            return '';
+        }
+
+        return '';
+    }
+}
+
+    // Novo método para extração com qualidade
+    public function ingestWithQuality(Request $req)
+    {
+        $file = $req->file('file');
+        if (!$file) {
+            return response()->json(['error' => 'No file uploaded'], 400);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = storage_path('app/' . $tempPath);
+        
+        try {
+            $pdfService = new \App\Services\PdfExtractionService();
+            $extraction = $pdfService->extractWithQuality($fullPath);
+            
+            if (!$extraction['success']) {
+                return response()->json([
+                    'error' => 'Falha na extração',
+                    'details' => $extraction['error']
+                ], 400);
+            }
+            
+            $quality = $pdfService->getQualityReport($extraction);
+            
+            return response()->json([
+                'success' => true,
+                'quality' => $quality,
+                'extraction_stats' => $extraction['extraction_stats'],
+                'message' => $quality['message']
+            ]);
+            
+        } finally {
+            @unlink($fullPath);
+        }
+    }
 }

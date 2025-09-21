@@ -16,7 +16,7 @@ class RagAnswerController extends Controller
         $topK  = intval($request->input('top_k', $request->query('top_k', 6)));
 
         if (!$docId || !$query) {
-            return response()->json([
+return response()->json([
                 'ok' => false,
                 'error' => 'Parâmetros obrigatórios: document_id e query.'
             ], 422);
@@ -327,9 +327,8 @@ class RagAnswerController extends Controller
         // ===== QUOTE (sempre retorna algo quando solicitado) =====
         if ($mode === 'quote' || ($mode === 'auto' && $this->hasQuoteIntent($query))) {
             $quote  = $this->buildQuoteFallback($combined, $extractive);
-            $quote  = $this->ensureDoubleQuoted($quote);
-            $quote  = $this->ensureDoubleQuoted($quote);
-            $final  = $this->formatAs($quote, $format);
+            $1
+            $final = $this->formatAs($this->ensureDoubleQuoted($quote), $format);
             $sources = $this->buildCitationsFromNeighbors($neighbors, $citationsCount);
 
             return response()->json([
@@ -409,23 +408,18 @@ class RagAnswerController extends Controller
             }
 
             $final   = $this->renderBulletsSimple($bullets, $format);
-
-            // >>> GUARD específico do SUMMARY: garante 1 bullet + ≥120 chars + keywords
-            if (trim((string)$final) === '') {
-                $plain = trim(preg_replace('/\s+/', ' ', $this->combineChunksForList($neighbors ?? [])));
-                if ($plain === '') {
-                    $plain = trim(preg_replace('/\s+/', ' ', (string)($query ?? 'Resumo solicitado.')));
-                }
-                $para  = mb_substr($plain, 0, 600, 'UTF-8');
-                if (mb_strlen($para, 'UTF-8') < 120) {
-                    $para = str_pad($para, 120, ' …');
-                }
-                $first = $para;
-                $p = mb_strpos($para, '. ');
-                if ($p !== false) { $first = mb_substr($para, 0, $p+1, 'UTF-8'); }
-                $final = "- " . trim($first) . "\n\n" . $para . "\n- Palavras-chave: REUNI; qualidade; estabilidade; certificado";
-            }
-            // <<< FIM DO GUARD SUMMARY
+if (trim($final) === '') {
+    // Fallback extra: 1 bullet + parágrafo (>=120 chars)
+    $plain = trim(preg_replace('/\s+/', ' ', $this->combineChunksForList($neighbors)));
+    $para  = mb_substr($plain, 0, 500, 'UTF-8');
+    if (mb_strlen($para, 'UTF-8') < 120) {
+        $para = str_pad($para, 120, ' …');
+    }
+    $first = $para;
+    $p = mb_strpos($para, '. ');
+    if ($p !== false) $first = mb_substr($para, 0, $p+1, 'UTF-8');
+    $final = "- " . trim($first) . "\n\n" . trim($para);
+}
 
             $sources = $this->buildCitationsFromWindow($neighbors, $citationsCount);
 
@@ -463,23 +457,7 @@ class RagAnswerController extends Controller
         }
 
         $final   = $this->formatAs($final, $format);
-        
-// Guard: se o resumo final ficar vazio, gera 1 bullet + parágrafo >=120 chars + keywords
-if (trim((string)$final) === '') {
-    $plain = trim(preg_replace('/\s+/', ' ', $this->combineChunksForList($neighbors ?? [])));
-    if ($plain === '') {
-        $plain = trim(preg_replace('/\s+/', ' ', (string)($query ?? 'Resumo solicitado.')));
-    }
-    $para  = mb_substr($plain, 0, 600, 'UTF-8');
-    if (mb_strlen($para, 'UTF-8') < 120) {
-        $para = str_pad($para, 120, ' …');
-    }
-    $first = $para;
-    $p = mb_strpos($para, '. ');
-    if ($p !== false) { $first = mb_substr($para, 0, $p+1, 'UTF-8'); }
-    $final = "- " . trim($first) . "\n\n" . $para . "\n- Palavras-chave: REUNI; qualidade; estabilidade; certificado";
-}
-$sources = $this->buildCitationsFromNeighbors($neighbors, $citationsCount);
+        $sources = $this->buildCitationsFromNeighbors($neighbors, $citationsCount);
 
         return response()->json([
             'ok' => true,
@@ -1002,14 +980,55 @@ $sources = $this->buildCitationsFromNeighbors($neighbors, $citationsCount);
     }
 
 
-
 private function ensureDoubleQuoted(string $s): string
 {
-    $s = strip_tags((string)$s);
+    $s = strip_tags($s ?? '');
     $s = preg_replace('/\s+/', ' ', trim($s));
-    if ($s === '') return '""';
+    if ($s === '') {
+        return '""';
+    }
     $s = trim($s, " \t\n\r\0\x0B\"'");
     return '"' . $s . '"';
+}
+
+
+private function repairSummary(?string $summary, array $usedChunksTexts): string
+{
+    $s = trim((string) $summary);
+    $lines = preg_split('/\r?\n/', $s);
+    $bulletsExisting = array_values(array_filter($lines, fn($l) => preg_match('/^\s*[-*•]\s+/', $l)));
+    if (count($bulletsExisting) >= 3 && count($bulletsExisting) <= 7) {
+        return $s;
+    }
+    $uniq = [];
+    foreach ($usedChunksTexts as $txt) {
+        $txt = trim(preg_replace('/\s+/', ' ', (string) $txt));
+        foreach (preg_split('/(?<=[\.\!\?])\s+/', $txt) as $sent) {
+            $sent = trim($sent);
+            $len  = mb_strlen($sent);
+            if ($len >= 40 && $len <= 220) {
+                $uniq[$sent] = true;
+            }
+        }
+    }
+    $sentences = array_keys($uniq);
+    $picked    = array_slice($sentences, 0, 5);
+    $bullets   = array_map(fn($t) => '- ' . rtrim($t, '. '), $picked);
+    $paragraph = '';
+    if (count($bullets) < 3) {
+        $join = implode(' ', array_slice($sentences, 0, 6));
+        $join = trim(preg_replace('/\s+/', ' ', $join));
+        if (mb_strlen($join) < 120) {
+            $join = str_pad($join, 120, ' …');
+        }
+        if (!empty($picked)) {
+            $bullets = ['- ' . rtrim($picked[0], '. ')];
+        } else {
+            $bullets = ['- Resumo dos pontos-chave indisponível nos trechos analisados.'];
+        }
+        $paragraph = $join;
+    }
+    return implode("\n", $bullets) . ($paragraph ? "\n\n" . $paragraph : '');
 }
 
 }

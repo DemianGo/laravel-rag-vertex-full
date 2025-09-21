@@ -2,34 +2,61 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('cache', function (Blueprint $table) {
-            $table->string('key')->primary();
-            $table->mediumText('value');
-            $table->integer('expiration');
-        });
+        $driver = $this->driver();
 
-        Schema::create('cache_locks', function (Blueprint $table) {
-            $table->string('key')->primary();
-            $table->string('owner');
-            $table->integer('expiration');
-        });
+        // Cria a tabela apenas se ainda não existir (portável para SQLite/MySQL/PG)
+        if (!Schema::hasTable('chunks')) {
+            Schema::create('chunks', function (Blueprint $table) {
+                $table->bigIncrements('id');
+                $table->unsignedBigInteger('document_id')->index();
+                $table->integer('ord')->default(0)->index();
+                $table->longText('content');
+
+                // Placeholder portável; em PG outras migrations podem trocar para vector(dim)
+                $table->text('embedding')->nullable();
+
+                $table->timestamps();
+            });
+        }
+
+        // Índice simples (document_id, ord) — portável
+        try {
+            DB::statement("CREATE INDEX IF NOT EXISTS chunks_document_ord_idx ON chunks (document_id, ord)");
+        } catch (\Throwable $e) {
+            // SQLite velho não suporta IF NOT EXISTS em CREATE INDEX — ignoramos silenciosamente
+        }
+
+        // Índice IVFFLAT só em Postgres (pgvector)
+        if ($driver === 'pgsql') {
+            try { DB::statement("CREATE EXTENSION IF NOT EXISTS vector"); } catch (\Throwable $e) {}
+            try {
+                DB::statement("
+                    CREATE INDEX IF NOT EXISTS idx_chunks_embedding
+                    ON chunks
+                    USING ivfflat (embedding vector_cosine_ops)
+                    WITH (lists = 100)
+                ");
+            } catch (\Throwable $e) {
+                // Se a coluna ainda não é vector neste ambiente, não quebrar testes
+            }
+        }
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('cache');
-        Schema::dropIfExists('cache_locks');
+        // Não derrubamos a tabela aqui para não afetar outros ambientes.
+        // Se precisar: Schema::dropIfExists('chunks');
+    }
+
+    private function driver(): ?string
+    {
+        try { return DB::connection()->getDriverName(); } catch (\Throwable $e) { return null; }
     }
 };

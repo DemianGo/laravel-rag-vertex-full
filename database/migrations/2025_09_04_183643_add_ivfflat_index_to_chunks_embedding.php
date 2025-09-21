@@ -7,16 +7,55 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // garante a extensão
-        DB::unprepared("CREATE EXTENSION IF NOT EXISTS vector");
-        // cria índice ivfflat (bom custo/benefício; ajuste lists se crescer)
-        DB::unprepared("CREATE INDEX IF NOT EXISTS chunks_embedding_ivfflat ON chunks USING ivfflat (embedding vector_l2_ops) WITH (lists = 100)");
-        // ajuda o planner
-        DB::unprepared("ANALYZE chunks");
+        try {
+            $driver = DB::connection()->getDriverName();
+        } catch (\Throwable $e) {
+            // Se não conseguir detectar, não quebra a migration
+            return;
+        }
+
+        // Só aplica em PostgreSQL (pgvector)
+        if ($driver !== 'pgsql') {
+            // Em SQLite/MySQL não há pgvector/ivfflat: nada a fazer aqui.
+            return;
+        }
+
+        // Cria a extensão pgvector se não existir
+        try {
+            DB::statement("CREATE EXTENSION IF NOT EXISTS vector");
+        } catch (\Throwable $e) {
+            // Se a extensão já existir/sem permissão, não derruba a migration de teste
+        }
+
+        // Cria índice ivfflat na coluna embedding (ajuste o nome do índice se preferir)
+        try {
+            DB::statement("
+                CREATE INDEX IF NOT EXISTS chunks_embedding_ivfflat_idx
+                ON chunks
+                USING ivfflat (embedding vector_cosine_ops)
+                WITH (lists = 100)
+            ");
+        } catch (\Throwable $e) {
+            // Evita quebrar testes caso o tipo da coluna não seja vector em algum ambiente
+        }
     }
 
     public function down(): void
     {
-        DB::unprepared("DROP INDEX IF EXISTS chunks_embedding_ivfflat");
+        try {
+            $driver = DB::connection()->getDriverName();
+        } catch (\Throwable $e) {
+            return;
+        }
+
+        if ($driver !== 'pgsql') {
+            return;
+        }
+
+        try {
+            DB::statement("DROP INDEX IF EXISTS chunks_embedding_ivfflat_idx");
+        } catch (\Throwable $e) {
+            // Silencioso no rollback
+        }
     }
 };

@@ -24,4 +24,6 @@ Route::middleware([ForceJsonForRag::class])->group(function () {
 
     Route::match(['GET','POST'], '/rag/debug/echo', [RagController::class, 'echo']);
     Route::get('/docs/list', [RagController::class, 'listDocs']);
+    Route::post('/rag/ingest-quality', [RagController::class, 'ingestWithQuality']);
 });
+Route::post('/pdf/extract-quality', [\App\Http\Controllers\PdfQualityController::class, 'extractWithQuality']);

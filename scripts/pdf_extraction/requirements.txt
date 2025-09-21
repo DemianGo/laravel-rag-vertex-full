@@ -1,0 +1,16 @@
+# PDF Processing Core
+PyMuPDF==1.23.8
+pdfplumber==0.10.3
+
+# OCR (opcional - instalar depois se necessário)
+# pytesseract==0.3.10
+
+# Tabelas (começar simples)
+pandas==2.1.4
+tabula-py==2.9.0
+
+# Imagens
+Pillow==10.1.0
+
+# JSON e utilidades
+python-magic==0.4.27
