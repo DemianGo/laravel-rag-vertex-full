@@ -95,6 +95,33 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => 'prefer',
+            // Otimizações PostgreSQL para RAG Enterprise
+            'options' => [
+                // Memory otimizations para operações vetoriais
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::ATTR_STRINGIFY_FETCHES => false,
+            ],
+            // Configurações específicas PostgreSQL para RAG
+            'application_name' => env('APP_NAME', 'Laravel') . '_RAG',
+            // Configurações de performance para pgvector
+            'statement_timeout' => env('DB_STATEMENT_TIMEOUT', '300000'), // 5min para queries complexas
+            'lock_timeout' => env('DB_LOCK_TIMEOUT', '30000'), // 30s para locks
+            // Pool de conexões otimizado
+            'pool_size' => env('DB_POOL_SIZE', 20),
+            'max_overflow' => env('DB_MAX_OVERFLOW', 30),
+            // Configurações de cache específicas para RAG
+            'shared_preload_libraries' => 'vector',
+            'work_mem' => env('DB_WORK_MEM', '256MB'), // Para ordenações e joins vetoriais
+            'maintenance_work_mem' => env('DB_MAINTENANCE_WORK_MEM', '1GB'), // Para criação de índices
+            'effective_cache_size' => env('DB_EFFECTIVE_CACHE_SIZE', '4GB'), // Cache disponível
+            'random_page_cost' => env('DB_RANDOM_PAGE_COST', '1.1'), // SSD otimizado
+            'seq_page_cost' => env('DB_SEQ_PAGE_COST', '1.0'),
+            // Configurações específicas pgvector
+            'ivfflat.probes' => env('DB_IVFFLAT_PROBES', '10'), // Precisão vs velocidade
+            'max_parallel_workers_per_gather' => env('DB_MAX_PARALLEL_WORKERS', '4'),
+            // Configurações de logging para debugging
+            'log_min_duration_statement' => env('DB_LOG_MIN_DURATION', '1000'), // Log queries > 1s
+            'log_statement' => env('DB_LOG_STATEMENT', 'none'),
         ],
 
         'sqlsrv' => [

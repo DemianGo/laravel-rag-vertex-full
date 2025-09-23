@@ -1,37 +1,31 @@
-# Document Extraction Requirements
+# Document Extraction Requirements - Phase 1 + Phase 3A
 # Compatible with Python 3.8+
 
-# Core document processing
+# PDF processing
 PyPDF2==3.0.1
 pdfplumber==0.10.3
-python-docx==1.1.0
+
+# Office documents (DOCX, XLSX, PPTX)
+python-docx==0.8.11
 openpyxl==3.1.2
 python-pptx==0.6.23
 
-# Web content processing (HTML/XML)
+# Web documents (HTML, XML)
 beautifulsoup4==4.12.2
 lxml==4.9.3
 
-# Image processing and OCR
-Pillow==10.1.0
-pytesseract==0.3.10
-opencv-python==4.8.1.78
-
-# Text and encoding detection
+# Text encoding detection
 chardet==5.2.0
 
-# Data analysis and manipulation
-numpy==1.24.4
-pandas==2.1.4
+# Text fixing and encoding normalization (Phase 3C)
+ftfy>=6.1.1
 
-# File type detection
-python-magic==0.4.27
+# Phase 3A: Advanced document analysis
+# Language detection
+langdetect>=1.0.9
 
-# Progress tracking
-tqdm==4.66.1
+# File type detection (magic bytes)
+python-magic>=0.4.27
 
-# JSON schema validation (optional)
-fastjsonschema==2.19.0
-
-# Additional utilities
-pathlib2==2.3.7; python_version<"3.4"
+# Data structure analysis
+collections-extended>=2.0.0

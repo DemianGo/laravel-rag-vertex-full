@@ -1,0 +1,6 @@
+{
+  "retry_attempts": 3,
+  "continue_on_error": false,
+  "fail_fast": true,
+  "verbose": true
+}

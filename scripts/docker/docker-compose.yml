@@ -1,0 +1,139 @@
+# Docker Compose for Enterprise Document Extraction API
+# Development and testing environment
+
+version: '3.8'
+
+services:
+  # Redis cache service
+  redis:
+    image: redis:7-alpine
+    container_name: extraction-api-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Main API service
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: extraction-api
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../api:/app/api
+      - ../document_extraction:/app/document_extraction
+      - api_logs:/app/logs
+    environment:
+      # Application settings
+      - API_ENVIRONMENT=development
+      - API_DEBUG=true
+      - API_PORT=8001
+
+      # Redis configuration
+      - API_REDIS_URL=redis://redis:6379/0
+
+      # Security settings
+      - API_API_KEYS=dev-key-123,test-key-456,demo-key-789
+      - API_SECRET_KEY=development-secret-key-change-in-production
+
+      # Rate limiting
+      - API_RATE_LIMIT_REQUESTS=100
+      - API_RATE_LIMIT_BURST=20
+
+      # File processing
+      - API_MAX_FILE_SIZE=52428800  # 50MB
+
+      # Feature flags
+      - API_ENABLE_BATCH_PROCESSING=true
+      - API_ENABLE_URL_EXTRACTION=true
+      - API_ENABLE_WEBHOOKS=true
+      - API_ENABLE_METRICS=true
+
+      # Logging
+      - API_LOG_LEVEL=INFO
+      - API_LOG_FORMAT=json
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health/simple"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: extraction-api-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - api
+    profiles:
+      - production
+
+  # Prometheus monitoring (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: extraction-api-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    profiles:
+      - monitoring
+
+  # Grafana dashboard (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: extraction-api-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    profiles:
+      - monitoring
+
+volumes:
+  redis_data:
+    driver: local
+  api_logs:
+    driver: local
+  nginx_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  default:
+    name: extraction-api-network

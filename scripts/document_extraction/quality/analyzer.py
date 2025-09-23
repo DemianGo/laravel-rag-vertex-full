@@ -1,280 +1,313 @@
-#!/usr/bin/env python3
 """
-Document Extraction Quality Analyzer
-
-Analyzes extraction results and provides quality metrics and recommendations.
+Enhanced quality analyzer for extracted text content.
 """
 
 import re
-from typing import Dict, List, Any
+from typing import Dict, Any, Optional, List
+from collections import Counter
+
+
+def analyze_quality(text: str, file_type: str, total_pages: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Analyze the quality of extracted text (backward compatible).
+
+    Args:
+        text: The extracted text to analyze
+        file_type: The type of file (pdf, docx, etc.)
+        total_pages: Total number of pages (if applicable)
+
+    Returns:
+        Dictionary containing quality metrics
+    """
+    analyzer = QualityAnalyzer()
+    return analyzer.analyze_basic(text, file_type, total_pages)
 
 
 class QualityAnalyzer:
-    def __init__(self):
-        self.quality_thresholds = {
-            'excellent': 95.0,
-            'good': 80.0,
-            'acceptable': 60.0,
-            'poor': 0.0
-        }
+    """Advanced quality analyzer with detailed content analysis."""
 
-    def analyze(self, extraction_result: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze extraction quality and provide recommendations"""
-        if extraction_result['status'] != 'success':
-            return self._failed_extraction_analysis(extraction_result)
+    def analyze_basic(self, text: str, file_type: str, total_pages: Optional[int] = None) -> Dict[str, Any]:
+        """Basic analysis for backward compatibility."""
+        if not text or not text.strip():
+            return {
+                "extraction_success_rate": 0,
+                "total_pages": total_pages or 0,
+                "pages_processed": 0,
+                "quality_rating": "poor"
+            }
 
-        metrics = extraction_result.get('metrics', {})
-        metadata = extraction_result.get('metadata', {})
-        extracted_text = extraction_result.get('extracted_text', '')
+        # Basic text statistics
+        text = text.strip()
+        char_count = len(text)
+        word_count = len(text.split())
 
-        # Calculate quality metrics
-        quality_metrics = self._calculate_quality_metrics(metrics, metadata, extracted_text)
+        # Quality indicators
+        quality_score = 0
 
-        # Identify problems
-        problems = self._identify_problems(metrics, metadata, extracted_text)
+        # 1. Text length (30 points max)
+        if char_count > 1000:
+            quality_score += 30
+        elif char_count > 500:
+            quality_score += 20
+        elif char_count > 100:
+            quality_score += 10
+        elif char_count > 0:
+            quality_score += 5
 
-        # Generate recommendations
-        recommendations = self._generate_recommendations(problems, metadata, metrics)
+        # 2. Word density (20 points max)
+        if word_count > 200:
+            quality_score += 20
+        elif word_count > 100:
+            quality_score += 15
+        elif word_count > 50:
+            quality_score += 10
+        elif word_count > 10:
+            quality_score += 5
 
-        # Determine overall quality status
-        extraction_percentage = metrics.get('extraction_percentage', 0)
-        quality_status = self._get_quality_status(extraction_percentage)
+        # 3. Structure indicators (25 points max)
+        structure_score = 0
+
+        # Check for common document structures
+        if re.search(r'\n\s*\n', text):  # Paragraph breaks
+            structure_score += 5
+        if re.search(r'[.!?]\s+[A-Z]', text):  # Sentence structure
+            structure_score += 5
+        if re.search(r'^\s*\d+\.?\s+', text, re.MULTILINE):  # Numbered lists
+            structure_score += 3
+        if re.search(r'^\s*[•\-\*]\s+', text, re.MULTILINE):  # Bullet points
+            structure_score += 3
+        if re.search(r'===.*===', text):  # Section headers
+            structure_score += 4
+        if re.search(r'Title:|H\d+:', text):  # HTML headers
+            structure_score += 5
+
+        quality_score += min(structure_score, 25)
+
+        # 4. Content quality (15 points max)
+        content_score = 0
+
+        # Check for readable content vs garbage
+        alpha_ratio = len(re.findall(r'[a-zA-Z]', text)) / max(char_count, 1)
+        if alpha_ratio > 0.7:
+            content_score += 8
+        elif alpha_ratio > 0.5:
+            content_score += 5
+        elif alpha_ratio > 0.3:
+            content_score += 2
+
+        # Check for meaningful words (not just random characters)
+        common_words = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by']
+        common_word_count = sum(1 for word in common_words if word.lower() in text.lower())
+        if common_word_count >= 5:
+            content_score += 7
+        elif common_word_count >= 2:
+            content_score += 3
+
+        quality_score += min(content_score, 15)
+
+        # 5. Error indicators (-10 points max)
+        error_penalty = 0
+
+        # Check for extraction artifacts
+        if re.search(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]', text):  # Control characters
+            error_penalty += 5
+        if len(re.findall(r'[^\w\s\.\,\!\?\-\(\)\[\]\{\}\'\"\\/:;]', text)) > char_count * 0.1:
+            error_penalty += 3
+        if text.count('?') > char_count * 0.05:  # Too many question marks (encoding issues)
+            error_penalty += 2
+
+        quality_score -= min(error_penalty, 10)
+
+        # 6. Type-specific adjustments (10 points max)
+        type_bonus = 0
+
+        if file_type.lower() == 'pdf':
+            if '|' in text:  # Table structure preserved
+                type_bonus += 3
+            if re.search(r'Page \d+', text):  # Page markers
+                type_bonus += 2
+        elif file_type.lower() in ['docx', 'doc']:
+            if '|' in text:  # Table structure
+                type_bonus += 3
+            if re.search(r'===.*===', text):  # Section breaks
+                type_bonus += 2
+        elif file_type.lower() in ['html', 'htm']:
+            if 'Title:' in text:  # Title extracted
+                type_bonus += 3
+            if re.search(r'H\d+:', text):  # Headers
+                type_bonus += 3
+            if '•' in text:  # Lists
+                type_bonus += 2
+        elif file_type.lower() == 'csv':
+            if '|' in text:  # Column separation maintained
+                type_bonus += 5
+
+        quality_score += min(type_bonus, 10)
+
+        # Normalize score to 0-100
+        final_score = max(0, min(100, quality_score))
+
+        # Determine quality rating
+        if final_score >= 90:
+            quality_rating = "excellent"
+        elif final_score >= 70:
+            quality_rating = "good"
+        else:
+            quality_rating = "poor"
+
+        # Calculate pages processed
+        pages_processed = total_pages or 1
+        if total_pages and total_pages > 1:
+            estimated_pages = max(1, min(total_pages, char_count // 2000))
+            pages_processed = estimated_pages
+
+        # Calculate extraction success rate
+        if total_pages and total_pages > 0:
+            extraction_success_rate = min(100, (pages_processed / total_pages) * 100 * (final_score / 100))
+        else:
+            extraction_success_rate = final_score
 
         return {
-            'quality_metrics': quality_metrics,
-            'quality_status': quality_status,
-            'problems_identified': problems,
-            'recommendations': recommendations
+            "extraction_success_rate": round(extraction_success_rate, 1),
+            "total_pages": total_pages or 1,
+            "pages_processed": pages_processed,
+            "quality_rating": quality_rating
         }
 
-    def _calculate_quality_metrics(self, metrics: Dict, metadata: Dict, extracted_text: str) -> Dict[str, Any]:
-        """Calculate detailed quality metrics"""
-        text_length = len(extracted_text)
-        extraction_percentage = metrics.get('extraction_percentage', 0)
+    def analyze_detailed(self, text: str, file_type: str, total_pages: Optional[int] = None) -> Dict[str, Any]:
+        """Enhanced analysis with detailed content structure analysis."""
+        if not text or not text.strip():
+            return {
+                "extraction_success_rate": 0,
+                "total_pages": total_pages or 0,
+                "pages_processed": 0,
+                "quality_rating": "poor",
+                "detailed_analysis": {
+                    "structural_elements": {},
+                    "content_metrics": {},
+                    "encoding_issues": [],
+                    "text_density": {}
+                }
+            }
 
-        # Text quality indicators
-        word_count = len(extracted_text.split()) if extracted_text else 0
-        line_count = len(extracted_text.splitlines()) if extracted_text else 0
-        char_variety = len(set(extracted_text.lower())) if extracted_text else 0
+        # Get basic analysis first
+        basic_analysis = self.analyze_basic(text, file_type, total_pages)
 
-        # Content density score (higher is better)
-        content_density = (word_count / text_length * 100) if text_length > 0 else 0
-
-        # Structure preservation score
-        structure_score = self._calculate_structure_score(extracted_text, metadata)
-
-        return {
-            'extraction_percentage': extraction_percentage,
-            'text_length': text_length,
-            'word_count': word_count,
-            'line_count': line_count,
-            'character_variety': char_variety,
-            'content_density': round(content_density, 2),
-            'structure_preservation_score': round(structure_score, 2),
-            'average_words_per_line': round(word_count / line_count, 2) if line_count > 0 else 0
+        # Add detailed analysis
+        detailed_analysis = {
+            "structural_elements": self._analyze_structure(text),
+            "content_metrics": self._analyze_content_metrics(text),
+            "encoding_issues": self._detect_encoding_issues(text),
+            "text_density": self._analyze_text_density(text)
         }
 
-    def _calculate_structure_score(self, extracted_text: str, metadata: Dict) -> float:
-        """Calculate how well document structure was preserved"""
-        if not extracted_text:
-            return 0.0
+        # Merge results
+        result = {**basic_analysis, "detailed_analysis": detailed_analysis}
+        return result
 
-        score = 0.0
-        max_score = 100.0
+    def _analyze_structure(self, text: str) -> Dict[str, Any]:
+        """Analyze document structural elements."""
+        structure = {
+            "paragraphs": 0,
+            "sentences": 0,
+            "lists": {"numbered": 0, "bulleted": 0},
+            "headers": 0,
+            "tables": {"detected": False, "estimated_rows": 0, "estimated_columns": 0},
+            "sections": 0
+        }
 
-        doc_type = metadata.get('document_type', '')
+        paragraphs = re.split(r'\n\s*\n', text)
+        structure["paragraphs"] = len([p for p in paragraphs if p.strip()])
 
-        # Check for structural elements based on document type
-        if doc_type == 'docx':
-            # Check for table indicators
-            if '|' in extracted_text:
-                score += 20
-            # Check for header/footer indicators
-            if 'HEADER:' in extracted_text or 'FOOTER:' in extracted_text:
-                score += 20
+        sentences = re.findall(r'[.!?]+(?:\s+|$)', text)
+        structure["sentences"] = len(sentences)
 
-        elif doc_type == 'xlsx':
-            # Check for sheet indicators
-            if 'SHEET:' in extracted_text:
-                score += 30
-            # Check for tabular structure
-            if '|' in extracted_text:
-                score += 20
+        numbered_lists = re.findall(r'^\s*\d+\.?\s+', text, re.MULTILINE)
+        structure["lists"]["numbered"] = len(numbered_lists)
 
-        elif doc_type == 'pptx':
-            # Check for slide indicators
-            if 'SLIDE' in extracted_text:
-                score += 30
-            # Check for notes
-            if 'NOTES:' in extracted_text:
-                score += 20
+        bulleted_lists = re.findall(r'^\s*[•\-\*]\s+', text, re.MULTILINE)
+        structure["lists"]["bulleted"] = len(bulleted_lists)
 
-        elif doc_type == 'html':
-            # Structure is inherently preserved in HTML extraction
-            score += 40
-
-        elif doc_type == 'xml':
-            # Structure markers should be present
-            if ':' in extracted_text and '[' in extracted_text:
-                score += 40
-
-        # General structure indicators
-        # Paragraph breaks
-        if '\n\n' in extracted_text:
-            score += 15
-
-        # Reasonable line length variation
-        lines = extracted_text.splitlines()
-        if lines:
-            line_lengths = [len(line) for line in lines if line.strip()]
-            if line_lengths:
-                avg_length = sum(line_lengths) / len(line_lengths)
-                length_variance = sum((l - avg_length) ** 2 for l in line_lengths) / len(line_lengths)
-                if length_variance > 100:  # Good variation in line lengths
-                    score += 15
-
-        return min(score, max_score)
-
-    def _identify_problems(self, metrics: Dict, metadata: Dict, extracted_text: str) -> List[str]:
-        """Identify specific problems with the extraction"""
-        problems = []
-
-        extraction_percentage = metrics.get('extraction_percentage', 0)
-        failed_elements = metrics.get('failed_elements', 0)
-        text_length = len(extracted_text)
-
-        # Low extraction percentage
-        if extraction_percentage < 50:
-            problems.append("very_low_extraction_rate")
-        elif extraction_percentage < 80:
-            problems.append("low_extraction_rate")
-
-        # High failure rate
-        if failed_elements > 0:
-            total_elements = metrics.get('total_elements', 0)
-            failure_rate = (failed_elements / total_elements * 100) if total_elements > 0 else 0
-            if failure_rate > 20:
-                problems.append("high_element_failure_rate")
-
-        # Empty or very short extraction
-        if text_length == 0:
-            problems.append("no_text_extracted")
-        elif text_length < 100:
-            problems.append("very_short_extraction")
-
-        # Encoding issues
-        if '�' in extracted_text:
-            problems.append("encoding_issues")
-
-        # Possible OCR needed
-        doc_type = metadata.get('document_type', '')
-        if doc_type == 'pdf' and text_length < 50:
-            problems.append("may_need_ocr")
-
-        # Structure loss
-        if doc_type in ['docx', 'xlsx', 'pptx'] and '|' not in extracted_text:
-            problems.append("structure_loss")
-
-        # Repetitive content (possible extraction errors)
-        if self._has_repetitive_content(extracted_text):
-            problems.append("repetitive_content")
-
-        return problems
-
-    def _has_repetitive_content(self, text: str) -> bool:
-        """Check for suspiciously repetitive content"""
-        if len(text) < 200:
-            return False
+        headers = (
+            len(re.findall(r'===.*===', text)) +
+            len(re.findall(r'Title:|H\d+:', text))
+        )
+        structure["headers"] = headers
 
         lines = text.split('\n')
-        if len(lines) < 10:
-            return False
+        table_lines = [line for line in lines if '|' in line and line.count('|') >= 2]
+        if table_lines:
+            structure["tables"]["detected"] = True
+            structure["tables"]["estimated_rows"] = len(table_lines)
+            column_counts = [line.count('|') + 1 for line in table_lines]
+            structure["tables"]["estimated_columns"] = max(set(column_counts), key=column_counts.count)
 
-        # Check for repeated lines
-        line_counts = {}
-        for line in lines:
-            line = line.strip()
-            if len(line) > 10:  # Only check substantial lines
-                line_counts[line] = line_counts.get(line, 0) + 1
+        return structure
 
-        # If any line appears more than 5 times, it's suspicious
-        max_repetitions = max(line_counts.values()) if line_counts else 0
-        return max_repetitions > 5
+    def _analyze_content_metrics(self, text: str) -> Dict[str, Any]:
+        """Analyze content quality metrics."""
+        total_chars = len(text)
+        words = text.split()
 
-    def _generate_recommendations(self, problems: List[str], metadata: Dict, metrics: Dict) -> List[str]:
-        """Generate actionable recommendations based on identified problems"""
-        recommendations = []
-
-        problem_to_recommendation = {
-            "very_low_extraction_rate": "Consider using OCR tools or alternative extraction methods",
-            "low_extraction_rate": "Review document format and try different extraction parameters",
-            "high_element_failure_rate": "Check for corrupted elements or unsupported features",
-            "no_text_extracted": "Verify file is not corrupted and contains readable content",
-            "very_short_extraction": "Document may be mostly images - consider OCR extraction",
-            "encoding_issues": "Try alternative encoding detection or manual encoding specification",
-            "may_need_ocr": "PDF appears to be image-based - use OCR tools like Tesseract",
-            "structure_loss": "Consider using format-specific extraction libraries for better structure preservation",
-            "repetitive_content": "Review extraction logic for potential parsing errors"
+        metrics = {
+            "character_distribution": {
+                "alphabetic_ratio": sum(1 for c in text if c.isalpha()) / max(total_chars, 1),
+                "numeric_ratio": sum(1 for c in text if c.isdigit()) / max(total_chars, 1),
+                "whitespace_ratio": sum(1 for c in text if c.isspace()) / max(total_chars, 1)
+            }
         }
 
-        for problem in problems:
-            if problem in problem_to_recommendation:
-                recommendations.append(problem_to_recommendation[problem])
+        if words:
+            word_lengths = [len(word.strip('.,!?;:()[]{}"\'-')) for word in words]
+            metrics["word_length_stats"] = {
+                "average_length": sum(word_lengths) / len(word_lengths),
+                "max_length": max(word_lengths),
+                "min_length": min(word_lengths)
+            }
 
-        # General recommendations based on document type
-        doc_type = metadata.get('document_type', '')
-        if doc_type == 'pdf':
-            recommendations.append("For better PDF extraction, ensure document is text-based, not scanned")
+        return metrics
 
-        # Performance recommendations
-        extraction_percentage = metrics.get('extraction_percentage', 0)
-        if extraction_percentage > 90:
-            recommendations.append("Extraction quality is excellent - no further action needed")
+    def _detect_encoding_issues(self, text: str) -> List[Dict[str, Any]]:
+        """Detect potential encoding or extraction issues."""
+        issues = []
 
-        return list(set(recommendations))  # Remove duplicates
+        replacement_chars = text.count('�')
+        if replacement_chars > 0:
+            issues.append({
+                "type": "encoding_errors",
+                "severity": "medium",
+                "count": replacement_chars,
+                "description": f"Found {replacement_chars} Unicode replacement characters"
+            })
 
-    def _get_quality_status(self, extraction_percentage: float) -> str:
-        """Determine overall quality status based on extraction percentage"""
-        if extraction_percentage >= self.quality_thresholds['excellent']:
-            return 'EXCELLENT'
-        elif extraction_percentage >= self.quality_thresholds['good']:
-            return 'GOOD'
-        elif extraction_percentage >= self.quality_thresholds['acceptable']:
-            return 'ACCEPTABLE'
-        else:
-            return 'POOR'
+        question_ratio = text.count('?') / max(len(text), 1)
+        if question_ratio > 0.05:
+            issues.append({
+                "type": "excessive_question_marks",
+                "severity": "medium",
+                "ratio": question_ratio,
+                "description": f"Unusually high ratio of question marks ({question_ratio:.2%})"
+            })
 
-    def _failed_extraction_analysis(self, extraction_result: Dict[str, Any]) -> Dict[str, Any]:
-        """Analysis for failed extractions"""
-        error_msg = extraction_result.get('error', '')
+        return issues
 
-        problems = ['extraction_failed']
-        recommendations = []
+    def _analyze_text_density(self, text: str) -> Dict[str, Any]:
+        """Analyze text density and distribution."""
+        lines = text.split('\n')
+        total_lines = len(lines)
 
-        # Analyze error message for specific recommendations
-        if 'not installed' in error_msg.lower():
-            recommendations.append("Install missing Python libraries as indicated in error message")
-        elif 'file not found' in error_msg.lower():
-            recommendations.append("Verify file path exists and is accessible")
-        elif 'permission' in error_msg.lower():
-            recommendations.append("Check file permissions and access rights")
-        elif 'corrupted' in error_msg.lower() or 'invalid' in error_msg.lower():
-            recommendations.append("File may be corrupted - try with a different file")
-        else:
-            recommendations.append("Review error message and check file format compatibility")
+        if total_lines == 0:
+            return {"error": "No lines to analyze"}
 
-        return {
-            'quality_metrics': {
-                'extraction_percentage': 0,
-                'text_length': 0,
-                'word_count': 0,
-                'line_count': 0,
-                'character_variety': 0,
-                'content_density': 0,
-                'structure_preservation_score': 0,
-                'average_words_per_line': 0
-            },
-            'quality_status': 'FAILED',
-            'problems_identified': problems,
-            'recommendations': recommendations
+        line_lengths = [len(line) for line in lines]
+        non_empty_lines = [len(line) for line in lines if line.strip()]
+
+        density = {
+            "total_lines": total_lines,
+            "empty_lines": total_lines - len(non_empty_lines),
+            "empty_line_ratio": (total_lines - len(non_empty_lines)) / max(total_lines, 1),
+            "avg_line_length": sum(line_lengths) / max(total_lines, 1),
+            "avg_non_empty_line_length": sum(non_empty_lines) / max(len(non_empty_lines), 1)
         }
+
+        return density

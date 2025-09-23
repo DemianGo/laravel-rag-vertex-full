@@ -75,6 +75,33 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_CACHE_CONNECTION', 'cache'),
             'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'default'),
+            'options' => [
+                'cluster' => env('REDIS_CLUSTER', 'redis'),
+                'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'laravel'))),
+                'serializer' => env('REDIS_SERIALIZER', 'php'), // php, igbinary, json
+                'compression' => env('REDIS_COMPRESSION', 'none'), // none, gzip, lz4, zstd
+            ],
+            'persistent' => env('REDIS_PERSISTENT', true),
+            'tcp_keepalive' => env('REDIS_TCP_KEEPALIVE', 60),
+            'read_timeout' => env('REDIS_READ_TIMEOUT', 5.0),
+            'timeout' => env('REDIS_TIMEOUT', 5.0),
+        ],
+
+        // High-performance Redis store for RAG operations
+        'rag_redis' => [
+            'driver' => 'redis',
+            'connection' => env('RAG_REDIS_CONNECTION', 'rag'),
+            'lock_connection' => env('RAG_REDIS_LOCK_CONNECTION', 'rag'),
+            'options' => [
+                'cluster' => env('RAG_REDIS_CLUSTER', 'redis'),
+                'prefix' => env('RAG_REDIS_PREFIX', 'rag'),
+                'serializer' => env('RAG_REDIS_SERIALIZER', 'igbinary'), // Faster binary serialization
+                'compression' => env('RAG_REDIS_COMPRESSION', 'lz4'), // Fast compression for embeddings
+            ],
+            'persistent' => true,
+            'tcp_keepalive' => 300, // 5 minutes
+            'read_timeout' => 10.0,
+            'timeout' => 10.0,
         ],
 
         'dynamodb' => [
