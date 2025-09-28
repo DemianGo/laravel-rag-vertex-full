@@ -5,7 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use App\Models\Document;
-use App\Models\DocumentChunk;
+use App\Models\Chunk;
 use Exception;
 
 /**
@@ -83,11 +83,33 @@ class RagPipeline
                 'deduplication_ratio' => round((1 - count($uniqueChunks) / count($chunks)) * 100, 2) . '%'
             ]);
 
-            // 3. Embedding em lotes
-            $embeddings = $this->generateEmbeddings($uniqueChunks);
+            // 3. Embedding em lotes com timeout
+            $embeddingStartTime = microtime(true);
 
-            if (count($embeddings) !== count($uniqueChunks)) {
-                throw new Exception('Embedding count mismatch with chunk count');
+            try {
+                $embeddings = $this->generateEmbeddings($uniqueChunks);
+                $embeddingTime = microtime(true) - $embeddingStartTime;
+
+                Log::info('Embeddings generation completed', [
+                    'embeddings_count' => count($embeddings),
+                    'chunks_count' => count($uniqueChunks),
+                    'embedding_time' => round($embeddingTime, 3) . 's'
+                ]);
+
+                if (count($embeddings) !== count($uniqueChunks)) {
+                    throw new Exception('Embedding count mismatch with chunk count');
+                }
+            } catch (Exception $e) {
+                $embeddingTime = microtime(true) - $embeddingStartTime;
+
+                Log::warning('Embeddings generation failed, using fallback', [
+                    'error' => $e->getMessage(),
+                    'embedding_time' => round($embeddingTime, 3) . 's',
+                    'chunks_count' => count($uniqueChunks)
+                ]);
+
+                // Fallback: create zero embeddings para permitir chunk storage
+                $embeddings = array_fill(0, count($uniqueChunks), null);
             }
 
             // 4. Armazenamento otimizado
@@ -376,18 +398,23 @@ class RagPipeline
                 $embedding = $embeddings[$index] ?? null;
 
                 if (!$embedding) {
-                    continue;
+                    Log::info('Storing chunk without embedding (fallback mode)', [
+                        'document_id' => $documentId,
+                        'chunk_index' => $index,
+                        'content_preview' => substr($chunk['content'], 0, 100)
+                    ]);
                 }
 
                 $chunkMetadata = array_merge($baseMetadata, $chunk['metadata'] ?? []);
 
-                $documentChunk = DocumentChunk::create([
+                // Store chunk even without embedding to ensure chunk creation
+                $documentChunk = Chunk::create([
                     'tenant_slug' => $tenantSlug,
                     'document_id' => $documentId,
                     'chunk_index' => $index,
                     'content' => $chunk['content'],
                     'content_preview' => mb_substr($chunk['content'], 0, 200),
-                    'embedding' => json_encode($embedding),
+                    'embedding' => $embedding ? json_encode($embedding) : null,
                     'metadata' => $chunkMetadata,
                     'word_count' => str_word_count($chunk['content']),
                     'char_count' => mb_strlen($chunk['content']),
@@ -403,7 +430,7 @@ class RagPipeline
     private function indexForHybridSearch(array $chunks): void
     {
         // Atualizar estatísticas para otimizador de consultas
-        DB::statement('ANALYZE document_chunks');
+        DB::statement('ANALYZE chunks');
 
         // Log para monitoramento
         Log::info('Hybrid search indexing completed', [
@@ -434,7 +461,7 @@ class RagPipeline
     private function getExpandedContext(array $chunkResult): string
     {
         // Buscar chunks adjacentes para contexto expandido
-        $adjacentChunks = DocumentChunk::where('tenant_slug', $chunkResult['tenant_slug'] ?? '')
+        $adjacentChunks = Chunk::where('tenant_slug', $chunkResult['tenant_slug'] ?? '')
             ->where('document_id', $chunkResult['document_id'])
             ->whereBetween('chunk_index', [
                 max(0, $chunkResult['chunk_index'] - 1),

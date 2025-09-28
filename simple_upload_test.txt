@@ -1,0 +1,1 @@
+Esta é uma demonstração do upload simplificado que não depende de serviços complexos ou chamadas HTTP internas. O texto deve ser processado rapidamente e armazenado como chunks no banco de dados.

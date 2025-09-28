@@ -42,7 +42,7 @@ class VertexClient
     private const MAX_RETRIES = 3;
     private const BASE_DELAY = 1000; // milliseconds
 
-    public function __construct(EmbeddingCache $cache = null)
+    public function __construct(?EmbeddingCache $cache = null)
     {
         $this->projectId = env('VERTEX_PROJECT_ID', '');
         $this->location = env('VERTEX_LOCATION', 'us-central1');
@@ -262,23 +262,40 @@ class VertexClient
     private function makeRequest(string $endpoint, array $payload): array
     {
         $attempt = 0;
+        $startTime = microtime(true);
 
         while ($attempt < self::MAX_RETRIES) {
             try {
+                // Log cada tentativa para debug
+                Log::debug('VertexClient API attempt', [
+                    'attempt' => $attempt + 1,
+                    'endpoint' => parse_url($endpoint, PHP_URL_HOST),
+                    'elapsed_time' => round(microtime(true) - $startTime, 3)
+                ]);
+
                 $response = Http::withHeaders([
                     'Authorization' => 'Bearer ' . $this->accessToken,
                     'Content-Type' => 'application/json'
                 ])
-                ->timeout(60)
+                ->timeout(15) // Reduzido de 60s para 15s
                 ->post($endpoint, $payload);
 
                 if ($response->successful()) {
+                    Log::debug('VertexClient API success', [
+                        'total_time' => round(microtime(true) - $startTime, 3),
+                        'attempts' => $attempt + 1
+                    ]);
                     return $response->json();
                 }
 
                 // Rate limit específico
                 if ($response->status() === 429) {
-                    $delay = ($attempt + 1) * self::BASE_DELAY * 2;
+                    $delay = min(($attempt + 1) * self::BASE_DELAY, 5000); // Max 5s delay
+                    Log::warning('VertexClient rate limited', [
+                        'delay_ms' => $delay,
+                        'attempt' => $attempt + 1,
+                        'status' => $response->status()
+                    ]);
                     usleep($delay * 1000);
                     $attempt++;
                     continue;
@@ -289,10 +306,20 @@ class VertexClient
             } catch (Exception $e) {
                 $attempt++;
                 if ($attempt >= self::MAX_RETRIES) {
+                    Log::error('VertexClient max retries exceeded', [
+                        'total_time' => round(microtime(true) - $startTime, 3),
+                        'attempts' => $attempt,
+                        'error' => $e->getMessage()
+                    ]);
                     throw $e;
                 }
 
-                $delay = $attempt * self::BASE_DELAY;
+                $delay = min($attempt * self::BASE_DELAY, 3000); // Max 3s delay
+                Log::warning('VertexClient retrying', [
+                    'attempt' => $attempt,
+                    'delay_ms' => $delay,
+                    'error' => $e->getMessage()
+                ]);
                 usleep($delay * 1000);
             }
         }
@@ -301,7 +328,7 @@ class VertexClient
     }
 
     /**
-     * Rate limiting inteligente
+     * Rate limiting inteligente com timeout máximo
      */
     private function enforceRateLimit(string $operation): void
     {
@@ -310,8 +337,22 @@ class VertexClient
 
         $current = Cache::get($key, 0);
         if ($current >= $limit) {
-            $waitTime = 60 - date('s'); // Aguardar até próximo minuto
-            sleep($waitTime);
+            $waitTime = min(60 - date('s'), 10); // Max 10 segundos
+
+            Log::warning('VertexClient rate limit hit', [
+                'operation' => $operation,
+                'current' => $current,
+                'limit' => $limit,
+                'wait_time' => $waitTime
+            ]);
+
+            if ($waitTime > 0) {
+                sleep($waitTime);
+            } else {
+                // Se já estamos no fim do minuto, usar fallback local imediatamente
+                Log::info('Rate limit timeout avoided, falling back to local processing');
+                throw new Exception('Rate limit exceeded, fallback required');
+            }
         }
 
         Cache::put($key, $current + 1, 120); // TTL 2 minutos

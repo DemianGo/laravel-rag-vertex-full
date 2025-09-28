@@ -5,7 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
-use App\Models\DocumentChunk;
+use App\Models\Chunk;
 use Exception;
 
 /**
@@ -66,6 +66,15 @@ class HybridRetriever
                 'limit' => $limit
             ]);
 
+            // First check for bypass documents (without embeddings)
+            $bypassResults = $this->searchBypassDocuments($tenantSlug, $query, $options);
+            if (!empty($bypassResults)) {
+                Log::info('Found bypass documents, using robust textual search', [
+                    'results_count' => count($bypassResults)
+                ]);
+                return $this->formatBypassResults($bypassResults);
+            }
+
             // Verificar cache primeiro
             $cacheKey = $this->generateCacheKey($tenantSlug, $query, $options);
             $cached = Cache::get($cacheKey);
@@ -81,7 +90,7 @@ class HybridRetriever
                 'limit' => $options['vector_limit'] ?? self::DEFAULT_VECTOR_LIMIT,
                 'document_ids' => $documentIds,
                 'metadata_filters' => $metadataFilters,
-                'similarity_threshold' => $options['similarity_threshold'] ?? 0.1,
+                'similarity_threshold' => $options['similarity_threshold'] ?? 0.05, // Mais permissivo
             ]);
 
             // 2. Keyword Search
@@ -92,7 +101,18 @@ class HybridRetriever
                 'rank_normalization' => $options['rank_normalization'] ?? true,
             ]);
 
-            // 3. Fusão de resultados com RRF
+            // 3. Ajustar pesos dinamicamente se vector search falhar
+            if (empty($vectorResults) && !empty($keywordResults)) {
+                Log::info('Vector search empty, boosting keyword weight', [
+                    'tenant' => $tenantSlug,
+                    'query' => mb_substr($query, 0, 50),
+                    'keyword_results' => count($keywordResults)
+                ]);
+                $vectorWeight = 0.1;  // Reduzir peso vector
+                $keywordWeight = 0.9; // Aumentar peso keyword
+            }
+
+            // 4. Fusão de resultados com RRF
             $fusedResults = $this->fuseResults($vectorResults, $keywordResults, [
                 'vector_weight' => $vectorWeight,
                 'keyword_weight' => $keywordWeight,
@@ -100,7 +120,16 @@ class HybridRetriever
                 'diversify' => $options['diversify'] ?? true,
             ]);
 
-            // 4. Cache resultado
+            // 5. Fallback search se hybrid retornar vazio
+            if (empty($fusedResults)) {
+                Log::info('Hybrid search empty, trying fallback', [
+                    'tenant' => $tenantSlug,
+                    'query' => mb_substr($query, 0, 50)
+                ]);
+                $fusedResults = $this->fallbackSearch($tenantSlug, $query, $limit);
+            }
+
+            // 6. Cache resultado
             if (env('HYBRID_SEARCH_CACHE_ENABLED', true)) {
                 Cache::put($cacheKey, $fusedResults, self::CACHE_TTL);
             }
@@ -153,20 +182,21 @@ class HybridRetriever
             $queryEmbedding = $queryEmbeddings[0];
 
             // 2. Busca vetorial
-            $baseQuery = DocumentChunk::select([
-                'id',
-                'document_id',
-                'chunk_index',
-                'content',
-                'content_preview',
-                'metadata',
-                'word_count',
-                'char_count',
-                DB::raw('1 - (embedding <=> ?) as similarity')
+            $baseQuery = Chunk::select([
+                'chunks.id',
+                'chunks.document_id',
+                'chunks.chunk_index',
+                'chunks.content',
+                'chunks.meta',
+                DB::raw('1 - (chunks.embedding <=> ?) as similarity')
             ])
-            ->where('tenant_slug', $tenantSlug)
-            ->whereNotNull('embedding')
-            ->where(DB::raw('1 - (embedding <=> ?)'), '>=', $options['similarity_threshold'])
+            ->join('documents', 'chunks.document_id', '=', 'documents.id')
+            ->where('documents.tenant_slug', $tenantSlug)
+            ->whereNotNull('chunks.embedding')
+            ->whereRaw('1 - (chunks.embedding <=> ?) >= ?', [
+                '[' . implode(',', $queryEmbedding) . ']',
+                $options['similarity_threshold']
+            ])
             ->orderByDesc('similarity');
 
             // Aplicar filtros
@@ -176,13 +206,14 @@ class HybridRetriever
 
             if (!empty($options['metadata_filters'])) {
                 foreach ($options['metadata_filters'] as $key => $value) {
-                    $baseQuery->where('metadata->' . $key, $value);
+                    $baseQuery->where('chunks.meta->' . $key, $value);
                 }
             }
 
             // Executar query com embedding
             $results = $baseQuery
                 ->limit($options['limit'])
+                ->addBinding('[' . implode(',', $queryEmbedding) . ']', 'select')
                 ->get()
                 ->map(function ($chunk) {
                     return [
@@ -190,14 +221,13 @@ class HybridRetriever
                         'document_id' => $chunk->document_id,
                         'chunk_index' => $chunk->chunk_index,
                         'content' => $chunk->content,
-                        'content_preview' => $chunk->content_preview,
-                        'metadata' => $chunk->metadata,
-                        'word_count' => $chunk->word_count,
-                        'char_count' => $chunk->char_count,
+                        'content_preview' => substr($chunk->content, 0, 200),
+                        'metadata' => $chunk->meta ? json_decode($chunk->meta, true) : [],
+                        'word_count' => str_word_count($chunk->content),
+                        'char_count' => strlen($chunk->content),
                         'similarity' => (float) $chunk->similarity,
                         'score' => (float) $chunk->similarity, // Score unificado
                         'source' => 'vector',
-                        'tenant_slug' => $chunk->tenant_slug,
                     ];
                 })
                 ->toArray();
@@ -211,12 +241,6 @@ class HybridRetriever
             ]);
 
             $this->incrementStat('vector_searches');
-
-            // Adicionar bind do embedding para a query
-            DB::select(
-                'SELECT 1 WHERE EXISTS (SELECT 1 FROM document_chunks WHERE tenant_slug = ? AND embedding <=> ? < 1 LIMIT 1)',
-                [$tenantSlug, '[' . implode(',', $queryEmbedding) . ']']
-            );
 
             return $results;
 
@@ -248,19 +272,17 @@ class HybridRetriever
             }
 
             // Base query com FTS
-            $baseQuery = DocumentChunk::select([
-                'id',
-                'document_id',
-                'chunk_index',
-                'content',
-                'content_preview',
-                'metadata',
-                'word_count',
-                'char_count',
-                DB::raw('ts_rank(to_tsvector(\'english\', content), plainto_tsquery(\'english\', ?)) as rank')
+            $baseQuery = Chunk::select([
+                'chunks.id',
+                'chunks.document_id',
+                'chunks.chunk_index',
+                'chunks.content',
+                'chunks.meta',
+                DB::raw('ts_rank(to_tsvector(\'english\', chunks.content), plainto_tsquery(\'english\', ?)) as rank')
             ])
-            ->where('tenant_slug', $tenantSlug)
-            ->whereRaw('to_tsvector(\'english\', content) @@ plainto_tsquery(\'english\', ?)', [$ftsQuery])
+            ->join('documents', 'chunks.document_id', '=', 'documents.id')
+            ->where('documents.tenant_slug', $tenantSlug)
+            ->whereRaw('to_tsvector(\'english\', chunks.content) @@ plainto_tsquery(\'english\', ?)', [$ftsQuery])
             ->orderByDesc('rank');
 
             // Aplicar filtros
@@ -270,12 +292,13 @@ class HybridRetriever
 
             if (!empty($options['metadata_filters'])) {
                 foreach ($options['metadata_filters'] as $key => $value) {
-                    $baseQuery->where('metadata->' . $key, $value);
+                    $baseQuery->where('chunks.meta->' . $key, $value);
                 }
             }
 
             $results = $baseQuery
                 ->limit($options['limit'])
+                ->addBinding($ftsQuery, 'select')
                 ->get()
                 ->map(function ($chunk) use ($options) {
                     $rank = (float) $chunk->rank;
@@ -290,14 +313,13 @@ class HybridRetriever
                         'document_id' => $chunk->document_id,
                         'chunk_index' => $chunk->chunk_index,
                         'content' => $chunk->content,
-                        'content_preview' => $chunk->content_preview,
-                        'metadata' => $chunk->metadata,
-                        'word_count' => $chunk->word_count,
-                        'char_count' => $chunk->char_count,
+                        'content_preview' => substr($chunk->content, 0, 200),
+                        'metadata' => $chunk->meta ? json_decode($chunk->meta, true) : [],
+                        'word_count' => str_word_count($chunk->content),
+                        'char_count' => strlen($chunk->content),
                         'rank' => $rank,
                         'score' => $rank, // Score unificado
                         'source' => 'keyword',
-                        'tenant_slug' => $chunk->tenant_slug,
                     ];
                 })
                 ->toArray();
@@ -594,5 +616,125 @@ class HybridRetriever
     {
         $this->stats = [];
         Cache::forget('hybrid_retriever_stats');
+    }
+
+    /**
+     * Fallback search simples quando hybrid retorna vazio
+     */
+    private function fallbackSearch(string $tenantSlug, string $query, int $limit): array
+    {
+        try {
+            $startTime = microtime(true);
+
+            // Busca direta por conteúdo
+            $results = DB::table('chunks')
+                ->select([
+                    'chunks.id',
+                    'chunks.document_id',
+                    'chunks.chunk_index',
+                    'chunks.content',
+                    'chunks.meta',
+                    DB::raw('1.0 as score')
+                ])
+                ->join('documents', 'chunks.document_id', '=', 'documents.id')
+                ->where('documents.tenant_slug', $tenantSlug)
+                ->where('chunks.content', 'ILIKE', "%{$query}%")
+                ->whereNotNull('chunks.embedding')
+                ->limit($limit)
+                ->get()
+                ->map(function ($chunk) {
+                    return [
+                        'id' => $chunk->id,
+                        'document_id' => $chunk->document_id,
+                        'chunk_index' => $chunk->chunk_index,
+                        'content' => $chunk->content,
+                        'content_preview' => substr($chunk->content, 0, 200),
+                        'metadata' => $chunk->meta ? json_decode($chunk->meta, true) : [],
+                        'word_count' => str_word_count($chunk->content),
+                        'char_count' => strlen($chunk->content),
+                        'score' => 1.0,
+                        'source' => 'fallback',
+                        'combined_score' => 1.0,
+                        'sources' => ['fallback'],
+                        'fusion_method' => 'direct'
+                    ];
+                })
+                ->toArray();
+
+            $searchTime = microtime(true) - $startTime;
+
+            Log::info('Fallback search completed', [
+                'results_count' => count($results),
+                'search_time' => round($searchTime, 3) . 's',
+                'query' => mb_substr($query, 0, 50)
+            ]);
+
+            return $results;
+
+        } catch (Exception $e) {
+            Log::error('Fallback search failed', [
+                'tenant' => $tenantSlug,
+                'query' => mb_substr($query, 0, 50),
+                'error' => $e->getMessage()
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
+     * Search in bypass documents using robust textual search
+     */
+    private function searchBypassDocuments(string $tenantSlug, string $query, array $options): array
+    {
+        try {
+            // Check if we have bypass documents first
+            $hasBypassDocs = DB::table('chunks')
+                ->join('documents', 'chunks.document_id', '=', 'documents.id')
+                ->where('documents.tenant_slug', $tenantSlug)
+                ->where('documents.source', 'bypass_upload')
+                ->whereNull('chunks.embedding')
+                ->exists();
+
+            if (!$hasBypassDocs) {
+                return [];
+            }
+
+            // Use SimpleUploadService for robust textual search
+            $simpleService = app(\App\Services\SimpleUploadService::class);
+            $searchResult = $simpleService->searchBypassDocuments($query, $tenantSlug, [
+                'limit' => $options['limit'] ?? 10,
+                'document_id' => $options['document_ids'][0] ?? null,
+                'threshold' => 0.05 // Lower threshold for more results
+            ]);
+
+            return $searchResult['success'] ? $searchResult['results'] : [];
+
+        } catch (Exception $e) {
+            Log::error('Bypass document search failed', ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    /**
+     * Format bypass results to match expected format
+     */
+    private function formatBypassResults(array $bypassResults): array
+    {
+        return array_map(function($result) {
+            return [
+                'id' => $result['id'],
+                'content' => $result['content'],
+                'score' => $result['score'],
+                'document_id' => $result['document_id'],
+                'document_title' => $result['document_title'] ?? 'Unknown Document',
+                'type' => 'bypass_textual',
+                'strategy' => $result['strategy'] ?? 'textual_search',
+                'metadata' => [
+                    'search_method' => 'bypass_textual_search',
+                    'ord' => $result['ord'] ?? 0
+                ]
+            ];
+        }, $bypassResults);
     }
 }

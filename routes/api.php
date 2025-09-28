@@ -37,6 +37,7 @@ Route::middleware([ForceJsonForRag::class])->group(function () {
     // Debug & Utilities
     Route::match(['GET','POST'], '/rag/debug/echo', [RagController::class, 'echo']);
     Route::get('/docs/list', [RagController::class, 'listDocs']);
+    Route::get('/rag/preview', [RagController::class, 'preview']);
     Route::post('/rag/ingest-quality', [RagController::class, 'ingestWithQuality']);
 });
 if (class_exists(\App\Http\Controllers\PdfQualityController::class)) {
