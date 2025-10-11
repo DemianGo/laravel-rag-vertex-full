@@ -1,31 +1,0 @@
-Note: Unnecessary use of -X or --request, POST is already inferred.
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying ::1:8000...
-* connect to ::1 port 8000 failed: Conexão recusada
-*   Trying 127.0.0.1:8000...
-* Connected to localhost (127.0.0.1) port 8000 (#0)
-> POST /api/rag/ingest HTTP/1.1
-> Host: localhost:8000
-> User-Agent: curl/7.74.0
-> Accept: */*
-> Content-Length: 303
-> Content-Type: multipart/form-data; boundary=------------------------a75bd0c9900c1f29
-> 
-} [303 bytes data]
-* We are completely uploaded and fine
-100   303    0     0  100   303      0    252  0:00:01  0:00:01 --:--:--   252100   303    0     0  100   303      0    137  0:00:02  0:00:02 --:--:--   137100   303    0     0  100   303      0     94  0:00:03  0:00:03 --:--:--    94100   303    0     0  100   303      0     72  0:00:04  0:00:04 --:--:--    72100   303    0     0  100   303      0     58  0:00:05  0:00:05 --:--:--    58100   303    0     0  100   303      0     48  0:00:06  0:00:06 --:--:--     0100   303    0     0  100   303      0     42  0:00:07  0:00:07 --:--:--     0100   303    0     0  100   303      0     36  0:00:08  0:00:08 --:--:--     0100   303    0     0  100   303      0     32  0:00:09  0:00:09 --:--:--     0100   303    0     0  100   303      0     29  0:00:10  0:00:10 --:--:--     0100   303    0     0  100   303      0     27  0:00:11  0:00:11 --:--:--     0100   303    0     0  100   303      0     24  0:00:12  0:00:12 --:--:--     0100   303    0     0  100   303      0     22  0:00:13  0:00:13 --:--:--     0100   303    0     0  100   303      0     21  0:00:14  0:00:14 --:--:--     0100   303    0     0  100   303      0     19  0:00:15  0:00:15 --:--:--     0100   303    0     0  100   303      0     18  0:00:16  0:00:16 --:--:--     0100   303    0     0  100   303      0     17  0:00:17  0:00:17 --:--:--     0* Mark bundle as not supporting multiuse
-< HTTP/1.1 201 Created
-< Host: localhost:8000
-< Connection: close
-< X-Powered-By: PHP/8.4.12
-< Cache-Control: no-cache, private
-< Date: Thu, 25 Sep 2025 02:10:44 GMT
-< Content-Type: application/json
-< Access-Control-Allow-Origin: *
-< Set-Cookie: rag_last_doc_id=113; expires=Sat, 25 Oct 2025 02:10:44 GMT; Max-Age=2592000; path=/; samesite=lax
-< 
-{ [268 bytes data]
-100   571    0   268  100   303     15     17  0:00:17  0:00:17 --:--:--    61
-* Closing connection 0
-{"ok":true,"document_id":113,"title":"test.txt","chunks_created":0,"processing_time":0.5,"deduplication_ratio":0,"quality_metrics":null,"extraction_method":"direct_read","language_detected":"unknown","cache_stats":null,"enterprise_features_used":[],"retry_used":false}

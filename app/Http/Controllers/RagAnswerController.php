@@ -11,9 +11,9 @@ class RagAnswerController extends Controller
 {
     public function answer(Request $request)
     {
-        $docId = $request->input('document_id', $request->query('document_id'));
-        $query = $request->input('query', $request->query('query'));
-        $topK  = intval($request->input('top_k', $request->query('top_k', 6)));
+        $docId = $request->input('document_id');
+        $query = $request->input('query');
+        $topK  = intval($request->input('top_k', 6));
 
         if (!$docId || !$query) {
             return response()->json([

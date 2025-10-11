@@ -9,7 +9,7 @@
     ingest:  BASE + '/rag/ingest',
     query:   BASE + '/rag/query',
     answer:  BASE + '/rag/answer',
-    docs:    BASE + '/docs/list',
+    docs:    BASE + '/api/docs/list',
     ping:    BASE + '/rag/ping',
   };
 
@@ -110,8 +110,82 @@
     return await requestJSON(URLS.docs, { method: 'GET' });
   }
 
+  // PYTHON RAG FUNCTIONS
+  async function pythonSearch(params) {
+    const body = {
+      query: params.query,
+      top_k: params.top_k || 5,
+      threshold: params.threshold || 0.3,
+      include_answer: params.include_answer !== false,
+      strictness: params.strictness || 2,
+      mode: params.mode || 'auto',
+      format: params.format || 'plain',
+      length: params.length || 'auto',
+      citations: params.citations || 0,
+      use_smart_mode: params.use_smart_mode !== false,  // Padrão: true
+      use_full_document: params.use_full_document || false
+    };
+    if (params.document_id) body.document_id = params.document_id;
+    
+    return await requestJSON(BASE + '/api/rag/python-search', { method: 'POST', body });
+  }
+
+  async function pythonHealth() {
+    return await requestJSON(BASE + '/api/rag/python-health', { method: 'GET' });
+  }
+
+  async function compareSearch(params) {
+    const body = {
+      query: params.query,
+      document_id: params.document_id,
+      top_k: params.top_k || 5
+    };
+    
+    return await requestJSON(BASE + '/api/rag/compare-search', { method: 'POST', body });
+  }
+
+  async function getSuggestedQuestions(documentId) {
+    try {
+      const res = await requestJSON(URLS.docs, { method: 'GET' });
+      if (res && res.ok && res.docs) {
+        const doc = res.docs.find(d => d.id === documentId);
+        if (doc && doc.metadata) {
+          try {
+            const metadata = typeof doc.metadata === 'string' ? JSON.parse(doc.metadata) : doc.metadata;
+            return metadata.suggested_questions || [];
+          } catch {
+            return [];
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao buscar perguntas sugeridas:', e);
+    }
+    return [];
+  }
+
+  async function submitFeedback(params) {
+    const body = {
+      query: params.query,
+      document_id: params.document_id,
+      rating: params.rating, // 1 (positive) ou -1 (negative)
+      metadata: params.metadata || {}
+    };
+    
+    return await requestJSON(BASE + '/api/rag/feedback', { method: 'POST', body });
+  }
+
+  async function getFeedbackStats() {
+    return await requestJSON(BASE + '/api/rag/feedback/stats', { method: 'GET' });
+  }
+
   // expõe sem colidir: se já existir window.RAG, apenas estende
-  const api = { ingestFile, ingestText, query, answer, listDocs, getLastDocId, setLastDocId, _urls: URLS };
+  const api = { 
+    ingestFile, ingestText, query, answer, listDocs, getLastDocId, setLastDocId, 
+    pythonSearch, pythonHealth, compareSearch, getSuggestedQuestions,
+    submitFeedback, getFeedbackStats,
+    _urls: URLS 
+  };
   if (window.RAG && typeof window.RAG === 'object') {
     Object.assign(window.RAG, api);
   } else {

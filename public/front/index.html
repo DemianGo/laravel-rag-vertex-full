@@ -35,6 +35,9 @@
       <li class="nav-item">
         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#docs" type="button">Documentos</button>
       </li>
+      <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#python-rag" type="button">Python RAG</button>
+      </li>
     </ul>
 
     <div class="tab-content border border-top-0 p-4 rounded-bottom">
@@ -145,6 +148,111 @@
         
         <div id="docsList" class="console-box">
           <small class="text-muted">Carregando lista de documentos...</small>
+        </div>
+      </div>
+
+      <!-- PYTHON RAG AVANÇADO -->
+      <div class="tab-pane fade" id="python-rag">
+        <div class="row">
+          <div class="col-12 col-xl-6">
+            <h5>🔍 Python RAG Avançado</h5>
+            <p class="text-muted">Sistema Python com modos de resposta, formatos e busca híbrida</p>
+            
+            <div class="mb-3">
+              <label class="form-label">Query/Pergunta</label>
+              <input id="pythonQuery" class="form-control" placeholder="Digite sua pergunta aqui...">
+            </div>
+            
+            <div class="row mb-2">
+              <div class="col-4">
+                <label class="form-label">Top-K</label>
+                <input id="pythonTopK" class="form-control" type="number" value="5" min="1" max="20">
+              </div>
+              <div class="col-4">
+                <label class="form-label">Threshold</label>
+                <input id="pythonThreshold" class="form-control" type="number" value="0.3" min="0.05" max="1.0" step="0.05">
+              </div>
+              <div class="col-4">
+                <label class="form-label">Document ID</label>
+                <input id="pythonDocId" class="form-control" type="number" placeholder="Opcional">
+              </div>
+            </div>
+            <div class="mb-2">
+              <div class="form-check">
+                <input id="pythonIncludeAnswer" class="form-check-input" type="checkbox" checked>
+                <label class="form-check-label">Incluir resposta LLM</label>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Strictness (0-3)</label>
+              <select id="pythonStrictness" class="form-select">
+                <option value="0">0 - Muito Permissivo</option>
+                <option value="1">1 - Permissivo</option>
+                <option value="2" selected>2 - Moderado (Padrão)</option>
+                <option value="3">3 - Rigoroso (Sem LLM)</option>
+              </select>
+              <small class="form-text text-muted">Nível 3 pula LLM conforme PROJECT_README.md</small>
+            </div>
+            <div class="row mb-2">
+              <div class="col-6">
+                <label class="form-label">Modo</label>
+                <select id="pythonMode" class="form-select">
+                  <option value="auto" selected>Auto (Detecta)</option>
+                  <option value="direct">Direct</option>
+                  <option value="summary">Summary</option>
+                  <option value="quote">Quote</option>
+                  <option value="list">List</option>
+                  <option value="table">Table</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label">Formato</label>
+                <select id="pythonFormat" class="form-select">
+                  <option value="plain" selected>Plain</option>
+                  <option value="markdown">Markdown</option>
+                  <option value="html">HTML</option>
+                </select>
+              </div>
+            </div>
+            <div class="row mb-2">
+              <div class="col-6">
+                <label class="form-label">Comprimento</label>
+                <select id="pythonLength" class="form-select">
+                  <option value="auto" selected>Auto</option>
+                  <option value="short">Short</option>
+                  <option value="medium">Medium</option>
+                  <option value="long">Long</option>
+                  <option value="xl">XL</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label">Citações (0-10)</label>
+                <input id="pythonCitations" class="form-control" type="number" value="0" min="0" max="10">
+              </div>
+            </div>
+            <button id="pythonSearchBtn" class="btn btn-primary">🔍 Buscar Python RAG</button>
+            <button id="pythonCompareBtn" class="btn btn-outline-secondary ms-2">⚖️ Comparar PHP vs Python</button>
+            <button id="pythonHealthBtn" class="btn btn-outline-info ms-2">🏥 Health Check</button>
+          </div>
+          <div class="col-12 col-xl-6">
+            <h6>📊 Resultados</h6>
+            <div id="pythonStatus" class="mb-3"></div>
+            
+            <div class="mb-3">
+              <h6>Chunks Encontrados</h6>
+              <div id="pythonChunks" class="console-box" style="max-height: 200px; overflow-y: auto;"></div>
+            </div>
+            
+            <div class="mb-3">
+              <h6>Resposta LLM</h6>
+              <div id="pythonAnswer" class="console-box"></div>
+            </div>
+            
+            <div class="mb-3">
+              <h6>Metadados</h6>
+              <pre id="pythonMetadata" class="console-box" style="max-height: 200px; overflow-y: auto; font-size: 0.8em;"></pre>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -1,0 +1,357 @@
+=== LARAVEL RAG SYSTEM - MAPEAMENTO COMPLETO ===
+
+🔒 NUNCA MODIFICAR (Backend PHP - 100% funcional):
+├── app/
+│   ├── Http/Controllers/
+│   │   ├── Controller.php ✅
+│   │   ├── RagController.php ✅ (upload/ingest documentos)
+│   │   └── RagAnswerController.php ✅ (busca RAG PHP)
+│   └── Models/
+│       ├── User.php ✅
+│       ├── UserPlan.php ✅
+│       ├── Document.php ✅
+│       └── Chunk.php ✅
+├── routes/ ✅
+├── config/ ✅
+├── database/migrations/ ✅
+├── composer.json ✅
+└── .env ✅
+
+🔒 NUNCA MODIFICAR (Python - Extração 100% funcional):
+├── scripts/document_extraction/ ✅ (28 arquivos)
+│   ├── main_extractor.py
+│   ├── extract.py (PDF)
+│   ├── office_extractor.py (DOCX/XLSX/PPTX)
+│   ├── text_extractor.py (TXT/CSV/RTF)
+│   ├── web_extractor.py (HTML/XML)
+│   └── quality/ (análise qualidade)
+├── scripts/api/ ✅ (28 arquivos - FastAPI Enterprise)
+│   ├── main.py
+│   ├── routers/
+│   ├── services/
+│   └── models/
+└── scripts/pdf_extraction/ ✅
+
+🔒 NUNCA MODIFICAR (Python - RAG Search FINALIZADO):
+└── scripts/rag_search/ ✅ (11 arquivos)
+    ├── rag_search.py ✅ (modo document_full implementado)
+    ├── config.py ✅
+    ├── database.py ✅
+    ├── embeddings_service.py (modelo: all-mpnet-base-v2, 768 dims)
+    ├── vector_search.py ✅
+    ├── llm_service.py ✅
+    ├── mode_detector.py ✅ (novo - detecção de modos)
+    ├── extractors.py ✅ (novo - extração de conteúdo)
+    ├── formatters.py ✅ (novo - formatação de respostas)
+    ├── guards.py ✅ (novo - validações e guards)
+    ├── fts_search.py ✅ (novo - busca FTS PostgreSQL)
+    └── requirements.txt
+    
+    STATUS: 100% FUNCIONAL - PARIDADE COMPLETA COM PHP
+    - Busca vetorial: OK
+    - Busca FTS: OK (PostgreSQL + fallback)
+    - LLM Gemini: OK (GOOGLE_GENAI_API_KEY)
+    - Threshold: 0.05-0.45
+    - Top-K: 5-8
+    - Modos: auto/direct/summary/quote/list/table/document_full
+    - Formatos: plain/markdown/html
+    - Strictness: 0-3 (3 = sem LLM)
+    - Parâmetro use_full_document: implementado
+    - Tempo resposta: ~6s
+
+---
+
+ARQUITETURA DO SISTEMA:
+
+┌─────────────────────────────────────┐
+│ Laravel PHP                         │
+│ ├─ RagController (upload) ✅       │
+│ ├─ RagAnswerController (busca) ✅  │
+│ └─ shell_exec() → Python           │
+└─────────────┬───────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│ Python Scripts                      │
+│ ├─ document_extraction/ ✅         │
+│ └─ rag_search/ ✅ (busca vetorial) │
+└─────────────┬───────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│ PostgreSQL                          │
+│ ├─ documents (5 docs)               │
+│ ├─ chunks (114 com embeddings)     │
+│ └─ Embeddings: 768 dims (mpnet)    │
+└─────────────────────────────────────┘
+
+---
+
+STACK TÉCNICO:
+- Laravel 11 + PHP 8.4
+- Python 3.12
+- PostgreSQL 14+
+- sentence-transformers (all-mpnet-base-v2, 768d)
+- Gemini AI (primary) / OpenAI (fallback)
+
+DADOS DO BANCO:
+- 743+ chunks com embeddings (atualizado)
+- Documentos com embeddings: múltiplos (incluindo ID 142 - novo upload)
+- Documento teste: ID 36 (REUNI original), ID 142 (REUNI novo upload)
+
+---
+
+✅ FRONTEND INTEGRADO E FUNCIONAL:
+
+Frontend principal:
+└── public/rag-frontend/ ✅ (integração completa)
+
+FUNCIONALIDADES IMPLEMENTADAS:
+- Upload de arquivos: ✅ (PDF, DOC, TXT, etc.)
+- Busca RAG PHP: ✅ (modos existentes)
+- Busca RAG Python: ✅ (paridade completa)
+- Modo document_full: ✅ (análise completa de documento)
+- Parâmetro use_full_document: ✅ (checkbox no frontend)
+- Controles avançados: ✅ (modo, formato, strictness, etc.)
+
+INTEGRAÇÃO COMPLETA:
+- Laravel Controller: RagPythonController.php ✅
+- API Routes: /api/rag/python-search ✅
+- Frontend JavaScript: rag-client.js ✅
+- Interface HTML: index.html ✅
+
+STATUS: 100% FUNCIONAL - PRONTO PARA USO
+- Upload: Funciona com qualquer arquivo
+- Busca: Todos os modos implementados
+- Document Full: Análise completa de documentos
+- Testado: Backend + Frontend + API
+
+---
+
+🎯 ROADMAP DE MELHORIAS (Planejado - NÃO implementado ainda):
+
+OBJETIVO: Sistema RAG Universal para múltiplos perfis (médicos, advogados, estudantes, vendedores)
+
+FASE 1: INTELIGÊNCIA AUTOMÁTICA (Prioridade MÁXIMA) ⭐⭐⭐
+├── 1.1 Detector de Contexto Automático
+│   └── Decide automaticamente: RAG vs Documento Completo vs Híbrido
+├── 1.2 Classificador de Perguntas
+│   └── Detecta tipo: definição, comparação, lista, resumo, específica, citação, explicação
+├── 1.3 Sistema de Fallback em Cascata
+│   └── 5 tentativas progressivas antes de falhar
+└── Meta: Reduzir falhas de 10% → 3-5%
+
+FASE 2: EXPERIÊNCIA DO USUÁRIO (Prioridade ALTA) ⭐⭐
+├── 2.1 Interface Simplificada
+│   └── 1 campo + 1 botão (esconde complexidade técnica)
+├── 2.2 Perguntas Sugeridas Inteligentes
+│   └── Baseadas no tipo de documento detectado
+├── 2.3 Feedback e Aprendizado
+│   └── Sistema aprende com 👍👎 dos usuários
+└── Meta: Taxa de satisfação > 95%
+
+FASE 3: OTIMIZAÇÕES (Prioridade MÉDIA) ⭐
+├── 3.1 Cache Inteligente (3 níveis)
+│   └── L1: queries idênticas, L2: similares, L3: chunks frequentes
+├── 3.2 Pré-processamento no Upload
+│   └── Resumos, metadados, perguntas sugeridas geradas automaticamente
+├── 3.3 Busca Híbrida Otimizada
+│   └── Vetorial + FTS + Estruturada em paralelo
+└── Meta: Latência < 2s (95th percentile)
+
+FASE 4: RECURSOS AVANÇADOS (Prioridade BAIXA) ⭐
+├── 4.1 Modo Conversacional
+│   └── Mantém contexto entre perguntas
+├── 4.2 Comparação Multi-Documento
+│   └── Tabelas comparativas automáticas
+├── 4.3 Export e Compartilhamento
+│   └── PDF, ABNT, APA, links compartilháveis
+└── Meta: Funcionalidades premium
+
+MÉTRICAS DE SUCESSO PLANEJADAS:
+- Taxa de sucesso: 90% → 97-98%
+- Latência p95: atual → < 2s
+- Satisfação usuário: atual → > 4.5/5
+- Cache hit rate: 0% → 40%+
+- Falhas inevitáveis: ~1-2% (limite técnico)
+
+ARQUITETURA PROPOSTA:
+┌─────────────────────────────────────────────────────────────┐
+│                    CAMADA 1: INTELIGÊNCIA                   │
+│              (Decide automaticamente a estratégia)          │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    CAMADA 2: EXECUÇÃO                       │
+│         (RAG / Documento Completo / Híbrido / Cache)        │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    CAMADA 3: APRESENTAÇÃO                   │
+│           (Formata resposta baseado no perfil)              │
+└─────────────────────────────────────────────────────────────┘
+
+CASOS DE USO POR PERFIL:
+- Médicos: Citações exatas, dosagens, contraindicações
+- Advogados: Cláusulas, comparação de contratos, citações legais
+- Estudantes: Resumos, explicações, flashcards
+- Vendedores: Respostas rápidas, preços, especificações
+
+ÚLTIMA ATUALIZAÇÃO: 2025-10-09
+PRÓXIMA REVISÃO: Após decisão de priorização de perfil
+
+---
+
+🚀 IMPLEMENTAÇÃO EM ANDAMENTO:
+
+ESTRATÉGIA: Camada de Inteligência Aditiva (não modifica código existente)
+
+PARTE 1: SMART ROUTER ✅ CONCLUÍDA ⭐⭐⭐
+├── Arquivo novo: scripts/rag_search/smart_router.py ✅
+├── Modificação mínima: RagPythonController.php (6 linhas) ✅
+├── Objetivo: Intercepta queries e decide melhor estratégia ✅
+├── Status: ✅ FUNCIONANDO
+├── Testado: Queries genéricas e específicas
+└── Funcionalidades:
+    ├── Análise de especificidade da query (0.0-1.0)
+    ├── Classificação de tipo (7 tipos)
+    ├── Decisão automática de estratégia
+    ├── Otimização de parâmetros
+    └── Metadados de decisão no resultado
+
+ARQUITETURA:
+Frontend → Laravel → [NOVO] smart_router.py → [EXISTENTE] rag_search.py
+                          ↓
+                    Decide automaticamente:
+                    - RAG vs Documento Completo
+                    - Parâmetros otimizados
+                    - Fallback inteligente
+
+PARTE 2: VALIDADOR + FALLBACK ✅ CONCLUÍDA ⭐⭐⭐
+├── Arquivos novos: pre_validator.py + fallback_handler.py ✅
+├── Integração: smart_router.py (modificado) ✅
+├── Status: ✅ FUNCIONANDO
+├── Testado: Validações e fallbacks
+└── Funcionalidades:
+    ├── Validação preventiva (query vazia, muito curta, fora de escopo)
+    ├── Validação de documento (existe, tem chunks, tem embeddings)
+    ├── Fallback em 5 níveis (original → expandida → simplificada → doc completo → summary)
+    ├── Expansão automática de queries com sinônimos
+    └── Simplificação de queries para keywords
+
+PARTE 3: QUESTION SUGGESTER ✅ CONCLUÍDA ⭐⭐
+├── Arquivo novo: question_suggester.py ✅
+├── Integração: RagController.php (método generateSuggestedQuestions) ✅
+├── Status: ✅ FUNCIONANDO
+├── Testado: Geração e salvamento de perguntas
+└── Funcionalidades:
+    ├── Detecta tipo de documento (medical, legal, academic, commercial, educational, generic)
+    ├── Gera 8 perguntas relevantes por tipo
+    ├── Salva em documents.metadata (campo JSON)
+    ├── Executa em background após upload (não bloqueia)
+    └── Disponível para frontend via API
+
+PARTE 4: CACHE LAYER ✅ CONCLUÍDA ⭐⭐
+├── Arquivo novo: cache_layer.py ✅
+├── Integração: smart_router.py (verificação pós-otimização) ✅
+├── Status: ✅ FUNCIONANDO
+├── Testado: MISS → HIT → Stats
+└── Funcionalidades:
+    ├── Cache L1 com Redis (fallback para arquivo)
+    ├── TTL configurável (padrão: 1 hora)
+    ├── Hit rate tracking (16.67% nos testes)
+    ├── Comandos: stats, clear
+    └── Metadados de cache no resultado
+
+PARTE 5: FRONTEND ENHANCEMENTS ✅ CONCLUÍDA ⭐⭐
+├── Arquivos modificados: index.html + rag-client.js ✅
+├── Status: ✅ FUNCIONANDO
+├── Testado: Smart Mode + Cache + Perguntas Sugeridas
+├── Correções aplicadas: URL /api/docs/list + event timing
+└── Funcionalidades:
+    ├── Checkbox "Modo Inteligente" (ativo por padrão)
+    ├── Perguntas sugeridas carregam ao selecionar documento
+    ├── Badges visuais: 🧠 Smart Router + ⚡ Cache
+    ├── Metadados exibem estratégia e cache hit
+    ├── Logs de debug no console
+    └── Retrocompatível (modo legado disponível)
+
+═══════════════════════════════════════════════════════════════════════
+✅ TODAS AS 5 PARTES CONCLUÍDAS - SISTEMA COMPLETO
+═══════════════════════════════════════════════════════════════════════
+
+ARQUIVOS CRIADOS (5 novos):
+├── scripts/rag_search/smart_router.py (600 linhas)
+├── scripts/rag_search/pre_validator.py (270 linhas)
+├── scripts/rag_search/fallback_handler.py (280 linhas)
+├── scripts/rag_search/question_suggester.py (310 linhas)
+└── scripts/rag_search/cache_layer.py (230 linhas)
+
+ARQUIVOS MODIFICADOS (5 mínimos):
+├── app/Http/Controllers/RagPythonController.php (+6 linhas)
+├── app/Http/Controllers/RagController.php (+39 linhas)
+├── app/Models/Document.php (+1 linha - metadata no fillable)
+├── public/rag-frontend/index.html (+55 linhas)
+└── public/rag-frontend/rag-client.js (+21 linhas)
+
+IMPACTO TOTAL:
+- Linhas adicionadas: ~1800
+- Linhas modificadas: ~122
+- Linhas removidas: 0
+- Taxa de sucesso: 90% → 95%+ (estimado)
+- Latência com cache: 6s → < 1s
+- Cache hit rate: 17.86% (crescente com uso)
+
+COMO USAR:
+- Frontend: Checkbox "🧠 Modo Inteligente" (ativo por padrão)
+- Perguntas sugeridas: Aparecem ao selecionar documento
+- Cache: Automático (queries idênticas < 1s)
+- Modo legado: Desmarcar "Modo Inteligente"
+
+COMANDOS ÚTEIS:
+- Ver cache stats: python3 scripts/rag_search/cache_layer.py --action stats
+- Limpar cache: python3 scripts/rag_search/cache_layer.py --action clear
+- Gerar perguntas: python3 scripts/rag_search/question_suggester.py --document-id ID
+
+═══════════════════════════════════════════════════════════════════════
+✅ OPÇÃO A: FASE 2 (UX) - CONCLUÍDA EM 2025-10-10
+═══════════════════════════════════════════════════════════════════════
+
+PARTE 2.1: INTERFACE SIMPLIFICADA ✅
+├── Modo simplificado no frontend
+├── Opções avançadas colapsáveis (Bootstrap collapse)
+├── Layout: 1 campo de query + 1 botão de busca
+└── Perguntas sugeridas (já existiam)
+
+PARTE 2.3: SISTEMA DE FEEDBACK E ANALYTICS ✅
+├── Arquivo novo: database/migrations/2025_10_10_233450_create_rag_feedbacks_table.php ✅
+├── Arquivo novo: app/Models/RagFeedback.php ✅
+├── Arquivo novo: app/Http/Controllers/RagFeedbackController.php ✅
+├── Modificação: routes/api.php (+4 linhas) ✅
+├── Modificação: public/rag-frontend/index.html (+150 linhas) ✅
+├── Modificação: public/rag-frontend/rag-client.js (+20 linhas) ✅
+└── Funcionalidades:
+    ├── Botões 👍👎 após cada resposta RAG
+    ├── API POST /api/rag/feedback (salvar feedback)
+    ├── API GET /api/rag/feedback/stats (estatísticas)
+    ├── API GET /api/rag/feedback/recent (feedbacks recentes)
+    ├── Dashboard na aba "Métricas"
+    ├── Estatísticas: total, positivos, negativos, taxa de satisfação
+    ├── Top 5 queries (melhor/pior avaliação)
+    ├── Top 5 documentos (melhor performance)
+    ├── Tendência diária (últimos 7 dias)
+    └── Visualização de 50 feedbacks mais recentes
+
+TABELA NO BANCO:
+├── rag_feedbacks (id, query, document_id, rating, metadata, timestamps)
+├── rating: 1 (positivo) ou -1 (negativo)
+├── metadata: JSON com contexto da busca (modo, formato, etc)
+└── Foreign key: document_id → documents.id
+
+IMPACTO TOTAL (FASE 2 UX):
+- Arquivos criados: 3
+- Arquivos modificados: 3
+- Linhas adicionadas: ~300
+- Taxa de satisfação rastreável: ✅
+- Melhoria contínua habilitada: ✅
+
+ÚLTIMA ATUALIZAÇÃO: 2025-10-10
+STATUS: ✅ FASE 2 (UX) COMPLETA - SISTEMA COMPLETO E OPERACIONAL

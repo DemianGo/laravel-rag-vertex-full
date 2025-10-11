@@ -40,6 +40,19 @@ Route::middleware([ForceJsonForRag::class])->group(function () {
     Route::get('/rag/preview', [RagController::class, 'preview']);
     Route::post('/rag/ingest-quality', [RagController::class, 'ingestWithQuality']);
 });
+
+// Python RAG Integration (novo - não mexe no sistema existente)
+Route::middleware([ForceJsonForRag::class])->group(function () {
+    Route::post('/rag/python-search', [\App\Http\Controllers\RagPythonController::class, 'pythonSearch']);
+    Route::get('/rag/python-health', [\App\Http\Controllers\RagPythonController::class, 'pythonHealth']);
+    Route::post('/rag/compare-search', [\App\Http\Controllers\RagPythonController::class, 'compareSearch']);
+    
+    // Feedback System
+    Route::post('/rag/feedback', [\App\Http\Controllers\RagFeedbackController::class, 'store']);
+    Route::get('/rag/feedback/stats', [\App\Http\Controllers\RagFeedbackController::class, 'stats']);
+    Route::get('/rag/feedback/recent', [\App\Http\Controllers\RagFeedbackController::class, 'recent']);
+});
+
 if (class_exists(\App\Http\Controllers\PdfQualityController::class)) {
     Route::post('/pdf/extract-quality', [\App\Http\Controllers\PdfQualityController::class, 'extractWithQuality']);
 }

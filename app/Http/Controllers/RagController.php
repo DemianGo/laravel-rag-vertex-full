@@ -65,7 +65,7 @@ class RagController extends Controller
         $docs = DB::table('documents')
             ->orderByDesc('created_at')
             ->limit(100)
-            ->get(['id','title','source','created_at']);
+            ->get(['id','title','source','created_at','metadata']);
 
         $counts = DB::table('chunks')
             ->select('document_id', DB::raw('COUNT(*) as n'))
@@ -361,6 +361,9 @@ class RagController extends Controller
                 'final_memory_usage' => memory_get_usage(true) / 1024 / 1024 . ' MB',
                 'peak_memory_usage' => memory_get_peak_usage(true) / 1024 / 1024 . ' MB'
             ]);
+
+            // Gerar perguntas sugeridas em background (não bloqueia resposta)
+            $this->generateSuggestedQuestions($docId);
 
             return response()
                 ->json([
@@ -1737,5 +1740,48 @@ class RagController extends Controller
             'status_url' => url("/api/rag/upload-status?upload_id=$docId"),
             'estimated_completion' => now()->addSeconds(30)->toISOString()
         ], 202);
+    }
+
+    /**
+     * Gera perguntas sugeridas para um documento (em background)
+     */
+    private function generateSuggestedQuestions(int $docId): void
+    {
+        try {
+            $scriptPath = base_path('scripts/rag_search/question_suggester.py');
+            
+            if (!file_exists($scriptPath)) {
+                Log::warning('Question suggester script not found', ['path' => $scriptPath]);
+                return;
+            }
+            
+            // Prepara configuração do banco
+            $dbConfig = json_encode([
+                'host' => env('DB_HOST', 'localhost'),
+                'database' => env('DB_DATABASE', 'laravel'),
+                'user' => env('DB_USERNAME', 'postgres'),
+                'password' => env('DB_PASSWORD', ''),
+                'port' => env('DB_PORT', '5432')
+            ]);
+            
+            // Executa em background (não bloqueia)
+            $cmd = sprintf(
+                'python3 %s --document-id %d --db-config %s > /dev/null 2>&1 &',
+                escapeshellarg($scriptPath),
+                $docId,
+                escapeshellarg($dbConfig)
+            );
+            
+            exec($cmd);
+            
+            Log::info('Question suggester started in background', [
+                'document_id' => $docId
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to start question suggester', [
+                'document_id' => $docId,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 }

@@ -76,7 +76,10 @@
       <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ing" type="button">Ingest</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#query" type="button">Query</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#answer" type="button">Answer (RAG+LLM)</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#python" type="button">Python RAG</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#gen" type="button">Vertex Generate</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#metrics" type="button">Métricas</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin" type="button">Admin</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cost" type="button">Calculadora de Custos</button></li>
     </ul>
 
@@ -146,6 +149,13 @@
         <div class="row g-3">
           <div class="col-12 col-xl-6">
             <div class="mb-2">
+              <label class="form-label">Document ID</label>
+              <div class="input-group">
+                <input id="aDocId" type="number" class="form-control" placeholder="ID do documento" value="125">
+                <button id="btnLoadLatest" class="btn btn-outline-secondary" type="button">Último</button>
+              </div>
+            </div>
+            <div class="mb-2">
               <label class="form-label">Pergunta</label>
               <textarea id="aText" class="form-control" rows="6" placeholder="Pergunta para RAG + LLM"></textarea>
             </div>
@@ -158,6 +168,168 @@
           <div class="col-12 col-xl-6">
             <h6>Resposta</h6>
             <pre id="answerOut" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- PYTHON RAG -->
+      <div class="tab-pane fade" id="python">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <!-- MODO SIMPLES (sempre visível) -->
+            <div class="mb-3">
+              <label class="form-label fw-bold">📄 Documento</label>
+              <input id="pythonDocId" class="form-control form-control-lg" type="number" placeholder="Digite o ID do documento">
+              <small class="form-text text-muted">Exemplo: 142</small>
+            </div>
+            
+            <div id="pythonSuggestedQuestions" class="mb-3" style="display:none;">
+              <label class="form-label">💡 Perguntas Sugeridas:</label>
+              <div id="pythonSuggestedList" class="d-flex flex-wrap gap-2"></div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">💬 Sua Pergunta</label>
+              <textarea id="pythonQuery" class="form-control" rows="3" placeholder="Digite sua pergunta aqui... Exemplo: 'Quais os certificados?'"></textarea>
+            </div>
+            
+            <div class="mb-3">
+              <div class="form-check">
+                <input id="pythonUseSmartMode" class="form-check-input" type="checkbox" checked>
+                <label class="form-check-label fw-bold">🧠 Modo Inteligente (Recomendado)</label>
+                <br><small class="form-text text-muted">Sistema decide automaticamente a melhor estratégia</small>
+              </div>
+            </div>
+            
+            <div class="d-grid gap-2 mb-3">
+              <button id="pythonSearchBtn" class="btn btn-primary btn-lg">🔍 Buscar</button>
+            </div>
+            
+            <!-- TOGGLE PARA MODO AVANÇADO -->
+            <div class="mb-3">
+              <button class="btn btn-sm btn-outline-secondary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#pythonAdvancedOptions">
+                ⚙️ Opções Avançadas (opcional)
+              </button>
+            </div>
+            
+            <!-- CONTROLES AVANÇADOS (colapsável) -->
+            <div class="collapse" id="pythonAdvancedOptions">
+              <div class="card card-body bg-light">
+                <h6 class="text-muted">Controles Técnicos</h6>
+                
+                <div class="row gx-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small">Top-K</label>
+                    <input id="pythonTopK" class="form-control form-control-sm" type="number" value="5" min="1" max="20">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Threshold</label>
+                    <input id="pythonThreshold" class="form-control form-control-sm" type="number" value="0.3" min="0.05" max="1.0" step="0.05">
+                  </div>
+                </div>
+                
+                <div class="mb-2">
+                  <div class="form-check">
+                    <input id="pythonIncludeAnswer" class="form-check-input" type="checkbox" checked>
+                    <label class="form-check-label small">Incluir resposta LLM</label>
+                  </div>
+                </div>
+                
+                <div class="mb-2">
+                  <div class="form-check">
+                    <input id="pythonUseFullDocument" class="form-check-input" type="checkbox">
+                    <label class="form-check-label small">Usar Documento Completo</label>
+                  </div>
+                </div>
+                
+                <div class="mb-2">
+                  <label class="form-label small">Strictness (0-3)</label>
+                  <select id="pythonStrictness" class="form-select form-select-sm">
+                    <option value="0">0 - Muito Permissivo</option>
+                    <option value="1">1 - Permissivo</option>
+                    <option value="2" selected>2 - Moderado (Padrão)</option>
+                    <option value="3">3 - Rigoroso (Sem LLM)</option>
+                  </select>
+                </div>
+                
+                <div class="row gx-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small">Modo</label>
+                    <select id="pythonMode" class="form-select form-select-sm">
+                      <option value="auto" selected>Auto (Detecta)</option>
+                      <option value="direct">Direct</option>
+                      <option value="summary">Summary</option>
+                      <option value="quote">Quote</option>
+                      <option value="list">List</option>
+                      <option value="table">Table</option>
+                      <option value="document_full">Document Full</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Formato</label>
+                    <select id="pythonFormat" class="form-select form-select-sm">
+                      <option value="plain" selected>Plain</option>
+                      <option value="markdown">Markdown</option>
+                      <option value="html">HTML</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="row gx-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small">Comprimento</label>
+                    <select id="pythonLength" class="form-select form-select-sm">
+                      <option value="auto" selected>Auto</option>
+                      <option value="short">Short</option>
+                      <option value="medium">Medium</option>
+                      <option value="long">Long</option>
+                      <option value="xl">XL</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Citações (0-10)</label>
+                    <input id="pythonCitations" class="form-control form-control-sm" type="number" value="0" min="0" max="10">
+                  </div>
+                </div>
+                
+                <div class="d-flex gap-2 mt-3">
+                  <button id="pythonCompareBtn" class="btn btn-outline-secondary btn-sm">⚖️ Comparar PHP vs Python</button>
+                  <button id="pythonHealthBtn" class="btn btn-outline-info btn-sm">🏥 Health Check</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <div class="mb-2">
+              <label class="form-label">Resultados Python RAG</label>
+              <div id="pythonStatus" class="alert alert-info">Pronto para busca...</div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Chunks Encontrados</label>
+              <div id="pythonChunks" class="border rounded p-2 bg-light" style="max-height: 300px; overflow-y: auto;"></div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Resposta LLM</label>
+              <div id="pythonAnswer" class="border rounded p-2 bg-light" style="max-height: 200px; overflow-y: auto;"></div>
+              
+              <!-- FEEDBACK BUTTONS -->
+              <div id="feedbackSection" class="mt-2" style="display:none;">
+                <div class="d-flex align-items-center gap-2">
+                  <small class="text-muted">Esta resposta foi útil?</small>
+                  <button id="feedbackThumbsUp" class="btn btn-sm btn-outline-success" title="Resposta útil">
+                    👍 Útil
+                  </button>
+                  <button id="feedbackThumbsDown" class="btn btn-sm btn-outline-danger" title="Resposta não útil">
+                    👎 Não útil
+                  </button>
+                  <span id="feedbackStatus" class="small text-success" style="display:none;"></span>
+                </div>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Metadados</label>
+              <pre id="pythonMetadata" class="mono p-2 border rounded bg-soft small"></pre>
+            </div>
           </div>
         </div>
       </div>
@@ -194,6 +366,68 @@
           <div class="col-12 col-xl-6">
             <h6>Resposta</h6>
             <pre id="genOut" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÉTRICAS -->
+      <div class="tab-pane fade" id="metrics">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <h6>Métricas do Sistema</h6>
+            <div class="d-grid gap-2">
+              <button id="btnMetrics" class="btn btn-outline-primary">Carregar Métricas</button>
+              <button id="btnCacheStats" class="btn btn-outline-info">Estatísticas de Cache</button>
+              <button id="btnEmbeddingsStats" class="btn btn-outline-success">Estatísticas de Embeddings</button>
+            </div>
+            
+            <div class="mt-3">
+              <h6>📊 Feedback & Analytics</h6>
+              <div class="d-grid gap-2">
+                <button id="btnFeedbackStats" class="btn btn-outline-primary">📈 Estatísticas de Feedback</button>
+                <button id="btnRecentFeedbacks" class="btn btn-outline-secondary">📝 Feedbacks Recentes</button>
+              </div>
+            </div>
+            
+            <div class="mt-3">
+              <h6>Cache Management</h6>
+              <div class="d-grid gap-2">
+                <button id="btnClearCache" class="btn btn-outline-warning">Limpar Cache</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <h6>Resultado</h6>
+            <pre id="metricsOut" class="mono p-3 border rounded bg-soft">Clique em um botão para carregar métricas...</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN -->
+      <div class="tab-pane fade" id="admin">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <h6>Administração</h6>
+            <div class="mb-3">
+              <label class="form-label">Document ID para Reprocessar</label>
+              <input id="adminDocId" type="number" class="form-control" placeholder="ID do documento">
+            </div>
+            <div class="d-grid gap-2">
+              <button id="btnReprocessDoc" class="btn btn-outline-warning">Reprocessar Documento</button>
+              <button id="btnBatchIngest" class="btn btn-outline-info">Upload em Lote</button>
+              <button id="btnQualityIngest" class="btn btn-outline-success">Upload com Qualidade</button>
+              <button id="btnPreview" class="btn btn-outline-secondary">Preview Documento</button>
+            </div>
+            <div class="mt-3">
+              <h6>Debug</h6>
+              <div class="d-grid gap-2">
+                <button id="btnDebugEcho" class="btn btn-outline-dark">Debug Echo</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <h6>Resultado</h6>
+            <pre id="adminOut" class="mono p-3 border rounded bg-soft">Selecione uma ação administrativa...</pre>
           </div>
         </div>
       </div>
@@ -517,12 +751,25 @@
       }catch(e){ out.textContent="Erro: "+e.message; }
     });
 
+    // ======= LOAD LATEST DOCUMENT =======
+    document.getElementById("btnLoadLatest").addEventListener("click", async ()=>{
+      try{
+        const data = await doFetchJSON("GET","/api/docs/list");
+        if (data && data.docs && data.docs.length > 0) {
+          const latest = data.docs[0]; // Primeiro é o mais recente
+          document.getElementById("aDocId").value = latest.id;
+          console.log(`Carregado documento: ${latest.title} (ID: ${latest.id})`);
+        }
+      }catch(e){ console.error("Erro ao carregar documentos:", e); }
+    });
+
     // ======= ANSWER =======
     document.getElementById("btnAnswer").addEventListener("click", async ()=>{
       const out=document.getElementById("answerOut");
       out.textContent="Gerando...";
       const payload = {
         query: document.getElementById("aText").value,
+        document_id: parseInt(document.getElementById("aDocId").value || "125", 10),
         top_k: parseInt(document.getElementById("aTopK").value || "3", 10),
         model: document.getElementById("aModel").value.trim() || getModel()
       };
@@ -588,6 +835,182 @@
       finally { setTimeout(()=>{ pWrap.classList.add("d-none"); }, 600); }
     });
 
+    // ======= MÉTRICAS =======
+    document.getElementById("btnMetrics").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Carregando métricas...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/metrics");
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnCacheStats").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Carregando estatísticas de cache...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/cache/stats");
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnEmbeddingsStats").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Carregando estatísticas de embeddings...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/embeddings/stats");
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnClearCache").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Limpando cache...";
+      try{
+        const data = await doFetchJSON("POST","/api/rag/cache/clear");
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    // ======= FEEDBACK ANALYTICS =======
+    document.getElementById("btnFeedbackStats").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Carregando estatísticas de feedback...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/feedback/stats");
+        
+        if (data && data.ok) {
+          const stats = data.stats;
+          const topQueries = data.top_queries || [];
+          const worstQueries = data.worst_queries || [];
+          const topDocs = data.top_documents || [];
+          const daily = data.daily_trend || [];
+          
+          let html = `
+📊 ESTATÍSTICAS DE FEEDBACK
+
+═══════════════════════════════════════
+RESUMO GERAL:
+═══════════════════════════════════════
+Total de feedbacks: ${stats.total_feedbacks}
+Feedbacks positivos (👍): ${stats.positive_feedbacks}
+Feedbacks negativos (👎): ${stats.negative_feedbacks}
+Taxa de satisfação: ${stats.satisfaction_rate}%
+
+═══════════════════════════════════════
+TOP 5 QUERIES COM MELHOR AVALIAÇÃO:
+═══════════════════════════════════════
+${topQueries.length > 0 ? topQueries.map((q, i) => 
+  `${i+1}. "${q.query.substring(0, 60)}${q.query.length > 60 ? '...' : ''}"
+     Rating: ${q.avg_rating.toFixed(2)} | Avaliações: ${q.count}`
+).join('\n\n') : 'Sem dados suficientes (mínimo 2 avaliações por query)'}
+
+═══════════════════════════════════════
+TOP 5 QUERIES COM PIOR AVALIAÇÃO:
+═══════════════════════════════════════
+${worstQueries.length > 0 ? worstQueries.map((q, i) => 
+  `${i+1}. "${q.query.substring(0, 60)}${q.query.length > 60 ? '...' : ''}"
+     Rating: ${q.avg_rating.toFixed(2)} | Avaliações: ${q.count}`
+).join('\n\n') : 'Sem dados suficientes'}
+
+═══════════════════════════════════════
+TOP 5 DOCUMENTOS COM MELHOR PERFORMANCE:
+═══════════════════════════════════════
+${topDocs.length > 0 ? topDocs.map((d, i) => 
+  `${i+1}. Doc ID: ${d.document_id} - ${d.document ? d.document.title : 'Sem título'}
+     Rating: ${d.avg_rating.toFixed(2)} | Avaliações: ${d.count}`
+).join('\n\n') : 'Sem dados suficientes (mínimo 3 avaliações por documento)'}
+
+═══════════════════════════════════════
+TENDÊNCIA (ÚLTIMOS 7 DIAS):
+═══════════════════════════════════════
+${daily.length > 0 ? daily.map(d => 
+  `${d.date}: ${d.total} feedbacks (${d.positive} 👍 / ${d.negative} 👎)`
+).join('\n') : 'Sem dados nos últimos 7 dias'}
+          `;
+          
+          out.textContent = html;
+        } else {
+          out.textContent = "Erro: " + (data.error || "Resposta inválida");
+        }
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnRecentFeedbacks").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Carregando feedbacks recentes...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/feedback/recent");
+        
+        if (data && data.ok) {
+          const feedbacks = data.feedbacks || [];
+          
+          let html = `
+📝 FEEDBACKS RECENTES (Últimos 50)
+
+═══════════════════════════════════════
+Total: ${feedbacks.length} feedbacks
+═══════════════════════════════════════
+
+${feedbacks.length > 0 ? feedbacks.map((f, i) => {
+  const rating = f.rating === 1 ? '👍 POSITIVO' : '👎 NEGATIVO';
+  const docInfo = f.document ? `Doc: ${f.document.title} (ID: ${f.document_id})` : 'Sem documento';
+  const date = new Date(f.created_at).toLocaleString('pt-BR');
+  
+  return `${i+1}. ${rating} | ${date}
+   Query: "${f.query.substring(0, 80)}${f.query.length > 80 ? '...' : ''}"
+   ${docInfo}
+   ───────────────────────────────────────`;
+}).join('\n') : 'Nenhum feedback encontrado'}
+          `;
+          
+          out.textContent = html;
+        } else {
+          out.textContent = "Erro: " + (data.error || "Resposta inválida");
+        }
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    // ======= ADMIN =======
+    document.getElementById("btnReprocessDoc").addEventListener("click", async ()=>{
+      const out=document.getElementById("adminOut");
+      const docId = document.getElementById("adminDocId").value;
+      if (!docId) { out.textContent="Digite um Document ID"; return; }
+      out.textContent="Reprocessando documento...";
+      try{
+        const data = await doFetchJSON("POST","/api/rag/reprocess-document", {document_id: parseInt(docId)});
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnBatchIngest").addEventListener("click", async ()=>{
+      const out=document.getElementById("adminOut");
+      out.textContent="Upload em lote não implementado no frontend ainda...";
+    });
+
+    document.getElementById("btnQualityIngest").addEventListener("click", async ()=>{
+      const out=document.getElementById("adminOut");
+      out.textContent="Upload com qualidade não implementado no frontend ainda...";
+    });
+
+    document.getElementById("btnPreview").addEventListener("click", async ()=>{
+      const out=document.getElementById("adminOut");
+      out.textContent="Carregando preview...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/preview");
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnDebugEcho").addEventListener("click", async ()=>{
+      const out=document.getElementById("adminOut");
+      out.textContent="Testando debug echo...";
+      try{
+        const data = await doFetchJSON("POST","/api/rag/debug/echo", {test: "debug message"});
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
     // ======= CALCULADORA =======
     function calcCost(model, inCount, outCount=0, longCtx=false){
       const m = PRICING[model]; if(!m) return {error:"Modelo desconhecido"};
@@ -608,9 +1031,362 @@
       const est = calcCost(model, inp, out, long);
       document.getElementById("ccOutArea").textContent=JSON.stringify(est,null,2);
     });
+
+    // ======= PYTHON RAG =======
+    document.getElementById("pythonSearchBtn").addEventListener("click", async ()=>{
+      const query = document.getElementById("pythonQuery").value.trim();
+      if (!query) {
+        document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-warning">Digite uma query</div>';
+        return;
+      }
+
+      const topK = parseInt(document.getElementById("pythonTopK").value) || 5;
+      const threshold = parseFloat(document.getElementById("pythonThreshold").value) || 0.3;
+      const docId = document.getElementById("pythonDocId").value ? parseInt(document.getElementById("pythonDocId").value) : null;
+      const includeAnswer = document.getElementById("pythonIncludeAnswer").checked;
+      const strictness = parseInt(document.getElementById("pythonStrictness").value) || 2;
+      const mode = document.getElementById("pythonMode").value || "auto";
+      const format = document.getElementById("pythonFormat").value || "plain";
+      const length = document.getElementById("pythonLength").value || "auto";
+      const citations = parseInt(document.getElementById("pythonCitations").value) || 0;
+      const useFullDocument = document.getElementById("pythonUseFullDocument").checked;
+      const useSmartMode = document.getElementById("pythonUseSmartMode").checked;
+
+      document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-info">🔍 Buscando com Python RAG...</div>';
+      document.getElementById("pythonChunks").innerHTML = '';
+      document.getElementById("pythonAnswer").innerHTML = '';
+      document.getElementById("pythonMetadata").textContent = '';
+
+      try {
+        const payload = {
+          query: query,
+          top_k: topK,
+          threshold: threshold,
+          include_answer: includeAnswer,
+          strictness: strictness,
+          mode: mode,
+          format: format,
+          length: length,
+          citations: citations,
+          use_full_document: useFullDocument,
+          use_smart_mode: useSmartMode
+        };
+        
+        if (docId) payload.document_id = docId;
+
+        const data = await doFetchJSON("POST", "/api/rag/python-search", payload);
+        
+        if (data.ok || data.success) {
+          document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-success">✅ Busca concluída com sucesso!</div>';
+          
+          // Exibir chunks (novo formato)
+          let chunksHtml = '';
+          if (data.chunks && data.chunks.length > 0) {
+            chunksHtml = data.chunks.map(chunk => 
+              `<div class="border-bottom pb-2 mb-2">
+                <strong>Chunk ID:</strong> ${chunk.id} | 
+                <strong>Doc:</strong> ${chunk.document_id} | 
+                <strong>Similarity:</strong> ${chunk.similarity ? chunk.similarity.toFixed(4) : 'N/A'}
+                <br><small class="text-muted">${chunk.content.substring(0, 200)}${chunk.content.length > 200 ? '...' : ''}</small>
+              </div>`
+            ).join('');
+          } else {
+            chunksHtml = `<em>Nenhum chunk encontrado (${data.used_chunks ? data.used_chunks.length : 0} chunks usados)</em>`;
+          }
+          document.getElementById("pythonChunks").innerHTML = chunksHtml;
+          
+          // Exibir resposta
+          document.getElementById("pythonAnswer").innerHTML = data.answer ? 
+            `<div class="text-wrap">${data.answer.replace(/\n/g, '<br>')}</div>` : 
+            '<em>Resposta não gerada</em>';
+          
+          // Exibir metadados (novo formato com Smart Router info)
+          const metadata = data.debug || data.metadata || {};
+          const displayData = {
+            mode_used: data.mode_used,
+            format: data.format,
+            sources: data.sources,
+            used_chunks: data.used_chunks,
+            smart_router: metadata.smart_router || null,
+            cache_hit: metadata.cache_hit || false,
+            cache_level: metadata.cache_level || null,
+            debug: metadata
+          };
+          document.getElementById("pythonMetadata").textContent = JSON.stringify(displayData, null, 2);
+          
+          // Exibir badge se usou Smart Router
+          if (metadata.smart_router) {
+            const smartInfo = metadata.smart_router;
+            const badge = `<span class="badge bg-info ms-2">🧠 Smart: ${smartInfo.strategy}</span>`;
+            document.getElementById("pythonStatus").innerHTML += badge;
+          }
+          
+          // Exibir badge se veio do cache
+          if (metadata.cache_hit) {
+            const cacheBadge = `<span class="badge bg-success ms-2">⚡ Cache ${metadata.cache_level}</span>`;
+            document.getElementById("pythonStatus").innerHTML += cacheBadge;
+          }
+          
+        } else {
+          document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Erro: ${data.error}</div>`;
+        }
+        
+      } catch(e) {
+        document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Erro: ${e.message}</div>`;
+      }
+    });
+
+    document.getElementById("pythonCompareBtn").addEventListener("click", async ()=>{
+      const query = document.getElementById("pythonQuery").value.trim();
+      if (!query) {
+        document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-warning">Digite uma query para comparar</div>';
+        return;
+      }
+
+      const topK = parseInt(document.getElementById("pythonTopK").value) || 5;
+      const docId = document.getElementById("pythonDocId").value ? parseInt(document.getElementById("pythonDocId").value) : null;
+
+      document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-info">⚖️ Comparando PHP vs Python...</div>';
+
+      try {
+        const payload = {
+          query: query,
+          top_k: topK
+        };
+        
+        if (docId) payload.document_id = docId;
+
+        const data = await doFetchJSON("POST", "/api/rag/compare-search", payload);
+        
+        if (data.success) {
+          const php = data.comparison.php;
+          const python = data.comparison.python;
+          
+          document.getElementById("pythonStatus").innerHTML = `
+            <div class="alert alert-success">
+              <h6>📊 Comparação PHP vs Python</h6>
+              <div class="row">
+                <div class="col-6">
+                  <strong>PHP (FTS):</strong><br>
+                  ✅ Sucesso: ${php.success}<br>
+                  📄 Chunks: ${php.chunks_found}<br>
+                  ⏱️ Tempo: ${php.execution_time}s
+                </div>
+                <div class="col-6">
+                  <strong>Python (Vector):</strong><br>
+                  ✅ Sucesso: ${python.success}<br>
+                  📄 Chunks: ${python.chunks_found}<br>
+                  ⏱️ Tempo: ${python.execution_time}s
+                </div>
+              </div>
+              <hr>
+              <strong>🏆 Vencedor:</strong> Velocidade: ${data.winner.speed} | Chunks: ${data.winner.chunks}
+            </div>
+          `;
+          
+          document.getElementById("pythonMetadata").textContent = JSON.stringify(data, null, 2);
+          
+        } else {
+          document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Erro na comparação: ${data.error}</div>`;
+        }
+        
+      } catch(e) {
+        document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Erro: ${e.message}</div>`;
+      }
+    });
+
+    document.getElementById("pythonHealthBtn").addEventListener("click", async ()=>{
+      document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-info">🏥 Verificando saúde do sistema Python...</div>';
+
+      try {
+        const data = await doFetchJSON("GET", "/api/rag/python-health");
+        
+        if (data.success) {
+          document.getElementById("pythonStatus").innerHTML = `
+            <div class="alert alert-success">
+              <h6>🏥 Sistema Python RAG - Saudável</h6>
+              <div class="row">
+                <div class="col-6">
+                  <strong>Python:</strong> ${data.python_version}<br>
+                  <strong>Script:</strong> ✅ Encontrado<br>
+                  <strong>Dependências:</strong> ✅ OK
+                </div>
+                <div class="col-6">
+                  <strong>Docs:</strong> ${data.database_stats.total_documents}<br>
+                  <strong>Chunks:</strong> ${data.database_stats.total_chunks}<br>
+                  <strong>Embeddings:</strong> ${data.database_stats.chunks_with_embeddings} (${data.database_stats.embedding_coverage}%)
+                </div>
+              </div>
+            </div>
+          `;
+          
+          document.getElementById("pythonMetadata").textContent = JSON.stringify(data, null, 2);
+          
+        } else {
+          document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Sistema com problemas: ${data.error}</div>`;
+        }
+        
+      } catch(e) {
+        document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Erro: ${e.message}</div>`;
+      }
+    });
+
   </script>
   <!-- ADICIONE esta linha no final do seu index.html, antes de fechar </body> -->
 <script src="./rag-client.js"></script>
+
+<script>
+  // Carregar perguntas sugeridas quando documento for selecionado
+  // IMPORTANTE: Deve estar DEPOIS do rag-client.js para window.RAG existir
+  window.addEventListener("load", function() {
+    // Aguarda um pouco para garantir que window.RAG está disponível
+    setTimeout(function() {
+      if (!window.RAG) {
+        console.error("window.RAG não está disponível!");
+        return;
+      }
+      
+      console.log("✓ window.RAG disponível, registrando event listener");
+      
+      document.getElementById("pythonDocId").addEventListener("change", async function() {
+        const docId = parseInt(this.value);
+        console.log("Event change disparado, docId:", docId);
+        
+        if (!docId) {
+          document.getElementById("pythonSuggestedQuestions").style.display = "none";
+          return;
+        }
+
+        try {
+          console.log("Buscando perguntas para doc", docId);
+          const questions = await window.RAG.getSuggestedQuestions(docId);
+          console.log("Perguntas recebidas:", questions ? questions.length : 0);
+          
+          if (questions && questions.length > 0) {
+            const listEl = document.getElementById("pythonSuggestedList");
+            listEl.innerHTML = '';
+            
+            questions.forEach(q => {
+              const btn = document.createElement("button");
+              btn.className = "btn btn-sm btn-outline-primary";
+              btn.textContent = q;
+              btn.onclick = () => {
+                document.getElementById("pythonQuery").value = q;
+              };
+              listEl.appendChild(btn);
+            });
+            
+            document.getElementById("pythonSuggestedQuestions").style.display = "block";
+            console.log("✓ Perguntas exibidas!");
+          } else {
+            document.getElementById("pythonSuggestedQuestions").style.display = "none";
+            console.log("Nenhuma pergunta encontrada");
+          }
+        } catch(e) {
+          console.error("Erro ao carregar perguntas sugeridas:", e);
+        }
+      });
+    }, 100);
+  });
+  
+  // FEEDBACK SYSTEM - Registrar botões de feedback
+  let currentSearchMetadata = null; // Guarda metadados da última busca
+  
+  // Interceptar resultados da busca Python para armazenar metadados
+  const originalPythonSearch = window.RAG.pythonSearch;
+  window.RAG.pythonSearch = async function(params) {
+    const result = await originalPythonSearch.call(this, params);
+    if (result && result.ok) {
+      currentSearchMetadata = {
+        query: params.query,
+        document_id: params.document_id,
+        mode: params.mode,
+        format: params.format,
+        use_smart_mode: params.use_smart_mode,
+        response_metadata: result.metadata || {}
+      };
+      
+      // Mostra botões de feedback após resposta
+      document.getElementById("feedbackSection").style.display = "block";
+      document.getElementById("feedbackStatus").style.display = "none";
+      
+      // Reseta estado dos botões
+      document.getElementById("feedbackThumbsUp").disabled = false;
+      document.getElementById("feedbackThumbsDown").disabled = false;
+      document.getElementById("feedbackThumbsUp").classList.remove("active", "btn-success");
+      document.getElementById("feedbackThumbsDown").classList.remove("active", "btn-danger");
+      document.getElementById("feedbackThumbsUp").classList.add("btn-outline-success");
+      document.getElementById("feedbackThumbsDown").classList.add("btn-outline-danger");
+    }
+    return result;
+  };
+  
+  // Botão Thumbs Up
+  document.getElementById("feedbackThumbsUp").addEventListener("click", async function() {
+    if (!currentSearchMetadata) {
+      alert("Nenhuma busca ativa para avaliar.");
+      return;
+    }
+    
+    try {
+      const result = await window.RAG.submitFeedback({
+        query: currentSearchMetadata.query,
+        document_id: currentSearchMetadata.document_id,
+        rating: 1,
+        metadata: currentSearchMetadata
+      });
+      
+      if (result && result.ok) {
+        document.getElementById("feedbackStatus").textContent = "✓ Obrigado pelo feedback!";
+        document.getElementById("feedbackStatus").style.display = "inline";
+        
+        // Destaca botão clicado
+        this.disabled = true;
+        document.getElementById("feedbackThumbsDown").disabled = true;
+        this.classList.remove("btn-outline-success");
+        this.classList.add("btn-success", "active");
+      } else {
+        alert("Erro ao salvar feedback: " + (result.error || "Desconhecido"));
+      }
+    } catch (e) {
+      console.error("Erro ao enviar feedback:", e);
+      alert("Erro ao enviar feedback: " + e.message);
+    }
+  });
+  
+  // Botão Thumbs Down
+  document.getElementById("feedbackThumbsDown").addEventListener("click", async function() {
+    if (!currentSearchMetadata) {
+      alert("Nenhuma busca ativa para avaliar.");
+      return;
+    }
+    
+    try {
+      const result = await window.RAG.submitFeedback({
+        query: currentSearchMetadata.query,
+        document_id: currentSearchMetadata.document_id,
+        rating: -1,
+        metadata: currentSearchMetadata
+      });
+      
+      if (result && result.ok) {
+        document.getElementById("feedbackStatus").textContent = "✓ Obrigado pelo feedback! Vamos melhorar.";
+        document.getElementById("feedbackStatus").style.display = "inline";
+        
+        // Destaca botão clicado
+        this.disabled = true;
+        document.getElementById("feedbackThumbsUp").disabled = true;
+        this.classList.remove("btn-outline-danger");
+        this.classList.add("btn-danger", "active");
+      } else {
+        alert("Erro ao salvar feedback: " + (result.error || "Desconhecido"));
+      }
+    } catch (e) {
+      console.error("Erro ao enviar feedback:", e);
+      alert("Erro ao enviar feedback: " + e.message);
+    }
+  });
+</script>
 
 </body>
 </html>

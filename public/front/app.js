@@ -351,5 +351,165 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
+  // PYTHON RAG - Event Listeners
+  document.getElementById('pythonSearchBtn').addEventListener('click', async function() {
+    const query = document.getElementById('pythonQuery').value.trim();
+    if (!query) {
+      document.getElementById('pythonStatus').innerHTML = '<div class="alert alert-warning">Digite uma query</div>';
+      return;
+    }
+
+    const topK = parseInt(document.getElementById('pythonTopK').value) || 5;
+    const threshold = parseFloat(document.getElementById('pythonThreshold').value) || 0.3;
+    const docId = document.getElementById('pythonDocId').value ? parseInt(document.getElementById('pythonDocId').value) : null;
+    const includeAnswer = document.getElementById('pythonIncludeAnswer').checked;
+    const strictness = parseInt(document.getElementById('pythonStrictness').value) || 2;
+    const mode = document.getElementById('pythonMode').value || "auto";
+    const format = document.getElementById('pythonFormat').value || "plain";
+    const length = document.getElementById('pythonLength').value || "auto";
+    const citations = parseInt(document.getElementById('pythonCitations').value) || 0;
+
+    document.getElementById('pythonStatus').innerHTML = '<div class="alert alert-info">🔍 Buscando com Python RAG...</div>';
+    document.getElementById('pythonChunks').innerHTML = '';
+    document.getElementById('pythonAnswer').innerHTML = '';
+    document.getElementById('pythonMetadata').textContent = '';
+
+    try {
+      const payload = {
+        query: query,
+        top_k: topK,
+        threshold: threshold,
+        include_answer: includeAnswer,
+        strictness: strictness,
+        mode: mode,
+        format: format,
+        length: length,
+        citations: citations
+      };
+      
+      if (docId) payload.document_id = docId;
+
+      const data = await apiRequest('/api/rag/python-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (data.ok || data.success) {
+        document.getElementById('pythonStatus').innerHTML = '<div class="alert alert-success">✅ Busca concluída com sucesso!</div>';
+        
+        // Exibir chunks
+        let chunksHtml = '';
+        if (data.chunks && data.chunks.length > 0) {
+          chunksHtml = data.chunks.map(chunk => 
+            `<div class="border-bottom pb-2 mb-2">
+              <strong>Chunk ID:</strong> ${chunk.id} | 
+              <strong>Doc:</strong> ${chunk.document_id} | 
+              <strong>Similarity:</strong> ${chunk.similarity ? chunk.similarity.toFixed(4) : 'N/A'}
+              <br><small class="text-muted">${chunk.content.substring(0, 200)}${chunk.content.length > 200 ? '...' : ''}</small>
+            </div>`
+          ).join('');
+        } else {
+          chunksHtml = `<em>Nenhum chunk encontrado (${data.used_chunks ? data.used_chunks.length : 0} chunks usados)</em>`;
+        }
+        document.getElementById('pythonChunks').innerHTML = chunksHtml;
+        
+        // Exibir resposta
+        document.getElementById('pythonAnswer').innerHTML = data.answer ? 
+          `<div class="text-wrap">${data.answer.replace(/\n/g, '<br>')}</div>` : 
+          '<em>Resposta não gerada</em>';
+        
+        // Exibir metadados
+        const metadata = data.debug || data.metadata || {};
+        const displayData = {
+          mode_used: data.mode_used,
+          format: data.format,
+          sources: data.sources,
+          used_chunks: data.used_chunks,
+          debug: metadata
+        };
+        document.getElementById('pythonMetadata').textContent = JSON.stringify(displayData, null, 2);
+        
+      } else {
+        document.getElementById('pythonStatus').innerHTML = `<div class="alert alert-danger">❌ Erro: ${data.error}</div>`;
+      }
+      
+    } catch(e) {
+      document.getElementById('pythonStatus').innerHTML = `<div class="alert alert-danger">❌ Erro: ${e.message}</div>`;
+      log(`Erro Python RAG: ${e.message}`, 'error');
+    }
+  });
+
+  document.getElementById('pythonCompareBtn').addEventListener('click', async function() {
+    const query = document.getElementById('pythonQuery').value.trim();
+    if (!query) {
+      document.getElementById('pythonStatus').innerHTML = '<div class="alert alert-warning">Digite uma query</div>';
+      return;
+    }
+
+    const docId = document.getElementById('pythonDocId').value ? parseInt(document.getElementById('pythonDocId').value) : null;
+    if (!docId) {
+      document.getElementById('pythonStatus').innerHTML = '<div class="alert alert-warning">Document ID é obrigatório para comparação</div>';
+      return;
+    }
+
+    document.getElementById('pythonStatus').innerHTML = '<div class="alert alert-info">⚖️ Comparando PHP vs Python...</div>';
+
+    try {
+      const data = await apiRequest('/api/rag/compare-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: query,
+          document_id: docId,
+          top_k: 5
+        })
+      });
+
+      if (data.success) {
+        const comparison = data.comparison;
+        document.getElementById('pythonStatus').innerHTML = `
+          <div class="alert alert-success">
+            <strong>Comparação Concluída!</strong><br>
+            <strong>PHP:</strong> ${comparison.php.chunks_found} chunks em ${comparison.php.execution_time}ms<br>
+            <strong>Python:</strong> ${comparison.python.chunks_found} chunks em ${comparison.python.execution_time}ms<br>
+            <strong>Vencedor:</strong> ${data.winner.speed} (velocidade), ${data.winner.chunks} (chunks)
+          </div>
+        `;
+      } else {
+        document.getElementById('pythonStatus').innerHTML = `<div class="alert alert-danger">❌ Erro na comparação: ${data.error}</div>`;
+      }
+    } catch(e) {
+      document.getElementById('pythonStatus').innerHTML = `<div class="alert alert-danger">❌ Erro: ${e.message}</div>`;
+      log(`Erro comparação: ${e.message}`, 'error');
+    }
+  });
+
+  document.getElementById('pythonHealthBtn').addEventListener('click', async function() {
+    document.getElementById('pythonStatus').innerHTML = '<div class="alert alert-info">🏥 Verificando saúde do Python...</div>';
+
+    try {
+      const data = await apiRequest('/api/rag/python-health', {
+        method: 'GET'
+      });
+
+      if (data.success) {
+        document.getElementById('pythonStatus').innerHTML = `
+          <div class="alert alert-success">
+            <strong>Python RAG Saudável!</strong><br>
+            <small>Versão: ${data.python_version}<br>
+            Documentos: ${data.database_stats.total_documents}<br>
+            Chunks: ${data.database_stats.total_chunks} (${data.database_stats.embedding_coverage}% com embeddings)</small>
+          </div>
+        `;
+      } else {
+        document.getElementById('pythonStatus').innerHTML = `<div class="alert alert-danger">❌ Python RAG não está saudável</div>`;
+      }
+    } catch(e) {
+      document.getElementById('pythonStatus').innerHTML = `<div class="alert alert-danger">❌ Erro: ${e.message}</div>`;
+      log(`Erro health check: ${e.message}`, 'error');
+    }
+  });
+  
   log('Frontend RAG inicializado', 'success');
 });

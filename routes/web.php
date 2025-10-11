@@ -12,6 +12,11 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Frontend estático
+Route::get('/rag-frontend', function () {
+    return response()->file(public_path('rag-frontend/index.html'));
+});
+
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');

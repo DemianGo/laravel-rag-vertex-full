@@ -1,0 +1,103 @@
+=== LARAVEL RAG SYSTEM - MAPEAMENTO COMPLETO ===
+
+🔒 NUNCA MODIFICAR (Backend PHP - 100% funcional):
+├── app/
+│   ├── Http/Controllers/
+│   │   ├── Controller.php ✅
+│   │   ├── RagController.php ✅ (upload/ingest documentos)
+│   │   └── RagAnswerController.php ✅ (busca RAG PHP)
+│   └── Models/
+│       ├── User.php ✅
+│       ├── UserPlan.php ✅
+│       ├── Document.php ✅
+│       └── Chunk.php ✅
+├── routes/ ✅
+├── config/ ✅
+├── database/migrations/ ✅
+├── composer.json ✅
+└── .env ✅
+
+🔒 NUNCA MODIFICAR (Python - Extração 100% funcional):
+├── scripts/document_extraction/ ✅ (28 arquivos)
+│   ├── main_extractor.py
+│   ├── extract.py (PDF)
+│   ├── office_extractor.py (DOCX/XLSX/PPTX)
+│   ├── text_extractor.py (TXT/CSV/RTF)
+│   ├── web_extractor.py (HTML/XML)
+│   └── quality/ (análise qualidade)
+├── scripts/api/ ✅ (28 arquivos - FastAPI Enterprise)
+│   ├── main.py
+│   ├── routers/
+│   ├── services/
+│   └── models/
+└── scripts/pdf_extraction/ ✅
+
+🔒 NUNCA MODIFICAR (Python - RAG Search FINALIZADO):
+└── scripts/rag_search/ ✅ (7 arquivos)
+    ├── rag_search.py
+    ├── config.py
+    ├── database.py
+    ├── embeddings_service.py (modelo: all-mpnet-base-v2, 768 dims)
+    ├── vector_search.py
+    ├── llm_service.py
+    └── requirements.txt
+    
+    STATUS: 100% FUNCIONAL
+    - Busca vetorial: OK
+    - LLM Gemini: OK
+    - Threshold: 0.05-0.45
+    - Top-K: 5-8
+    - Tempo resposta: ~6s
+
+---
+
+ARQUITETURA DO SISTEMA:
+
+┌─────────────────────────────────────┐
+│ Laravel PHP                         │
+│ ├─ RagController (upload) ✅       │
+│ ├─ RagAnswerController (busca) ✅  │
+│ └─ shell_exec() → Python           │
+└─────────────┬───────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│ Python Scripts                      │
+│ ├─ document_extraction/ ✅         │
+│ └─ rag_search/ ✅ (busca vetorial) │
+└─────────────┬───────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│ PostgreSQL                          │
+│ ├─ documents (5 docs)               │
+│ ├─ chunks (114 com embeddings)     │
+│ └─ Embeddings: 768 dims (mpnet)    │
+└─────────────────────────────────────┘
+
+---
+
+STACK TÉCNICO:
+- Laravel 11 + PHP 8.4
+- Python 3.12
+- PostgreSQL 14+
+- sentence-transformers (all-mpnet-base-v2, 768d)
+- Gemini AI (primary) / OpenAI (fallback)
+
+DADOS DO BANCO:
+- 114 chunks com embeddings
+- Documentos com embeddings: [9002,34,35,39,36,31,50,14,22,13,16]
+- Documento teste: ID 50 (genérico), ID 36 (REUNI real)
+
+---
+
+🚧 PRÓXIMA FASE - FRONTEND:
+
+Frontends existentes para análise:
+├── public/front/
+└── public/rag-frontend/
+
+OBJETIVO: 
+- Analisar qual frontend usar como base
+- Integrar com scripts/rag_search/
+- Interface web completa para upload + busca RAG
+
+STATUS: Aguardando análise dos frontends existentes
