@@ -38,6 +38,18 @@ class DocumentPageValidator
                 case 'html':
                 case 'xml':
                 case 'rtf':
+                    return $this->estimatePagesBySize($filePath);
+                
+                case 'png':
+                case 'jpg':
+                case 'jpeg':
+                case 'gif':
+                case 'bmp':
+                case 'tiff':
+                case 'tif':
+                case 'webp':
+                    return $this->countImagePages($filePath);
+                
                 default:
                     return $this->estimatePagesBySize($filePath);
             }
@@ -307,6 +319,61 @@ try:
         os.unlink(input_file)
 except Exception as e:
     sys.exit(1)
+PYTHON;
+        file_put_contents($path, $content);
+        chmod($path, 0755);
+    }
+
+    /**
+     * Count image pages (always 1)
+     */
+    private function countImagePages(string $filePath): int
+    {
+        try {
+            $scriptPath = base_path('scripts/document_extraction/count_image_pages.py');
+            
+            // Create script if it doesn't exist
+            if (!file_exists($scriptPath)) {
+                $this->createImagePageCounter($scriptPath);
+            }
+
+            $output = shell_exec("python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($filePath) . " 2>&1");
+            $pages = (int)trim($output);
+            
+            return max(1, $pages); // Images are always at least 1 page
+        } catch (\Exception $e) {
+            Log::warning("Image page count failed: " . $e->getMessage());
+            return 1; // Default to 1 page for images
+        }
+    }
+
+    /**
+     * Create Python helper: Image page counter
+     */
+    private function createImagePageCounter(string $path): void
+    {
+        $content = <<<'PYTHON'
+#!/usr/bin/env python3
+import sys
+from pathlib import Path
+
+def count_image_pages(file_path: str) -> int:
+    """Images always count as 1 page."""
+    try:
+        path = Path(file_path)
+        if not path.exists():
+            return 0
+        valid_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif', '.webp']
+        if path.suffix.lower() not in valid_extensions:
+            return 0
+        return 1
+    except:
+        return 0
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        sys.exit(1)
+    print(count_image_pages(sys.argv[1]))
 PYTHON;
         file_put_contents($path, $content);
         chmod($path, 0755);

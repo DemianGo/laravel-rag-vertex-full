@@ -29,3 +29,9 @@ python-magic>=0.4.27
 
 # Data structure analysis
 collections-extended>=2.0.0
+
+# OCR and Image Processing
+pytesseract>=0.3.10
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
+numpy>=1.24.0

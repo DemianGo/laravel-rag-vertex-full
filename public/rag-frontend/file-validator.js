@@ -12,8 +12,8 @@
     const MAX_PAGES = 5000;
     const MAX_FILES = 5;
     
-    // Valid document extensions
-    const VALID_EXTENSIONS = ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'txt', 'csv', 'html', 'xml', 'rtf'];
+    // Valid document extensions (including images)
+    const VALID_EXTENSIONS = ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'txt', 'csv', 'html', 'xml', 'rtf', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'tif', 'webp'];
 
     // Page estimation rules
     const PAGE_ESTIMATION = {
@@ -29,6 +29,15 @@
         'html': { bytesPerPage: 4096, exact: false },
         'xml': { bytesPerPage: 4096, exact: false },
         'rtf': { bytesPerPage: 3072, exact: false },
+        // Images always count as 1 page
+        'png': { bytesPerPage: Infinity, exact: true },
+        'jpg': { bytesPerPage: Infinity, exact: true },
+        'jpeg': { bytesPerPage: Infinity, exact: true },
+        'gif': { bytesPerPage: Infinity, exact: true },
+        'bmp': { bytesPerPage: Infinity, exact: true },
+        'tiff': { bytesPerPage: Infinity, exact: true },
+        'tif': { bytesPerPage: Infinity, exact: true },
+        'webp': { bytesPerPage: Infinity, exact: true },
         'default': { bytesPerPage: 4096, exact: false }
     };
 
@@ -36,6 +45,15 @@
     function estimatePages(file) {
         const ext = file.name.split('.').pop().toLowerCase();
         const rule = PAGE_ESTIMATION[ext] || PAGE_ESTIMATION['default'];
+        
+        // Images always count as 1 page
+        if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'tif', 'webp'].includes(ext)) {
+            return {
+                pages: 1,
+                exact: true
+            };
+        }
+        
         const estimatedPages = Math.ceil(file.size / rule.bytesPerPage);
         
         return {

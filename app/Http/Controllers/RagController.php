@@ -1246,6 +1246,16 @@ class RagController extends Controller
                 case 'rtf':
                     return $this->extractFromRtf($path);
 
+                case 'png':
+                case 'jpg':
+                case 'jpeg':
+                case 'gif':
+                case 'bmp':
+                case 'tiff':
+                case 'tif':
+                case 'webp':
+                    return $this->extractFromImage($path);
+
                 default:
                     return $this->extractWithPythonScripts($path, $ext);
             }
@@ -1578,6 +1588,65 @@ class RagController extends Controller
             'quality_score' => 0.8,
             'metadata' => ['json_keys' => count($data)]
         ];
+    }
+
+    private function extractFromImage(string $path): array
+    {
+        // Extract text from images using OCR (Tesseract via Python)
+        $timeoutSeconds = 120; // OCR can be slow on large/complex images
+        $scriptPath = base_path('scripts/document_extraction/image_extractor_wrapper.py');
+        
+        Log::info("Extracting from image using OCR", [
+            'path' => $path,
+            'script' => $scriptPath
+        ]);
+
+        try {
+            $cmd = "timeout {$timeoutSeconds}s python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($path) . " 2>&1";
+            $output = shell_exec($cmd);
+            
+            if ($output === null || trim($output) === '') {
+                Log::warning("OCR extraction returned empty result", ['path' => $path]);
+                return [
+                    'success' => false,
+                    'error' => 'OCR failed to extract text from image'
+                ];
+            }
+
+            $content = trim($output);
+            
+            // Check if output indicates no text was detected
+            if (strpos($content, '[Image processed - no text detected]') !== false) {
+                return [
+                    'success' => true,
+                    'content' => '',
+                    'method' => 'ocr_tesseract',
+                    'quality_score' => 0.5,
+                    'metadata' => ['ocr_status' => 'no_text_detected']
+                ];
+            }
+
+            return [
+                'success' => true,
+                'content' => $content,
+                'method' => 'ocr_tesseract',
+                'quality_score' => 0.8,
+                'metadata' => [
+                    'ocr_engine' => 'tesseract',
+                    'text_length' => strlen($content)
+                ]
+            ];
+        } catch (Throwable $e) {
+            Log::error("Image extraction failed", [
+                'path' => $path,
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'OCR extraction error: ' . $e->getMessage()
+            ];
+        }
     }
 
     private function extractWithPythonScripts(string $path, string $ext): array

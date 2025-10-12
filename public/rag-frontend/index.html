@@ -1335,41 +1335,75 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
           // Melhora a formatação do nome
           let displayName = doc.title;
           let fileIcon = '📄'; // ícone padrão
+          let fileExtension = ''; // extensão do arquivo
           
           // Define ícone baseado na extensão (símbolos universais reconhecíveis)
           if (displayName.endsWith('.pdf')) {
             fileIcon = '📕'; // Adobe PDF - documento vermelho clássico
+            fileExtension = '.pdf';
             displayName = displayName.replace('.pdf', '');
           } else if (displayName.endsWith('.docx') || displayName.endsWith('.doc')) {
             fileIcon = '📘'; // Microsoft Word - documento azul clássico
+            fileExtension = displayName.endsWith('.docx') ? '.docx' : '.doc';
             displayName = displayName.replace('.docx', '').replace('.doc', '');
           } else if (displayName.endsWith('.xlsx') || displayName.endsWith('.xls')) {
             fileIcon = '📗'; // Microsoft Excel - planilha verde clássica
+            fileExtension = displayName.endsWith('.xlsx') ? '.xlsx' : '.xls';
             displayName = displayName.replace('.xlsx', '').replace('.xls', '');
           } else if (displayName.endsWith('.pptx') || displayName.endsWith('.ppt')) {
             fileIcon = '📙'; // Microsoft PowerPoint - apresentação laranja clássica
+            fileExtension = displayName.endsWith('.pptx') ? '.pptx' : '.ppt';
             displayName = displayName.replace('.pptx', '').replace('.ppt', '');
           } else if (displayName.endsWith('.txt')) {
             fileIcon = '📄'; // Arquivo de texto simples
+            fileExtension = '.txt';
             displayName = displayName.replace('.txt', '');
           } else if (displayName.endsWith('.csv')) {
             fileIcon = '📊'; // Planilha de dados CSV
+            fileExtension = '.csv';
             displayName = displayName.replace('.csv', '');
           } else if (displayName.endsWith('.html') || displayName.endsWith('.htm')) {
             fileIcon = '🌐'; // HTML - página web
+            fileExtension = displayName.endsWith('.html') ? '.html' : '.htm';
             displayName = displayName.replace('.html', '').replace('.htm', '');
           } else if (displayName.endsWith('.xml')) {
             fileIcon = '📋'; // XML - dados estruturados
+            fileExtension = '.xml';
             displayName = displayName.replace('.xml', '');
           } else if (displayName.endsWith('.rtf')) {
             fileIcon = '📝'; // RTF - texto formatado
+            fileExtension = '.rtf';
             displayName = displayName.replace('.rtf', '');
+          } else if (displayName.endsWith('.png')) {
+            fileIcon = '🖼️'; // PNG - imagem
+            fileExtension = '.png';
+            displayName = displayName.replace('.png', '');
+          } else if (displayName.endsWith('.jpg') || displayName.endsWith('.jpeg')) {
+            fileIcon = '🖼️'; // JPG/JPEG - imagem
+            fileExtension = displayName.endsWith('.jpg') ? '.jpg' : '.jpeg';
+            displayName = displayName.replace('.jpg', '').replace('.jpeg', '');
+          } else if (displayName.endsWith('.gif')) {
+            fileIcon = '🎞️'; // GIF - animação
+            fileExtension = '.gif';
+            displayName = displayName.replace('.gif', '');
+          } else if (displayName.endsWith('.bmp')) {
+            fileIcon = '🖼️'; // BMP - bitmap
+            fileExtension = '.bmp';
+            displayName = displayName.replace('.bmp', '');
+          } else if (displayName.endsWith('.tiff') || displayName.endsWith('.tif')) {
+            fileIcon = '🖼️'; // TIFF - imagem
+            fileExtension = displayName.endsWith('.tiff') ? '.tiff' : '.tif';
+            displayName = displayName.replace('.tiff', '').replace('.tif', '');
+          } else if (displayName.endsWith('.webp')) {
+            fileIcon = '🖼️'; // WebP - imagem moderna
+            fileExtension = '.webp';
+            displayName = displayName.replace('.webp', '');
           }
           
           // Remove "(1)" de arquivos duplicados
           displayName = displayName.replace(' (1)', '');
           
-          const optionText = `${fileIcon} ${displayName}`;
+          const optionText = `${fileIcon} ${displayName}${fileExtension}`;
           
           // Python RAG Select
           const pythonOption = document.createElement('option');
