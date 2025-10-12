@@ -9,6 +9,12 @@ import json
 from pathlib import Path
 from extractors.image_extractor import ImageExtractor
 
+try:
+    from advanced_ocr_processor import AdvancedOCRProcessor
+    ADVANCED_OCR_AVAILABLE = True
+except ImportError:
+    ADVANCED_OCR_AVAILABLE = False
+
 
 def extract_from_image(file_path: str) -> str:
     """
@@ -37,6 +43,31 @@ def extract_from_image(file_path: str) -> str:
             file_path_to_use = file_path
             delete_temp = False
         
+        # Try advanced OCR first (better for complex documents)
+        if ADVANCED_OCR_AVAILABLE:
+            try:
+                advanced_ocr = AdvancedOCRProcessor()
+                result = advanced_ocr.process_image(file_path_to_use)
+                
+                # Clean up temp file if created
+                if delete_temp and Path(file_path_to_use).exists():
+                    Path(file_path_to_use).unlink()
+                
+                if result.get('success'):
+                    text = result.get('text', '')
+                    confidence = result.get('confidence', 0)
+                    
+                    if text and len(text.strip()) > 10:
+                        # Add confidence info as comment
+                        return f"{text}\n\n[OCR Confidence: {confidence:.1f}%]"
+                    elif text:
+                        return text
+                    else:
+                        return "[Image processed - no text detected]"
+            except Exception as e:
+                print(f"Advanced OCR failed, falling back to standard: {str(e)}", file=sys.stderr)
+        
+        # Fallback to standard OCR
         extractor = ImageExtractor()
         result = extractor.extract(file_path_to_use)
         

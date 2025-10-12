@@ -98,6 +98,13 @@
               <input id="ingUrl" class="form-control" placeholder="https://exemplo.com/artigo (opcional)">
             </div>
             <div class="mb-2">
+              <label class="form-label">🎬 URL de Vídeo <small class="text-muted">• YouTube, Vimeo, etc</small></label>
+              <input id="ingVideoUrl" class="form-control" placeholder="https://youtube.com/watch?v=... (opcional)">
+              <small class="form-text text-muted">
+                Suporta: YouTube, Vimeo, Dailymotion, Facebook, Instagram, TikTok e 1000+ sites
+              </small>
+            </div>
+            <div class="mb-2">
               <label class="form-label">Texto</label>
               <textarea id="ingText" class="form-control" rows="6" placeholder="Cole aqui um texto para ingestão"></textarea>
             </div>
@@ -191,6 +198,12 @@
             <!-- MODO SIMPLES (sempre visível) -->
             <div class="mb-3">
               <label class="form-label fw-bold">📄 Escolher Documento</label>
+              
+              <!-- Badge de documento ativo -->
+              <div id="activeDocumentBadge" class="alert alert-info py-2 px-3 mb-2" style="display:none;">
+                <strong>🎯 Documento Ativo:</strong> <span id="activeDocumentTitle">-</span>
+              </div>
+              
               <div class="input-group">
                 <select id="pythonDocSelect" class="form-select form-select-lg">
                   <option value="">Carregando documentos...</option>
@@ -726,6 +739,7 @@
 
       out.textContent = "Enviando...";
       const urlVal = document.getElementById("ingUrl").value.trim();
+      const videoUrlVal = document.getElementById("ingVideoUrl").value.trim();
       const textVal = document.getElementById("ingText").value;
       const files = dzIngest.getFiles();
       let meta = undefined;
@@ -733,6 +747,31 @@
       if (metaRaw) { try { meta = JSON.parse(metaRaw); } catch(e){ out.textContent = "Metadata inválida: " + e.message; return; } }
 
       try {
+        // NEW: Check if it's a video URL
+        if (videoUrlVal) {
+          out.textContent = "🎬 Processando vídeo (pode levar alguns minutos)...";
+          const payload = {
+            url: videoUrlVal,
+            user_id: "1",
+            language: "pt-BR",
+            service: "auto"
+          };
+          const data = await doFetchJSON("POST", "/api/video/ingest", payload);
+          pretty(out, data);
+          if (data.ok) {
+            out.textContent += "\n\n✅ Vídeo processado com sucesso!\n";
+            out.textContent += `📄 Documento: ${data.document_id}\n`;
+            out.textContent += `📝 Chunks: ${data.chunks_created}\n`;
+            out.textContent += `⏱️ Duração: ${Math.round(data.duration)}s\n`;
+            out.textContent += `🎯 Confiança: ${Math.round(data.confidence * 100)}%`;
+            
+            // Auto-select uploaded video document
+            await autoSelectDocument(data.document_id);
+          }
+          document.getElementById("ingVideoUrl").value = "";
+          return;
+        }
+        
         if (files.length > 0) {
           // Validate files before upload
           if (window.FileValidator) {
@@ -765,11 +804,24 @@
           });
           pretty(out, data);
           dzIngest.clear();
+          
+          // Auto-select uploaded document
+          if (data.ok && data.document_id) {
+            await autoSelectDocument(data.document_id);
+          } else if (data.ok && data.results && data.results.length > 0) {
+            // Bulk upload: select first document
+            await autoSelectDocument(data.results[0].document_id);
+          }
         } else {
           // json
           const payload = { url: urlVal || undefined, text: textVal, metadata: meta };
           const data = await doFetchJSON("POST","/api/rag/ingest", payload);
           pretty(out, data);
+          
+          // Auto-select uploaded document
+          if (data.ok && data.document_id) {
+            await autoSelectDocument(data.document_id);
+          }
         }
       } catch (e) {
         out.textContent = "Erro: " + e.message;
@@ -1306,6 +1358,94 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
 <script src="./rag-client.js"></script>
 
 <script>
+  // Função para auto-selecionar documento após upload
+  async function autoSelectDocument(documentId) {
+    try {
+      console.log(`🎯 Auto-selecionando documento ID: ${documentId}`);
+      
+      // 1. Recarrega lista de documentos
+      await loadDocuments();
+      
+      // 2. Aguarda um pouco para garantir que o select foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // 3. Seleciona o documento nos selects
+      const pythonDocSelect = document.getElementById('pythonDocSelect');
+      const pythonDocId = document.getElementById('pythonDocId');
+      const answerDocSelect = document.getElementById('answerDocSelect');
+      
+      if (pythonDocSelect) {
+        pythonDocSelect.value = documentId;
+        // Dispara evento change para carregar perguntas sugeridas
+        pythonDocSelect.dispatchEvent(new Event('change'));
+      }
+      
+      if (pythonDocId) {
+        pythonDocId.value = documentId;
+      }
+      
+      if (answerDocSelect) {
+        answerDocSelect.value = documentId;
+      }
+      
+      // 4. Muda para a aba Python RAG
+      const pythonTab = document.querySelector('button[data-bs-target="#pythonRag"]');
+      if (pythonTab) {
+        const tab = new bootstrap.Tab(pythonTab);
+        tab.show();
+      }
+      
+      // 5. Mostra notificação visual
+      showDocumentActiveNotification(documentId);
+      
+      console.log(`✅ Documento ${documentId} selecionado e aba Python RAG ativada`);
+    } catch (error) {
+      console.error("Erro ao auto-selecionar documento:", error);
+    }
+  }
+  
+  // Função para mostrar notificação de documento ativo
+  function showDocumentActiveNotification(documentId) {
+    // Busca o título do documento
+    const pythonDocSelect = document.getElementById('pythonDocSelect');
+    const selectedOption = pythonDocSelect?.querySelector(`option[value="${documentId}"]`);
+    const docTitle = selectedOption?.textContent || `Documento #${documentId}`;
+    
+    // 1. Atualiza badge permanente
+    const badge = document.getElementById('activeDocumentBadge');
+    const badgeTitle = document.getElementById('activeDocumentTitle');
+    if (badge && badgeTitle) {
+      badgeTitle.textContent = docTitle;
+      badge.style.display = 'block';
+      badge.className = 'alert alert-success py-2 px-3 mb-2'; // Verde para indicar ativo
+    }
+    
+    // 2. Remove notificação anterior se existir
+    const oldNotif = document.getElementById('activeDocNotification');
+    if (oldNotif) oldNotif.remove();
+    
+    // 3. Cria notificação temporária
+    const notif = document.createElement('div');
+    notif.id = 'activeDocNotification';
+    notif.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    notif.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
+    notif.innerHTML = `
+      <strong>✅ Documento Selecionado!</strong><br>
+      <small>${docTitle}</small>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notif);
+    
+    // Remove automaticamente após 5 segundos
+    setTimeout(() => {
+      if (notif.parentNode) {
+        notif.classList.remove('show');
+        setTimeout(() => notif.remove(), 150);
+      }
+    }, 5000);
+  }
+  
   // Função para carregar documentos da API
   async function loadDocuments() {
     try {
@@ -1472,6 +1612,19 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
       document.getElementById('pythonDocId').value = this.value;
       // Trigger change event para carregar perguntas sugeridas
       document.getElementById('pythonDocId').dispatchEvent(new Event('change'));
+      
+      // Atualiza badge de documento ativo
+      if (this.value) {
+        const selectedOption = this.options[this.selectedIndex];
+        const docTitle = selectedOption?.textContent || `Documento #${this.value}`;
+        const badge = document.getElementById('activeDocumentBadge');
+        const badgeTitle = document.getElementById('activeDocumentTitle');
+        if (badge && badgeTitle) {
+          badgeTitle.textContent = docTitle;
+          badge.style.display = 'block';
+          badge.className = 'alert alert-success py-2 px-3 mb-2';
+        }
+      }
     });
     
     // Sync entre select e input para Answer

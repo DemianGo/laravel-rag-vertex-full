@@ -1,0 +1,22 @@
+# Video Processing Dependencies
+
+# Video Download (universal - supports 1000+ sites)
+yt-dlp>=2023.11.0
+
+# Audio Processing
+pydub>=0.25.1
+
+# Google Cloud Speech-to-Text
+google-cloud-speech>=2.21.0
+
+# Google Gemini (alternative for transcription)
+google-generativeai>=0.3.0
+
+# OpenAI Whisper (fallback)
+openai>=1.3.0
+
+# Utilities
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+

@@ -23,6 +23,61 @@ if ! grep -q '^APP_KEY=' .env 2>/dev/null; then
 fi
 php artisan key:generate --force || true
 
+# 3.5) Verificar e autenticar Google Cloud (para Cloud Vision API + Vertex AI)
+if command -v gcloud >/dev/null 2>&1; then
+  echo "==> Verificando autenticação Google Cloud..."
+  
+  # Tenta obter token atual
+  TOKEN="$(gcloud auth application-default print-access-token 2>/dev/null || true)"
+  
+  if [ -z "$TOKEN" ]; then
+    echo "⚠️  Google Cloud não autenticado ou token expirado."
+    echo ""
+    echo "🔐 Autenticação necessária para:"
+    echo "   • Cloud Vision API (OCR com 99%+ precisão)"
+    echo "   • Vertex AI (Embeddings e LLM)"
+    echo ""
+    echo "Iniciando autenticação automática..."
+    echo ""
+    
+    # Lê projeto do .env
+    read_env() {
+      local key="$1"; local def="$2"; local v
+      v="$(sed -nE "s/^${key}=(.*)/\1/p" .env 2>/dev/null | tail -n1 | tr -d '"' | tr -d "'")" || true
+      [ -n "${v:-}" ] && echo "$v" || echo "$def"
+    }
+    PROJECT_ID="$(read_env GOOGLE_CLOUD_PROJECT liberai-ai)"
+    
+    echo "📋 Projeto: ${PROJECT_ID}"
+    echo "🌐 Abrindo navegador para autenticação..."
+    echo ""
+    
+    # Autenticação automática (abre navegador automaticamente)
+    if gcloud auth application-default login --scopes=https://www.googleapis.com/auth/cloud-platform; then
+      # Configura projeto
+      gcloud config set project "${PROJECT_ID}" -q 2>/dev/null || true
+      gcloud auth application-default set-quota-project "${PROJECT_ID}" -q 2>/dev/null || true
+      
+      # Valida token
+      TOKEN="$(gcloud auth application-default print-access-token 2>/dev/null || true)"
+      if [ -n "$TOKEN" ]; then
+        echo "✅ Google Cloud autenticado com sucesso!"
+        echo ""
+      else
+        echo "❌ Autenticação falhou. Execute manualmente:"
+        echo "   bash gcp-auth-reset.sh"
+        echo ""
+      fi
+    else
+      echo "❌ Autenticação falhou ou foi cancelada."
+      echo "   Para tentar novamente: bash gcp-auth-reset.sh"
+      echo ""
+    fi
+  else
+    echo "✅ Google Cloud já autenticado (token válido)"
+  fi
+fi
+
 # 4) Migrations (cria extensão vector, tabelas e índice)
 php artisan migrate --force
 

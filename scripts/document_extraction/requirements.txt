@@ -4,6 +4,7 @@
 # PDF processing
 PyPDF2==3.0.1
 pdfplumber==0.10.3
+PyMuPDF>=1.23.0  # For image extraction from PDFs
 
 # Office documents (DOCX, XLSX, PPTX)
 python-docx==0.8.11

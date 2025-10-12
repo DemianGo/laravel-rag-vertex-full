@@ -1335,19 +1335,163 @@ class RagController extends Controller
             }
         }
 
-        if (!$bestContent) {
+        // If no text extracted, might be scanned - try OCR before failing
+        if (!$bestContent || strlen(trim($bestContent)) < 50) {
+            Log::info("PDF has little/no text, checking if it's scanned");
+            
+            // Try OCR as last resort
+            try {
+                $ocrScriptPath = base_path('scripts/document_extraction/pdf_ocr_processor.py');
+                if (file_exists($ocrScriptPath)) {
+                    $ocrCmd = "timeout 120s python3 " . escapeshellarg($ocrScriptPath) . " " . escapeshellarg($path) . " por+eng 2>&1";
+                    $ocrOutput = shell_exec($ocrCmd);
+                    
+                    if ($ocrOutput && strlen(trim($ocrOutput)) > 50) {
+                        Log::info("OCR extraction successful for scanned PDF");
+                        
+                        return [
+                            'success' => true,
+                            'content' => trim($ocrOutput),
+                            'method' => 'pdf_ocr_scanned',
+                            'quality_score' => 0.8,
+                            'metadata' => [
+                                'extraction_method' => 'ocr_scanned',
+                                'is_scanned' => true
+                            ]
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::debug("OCR fallback failed", ['error' => $e->getMessage()]);
+            }
+            
             return [
                 'success' => false,
                 'error' => 'Nenhum método de extração PDF funcionou. Instale poppler-utils ou python-pymupdf.'
             ];
         }
 
+        // NEW: Try to extract tables (if any) - NON-BLOCKING
+        $tablesContent = '';
+        $tablesFound = 0;
+        try {
+            $tablesScriptPath = base_path('scripts/document_extraction/pdf_tables_extractor.py');
+            if (file_exists($tablesScriptPath)) {
+                $tablesCmd = "timeout 30s python3 " . escapeshellarg($tablesScriptPath) . " " . escapeshellarg($path) . " 2>&1";
+                $tablesOutput = shell_exec($tablesCmd);
+                
+                if ($tablesOutput) {
+                    $tablesResult = json_decode($tablesOutput, true);
+                    if ($tablesResult && $tablesResult['success'] && $tablesResult['tables_found'] > 0) {
+                        $tablesFound = $tablesResult['tables_found'];
+                        
+                        // Append tables text to content
+                        $tablesTextParts = [];
+                        foreach ($tablesResult['tables'] as $table) {
+                            $tablesTextParts[] = $table['text'];
+                        }
+                        $tablesContent = "\n\n" . implode("\n\n", $tablesTextParts);
+                        
+                        Log::info("PDF tables extracted", [
+                            'path' => $path,
+                            'tables_found' => $tablesFound
+                        ]);
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // Silent fail - tables extraction is optional
+            Log::debug("Table extraction failed (non-critical)", ['error' => $e->getMessage()]);
+        }
+
+        // NEW: Try OCR on images (if PDF has images) - NON-BLOCKING
+        $ocrContent = '';
+        $imagesProcessed = 0;
+        $hasImages = false;
+        $isScanned = false;
+        
+        try {
+            $ocrScriptPath = base_path('scripts/document_extraction/pdf_ocr_processor.py');
+            if (file_exists($ocrScriptPath)) {
+                // First check if PDF has images (quick check)
+                $checkCmd = "python3 " . base_path('scripts/document_extraction/pdf_image_extractor.py') . " " . escapeshellarg($path) . " --check-only 2>&1";
+                $checkOutput = shell_exec($checkCmd);
+                
+                if ($checkOutput) {
+                    $checkResult = json_decode($checkOutput, true);
+                    if ($checkResult && $checkResult['success']) {
+                        $hasImages = $checkResult['has_images'] ?? false;
+                        $isScanned = $checkResult['is_scanned'] ?? false;
+                        
+                        // If has images OR is scanned OR has very little text, try OCR
+                        $shouldTryOcr = $hasImages || $isScanned || strlen(trim($bestContent)) < 100;
+                        
+                        if ($shouldTryOcr) {
+                            Log::info("PDF has images, attempting OCR", [
+                                'path' => $path,
+                                'has_images' => $hasImages,
+                                'is_scanned' => $isScanned,
+                                'text_length' => strlen($bestContent)
+                            ]);
+                            
+                            // Run OCR processor (timeout 120s for large PDFs)
+                            $ocrCmd = "timeout 120s python3 " . escapeshellarg($ocrScriptPath) . " " . escapeshellarg($path) . " por+eng 2>&1";
+                            $ocrOutput = shell_exec($ocrCmd);
+                            
+                            if ($ocrOutput && strlen(trim($ocrOutput)) > 50) {
+                                // OCR processor returns text directly
+                                $ocrContent = trim($ocrOutput);
+                                
+                                // If it's a scanned PDF with little direct text, replace content
+                                if ($isScanned || strlen(trim($bestContent)) < 100) {
+                                    $bestContent = $ocrContent;
+                                    $usedMethod .= '_ocr_scanned';
+                                } else {
+                                    // Otherwise append OCR text
+                                    $ocrContent = "\n\n=== TEXTO DE IMAGENS (OCR) ===\n\n" . $ocrContent;
+                                }
+                                
+                                $imagesProcessed = $checkResult['image_count'] ?? 0;
+                                
+                                Log::info("PDF OCR completed", [
+                                    'path' => $path,
+                                    'images_processed' => $imagesProcessed,
+                                    'ocr_text_length' => strlen($ocrContent)
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // Silent fail - OCR is optional
+            Log::debug("OCR extraction failed (non-critical)", ['error' => $e->getMessage()]);
+        }
+
+        // Combine all content
+        $finalContent = $bestContent . $tablesContent;
+        if ($ocrContent && !$isScanned) {
+            $finalContent .= $ocrContent;
+        }
+
+        // Determine final method name
+        $methodSuffix = '';
+        if ($tablesFound > 0) $methodSuffix .= '_tables';
+        if ($imagesProcessed > 0) $methodSuffix .= '_ocr';
+        
         return [
             'success' => true,
-            'content' => trim($bestContent),
-            'method' => "pdf_$usedMethod",
-            'quality_score' => $bestScore,
-            'metadata' => ['extraction_method' => $usedMethod]
+            'content' => trim($finalContent),
+            'method' => "pdf_$usedMethod" . $methodSuffix,
+            'quality_score' => $bestScore + ($tablesFound > 0 ? 0.05 : 0) + ($imagesProcessed > 0 ? 0.1 : 0),
+            'metadata' => [
+                'extraction_method' => $usedMethod,
+                'tables_found' => $tablesFound,
+                'has_tables' => $tablesFound > 0,
+                'has_images' => $hasImages,
+                'images_processed' => $imagesProcessed,
+                'is_scanned' => $isScanned
+            ]
         ];
     }
 
@@ -1361,12 +1505,41 @@ class RagController extends Controller
         Log::debug("DOCX extraction result", ['content_length' => strlen($content ?? ''), 'has_content' => !empty($content)]);
 
         if ($content && strlen(trim($content)) > 5) {
+            // NEW: Try to extract tables too (optional, non-blocking)
+            $tablesContent = '';
+            $tablesFound = 0;
+            try {
+                $tablesScript = base_path('scripts/document_extraction/docx_tables_extractor.py');
+                if (file_exists($tablesScript)) {
+                    $tablesCmd = "timeout 30s python3 " . escapeshellarg($tablesScript) . " " . escapeshellarg($path) . " 2>&1";
+                    $tablesOutput = shell_exec($tablesCmd);
+                    
+                    if ($tablesOutput) {
+                        $tablesResult = json_decode($tablesOutput, true);
+                        if ($tablesResult && $tablesResult['success'] && $tablesResult['tables_found'] > 0) {
+                            $tablesFound = $tablesResult['tables_found'];
+                            $tablesTextParts = [];
+                            foreach ($tablesResult['tables'] as $table) {
+                                $tablesTextParts[] = $table['text'];
+                            }
+                            $tablesContent = "\n\n" . implode("\n\n", $tablesTextParts);
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Silent fail
+            }
+            
             return [
                 'success' => true,
-                'content' => trim($content),
-                'method' => 'python_docx',
-                'quality_score' => 0.9,
-                'metadata' => ['extractor' => 'python_docx']
+                'content' => trim($content . $tablesContent),
+                'method' => 'python_docx' . ($tablesFound > 0 ? '_with_tables' : ''),
+                'quality_score' => 0.9 + ($tablesFound > 0 ? 0.05 : 0),
+                'metadata' => [
+                    'extractor' => 'python_docx',
+                    'tables_found' => $tablesFound,
+                    'has_tables' => $tablesFound > 0
+                ]
             ];
         }
 
@@ -1391,6 +1564,31 @@ class RagController extends Controller
 
     private function extractFromExcel(string $path): array
     {
+        // NEW: Try structured extractor first (returns text + JSON)
+        $structuredService = new \App\Services\ExcelStructuredService();
+        $structuredResult = $structuredService->extractStructured($path);
+
+        if ($structuredResult && $structuredResult['success'] && !empty($structuredResult['text'])) {
+            Log::info("Excel structured extraction successful", [
+                'path' => $path,
+                'sheets' => $structuredResult['structured_data']['metadata']['total_sheets'] ?? 0,
+                'rows' => $structuredResult['structured_data']['metadata']['total_rows'] ?? 0
+            ]);
+
+            return [
+                'success' => true,
+                'content' => trim($structuredResult['text']),
+                'method' => 'python_structured_openpyxl',
+                'quality_score' => 0.9,
+                'metadata' => [
+                    'extractor' => 'python_structured',
+                    'structured_data' => $structuredResult['structured_data'], // Store JSON data
+                    'chunking_hints' => $structuredResult['chunking_hints'] ?? null
+                ]
+            ];
+        }
+
+        // Fallback 1: Simple text extractor (backward compatibility)
         $content = $this->runPythonExtractor('excel_extractor.py', $path);
 
         if ($content && strlen(trim($content)) > 5) {
@@ -1403,7 +1601,7 @@ class RagController extends Controller
             ];
         }
 
-        // Fallback to universal extractor
+        // Fallback 2: Universal extractor
         $content = $this->runPythonExtractor('universal_extractor.py', $path);
         
         if ($content && strlen(trim($content)) > 5) {
@@ -1452,6 +1650,41 @@ class RagController extends Controller
 
     private function extractFromPowerPoint(string $path): array
     {
+        // NEW: Try enhanced extractor first (slide-by-slide + tables + notes)
+        $scriptPath = base_path('scripts/document_extraction/pptx_enhanced_extractor.py');
+        
+        if (file_exists($scriptPath)) {
+            try {
+                $cmd = "timeout 120s python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($path) . " 2>&1";
+                $output = shell_exec($cmd);
+                
+                if ($output) {
+                    $result = json_decode($output, true);
+                    if ($result && $result['success'] && !empty($result['text'])) {
+                        Log::info("PPTX enhanced extraction successful", [
+                            'path' => $path,
+                            'slides' => $result['metadata']['total_slides'] ?? 0
+                        ]);
+
+                        return [
+                            'success' => true,
+                            'content' => trim($result['text']),
+                            'method' => 'python_enhanced_pptx',
+                            'quality_score' => 0.9,
+                            'metadata' => array_merge(
+                                ['extractor' => 'python_enhanced_pptx'],
+                                $result['metadata'] ?? [],
+                                ['chunking_hints' => $result['chunking_hints'] ?? null]
+                            )
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::debug("PPTX enhanced extraction failed, using fallback", ['error' => $e->getMessage()]);
+            }
+        }
+
+        // Fallback 1: Simple PPTX extractor
         $content = $this->runPythonExtractor('pptx_extractor.py', $path);
 
         if ($content && strlen(trim($content)) > 5) {
@@ -1464,7 +1697,7 @@ class RagController extends Controller
             ];
         }
 
-        // Fallback to universal
+        // Fallback 2: Universal extractor
         $content = $this->runPythonExtractor('universal_extractor.py', $path);
         
         if ($content && strlen(trim($content)) > 5) {
@@ -1523,17 +1756,81 @@ class RagController extends Controller
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $text = preg_replace('/\s+/', ' ', $text);
 
+        // NEW: Try to extract HTML tables (optional, non-blocking)
+        $tablesContent = '';
+        $tablesFound = 0;
+        try {
+            $tablesScript = base_path('scripts/document_extraction/html_tables_extractor.py');
+            if (file_exists($tablesScript)) {
+                $tablesCmd = "timeout 30s python3 " . escapeshellarg($tablesScript) . " " . escapeshellarg($path) . " 2>&1";
+                $tablesOutput = shell_exec($tablesCmd);
+                
+                if ($tablesOutput) {
+                    $tablesResult = json_decode($tablesOutput, true);
+                    if ($tablesResult && $tablesResult['success'] && $tablesResult['tables_found'] > 0) {
+                        $tablesFound = $tablesResult['tables_found'];
+                        $tablesTextParts = [];
+                        foreach ($tablesResult['tables'] as $table) {
+                            $tablesTextParts[] = $table['text'];
+                        }
+                        $tablesContent = "\n\n" . implode("\n\n", $tablesTextParts);
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // Silent fail
+        }
+
         return [
             'success' => true,
-            'content' => trim($text),
-            'method' => 'html_strip_tags',
-            'quality_score' => 0.7,
-            'metadata' => ['original_html_length' => strlen($html)]
+            'content' => trim($text . $tablesContent),
+            'method' => 'html_strip_tags' . ($tablesFound > 0 ? '_with_tables' : ''),
+            'quality_score' => 0.7 + ($tablesFound > 0 ? 0.1 : 0),
+            'metadata' => [
+                'original_html_length' => strlen($html),
+                'tables_found' => $tablesFound,
+                'has_tables' => $tablesFound > 0
+            ]
         ];
     }
 
     private function extractFromCsv(string $path): array
     {
+        // NEW: Try structured extractor first (same as Excel)
+        $scriptPath = base_path('scripts/document_extraction/csv_structured_extractor.py');
+        
+        if (file_exists($scriptPath)) {
+            try {
+                $cmd = "python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($path) . " 2>&1";
+                $output = shell_exec($cmd);
+                
+                if ($output) {
+                    $result = json_decode($output, true);
+                    if ($result && $result['success'] && !empty($result['text'])) {
+                        Log::info("CSV structured extraction successful", [
+                            'path' => $path,
+                            'rows' => $result['structured_data']['row_count'] ?? 0
+                        ]);
+
+                        return [
+                            'success' => true,
+                            'content' => trim($result['text']),
+                            'method' => 'python_structured_csv',
+                            'quality_score' => 0.9,
+                            'metadata' => [
+                                'extractor' => 'python_structured',
+                                'structured_data' => $result['structured_data'],
+                                'chunking_hints' => $result['chunking_hints'] ?? null
+                            ]
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::debug("CSV structured extraction failed, using fallback", ['error' => $e->getMessage()]);
+            }
+        }
+
+        // Fallback 1: Simple CSV extractor
         $content = $this->runPythonExtractor('csv_extractor.py', $path);
 
         if ($content) {
@@ -1546,7 +1843,7 @@ class RagController extends Controller
             ];
         }
 
-        // Fallback to basic PHP CSV reading
+        // Fallback 2: Basic PHP CSV reading
         $handle = fopen($path, 'r');
         if (!$handle) {
             return ['success' => false, 'error' => 'Cannot open CSV file'];
@@ -1791,17 +2088,34 @@ class RagController extends Controller
     private function processDocumentSimple(string $tenantSlug, int $docId, string $text, array $metadata, array $processingOptions): array
     {
         try {
-            // Simple chunking without complex dependencies
-            $chunkSize = $processingOptions['chunk_size'] ?? 1000;
-            $overlapSize = $processingOptions['overlap_size'] ?? 200;
-            $chunks = $this->chunkText($text, $chunkSize, $overlapSize);
-
-            Log::info('Simple document processing', [
-                'document_id' => $docId,
-                'chunks_count' => count($chunks),
-                'chunk_size' => $chunkSize,
-                'content_length' => strlen($text)
-            ]);
+            // NEW: Check if we have structured data (Excel with intelligent chunking)
+            $chunks = [];
+            $chunkingMethod = 'standard';
+            
+            if (isset($metadata['structured_data']) && isset($metadata['chunking_hints'])) {
+                // Use intelligent chunking for structured data (Excel)
+                $structuredService = new \App\Services\ExcelStructuredService();
+                $chunks = $structuredService->createIntelligentChunks($metadata['structured_data']);
+                $chunkingMethod = 'intelligent_row_based';
+                
+                Log::info('Using intelligent chunking for structured data', [
+                    'document_id' => $docId,
+                    'chunks_count' => count($chunks),
+                    'method' => $chunkingMethod
+                ]);
+            } else {
+                // Standard chunking for regular documents
+                $chunkSize = $processingOptions['chunk_size'] ?? 1000;
+                $overlapSize = $processingOptions['overlap_size'] ?? 200;
+                $chunks = $this->chunkText($text, $chunkSize, $overlapSize);
+                
+                Log::info('Simple document processing', [
+                    'document_id' => $docId,
+                    'chunks_count' => count($chunks),
+                    'chunk_size' => $chunkSize,
+                    'content_length' => strlen($text)
+                ]);
+            }
 
             // Store chunks without embeddings for now (fast mode)
             $chunksStored = 0;

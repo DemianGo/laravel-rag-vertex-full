@@ -1,0 +1,82 @@
+# ═══════════════════════════════════════════════════════════════════════
+# Laravel RAG System - All Python Dependencies
+# Updated: 2025-10-12
+# ═══════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────
+# DOCUMENT EXTRACTION
+# ───────────────────────────────────────────────────────────────────────
+
+# PDF processing
+PyPDF2==3.0.1
+pdfplumber==0.10.3
+PyMuPDF>=1.23.0  # Image extraction from PDFs
+
+# Office documents
+python-docx==0.8.11
+openpyxl==3.1.2
+python-pptx==0.6.23
+
+# Web documents
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# Text processing
+chardet==5.2.0
+ftfy>=6.1.1
+langdetect>=1.0.9
+python-magic>=0.4.27
+
+# OCR and Image Processing
+pytesseract>=0.3.10
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+
+# ───────────────────────────────────────────────────────────────────────
+# RAG SEARCH
+# ───────────────────────────────────────────────────────────────────────
+
+# Database
+psycopg2-binary>=2.9.0
+
+# Embeddings
+sentence-transformers>=2.2.0
+torch>=2.0.0
+
+# LLM
+google-generativeai>=0.3.0
+openai>=1.3.0
+
+# Utilities
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# ───────────────────────────────────────────────────────────────────────
+# VIDEO PROCESSING
+# ───────────────────────────────────────────────────────────────────────
+
+# Video download (universal - 1000+ sites)
+yt-dlp>=2023.11.0
+
+# Audio processing
+pydub>=0.25.1
+
+# Transcription services
+google-cloud-speech>=2.21.0
+
+# ───────────────────────────────────────────────────────────────────────
+# NOTES
+# ───────────────────────────────────────────────────────────────────────
+
+# System Requirements:
+# - Python 3.8+
+# - FFmpeg (for video/audio processing)
+# - Tesseract OCR (for image text extraction)
+# - PostgreSQL 14+ (for vector search)
+
+# API Keys Required (at least one):
+# - GOOGLE_GENAI_API_KEY (for Gemini - recommended)
+# - GOOGLE_APPLICATION_CREDENTIALS (for Google Speech)
+# - OPENAI_API_KEY (for Whisper - fallback)
+

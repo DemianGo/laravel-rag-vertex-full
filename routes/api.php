@@ -76,3 +76,11 @@ Route::middleware(['auth:sanctum'])->prefix('user')->group(function () {
 Route::middleware([\App\Http\Middleware\ApiKeyAuth::class])->group(function () {
     Route::get('/auth/test', [\App\Http\Controllers\ApiKeyController::class, 'test']);
 });
+
+// Excel Structured Query Routes
+Route::post('/excel/query', [\App\Http\Controllers\ExcelQueryController::class, 'query']);
+Route::get('/excel/{documentId}/structure', [\App\Http\Controllers\ExcelQueryController::class, 'getStructuredData']);
+
+// Video Processing Routes (NEW - 2025-10-12)
+Route::post('/video/ingest', [\App\Http\Controllers\VideoController::class, 'ingest']);
+Route::post('/video/info', [\App\Http\Controllers\VideoController::class, 'getInfo']);
