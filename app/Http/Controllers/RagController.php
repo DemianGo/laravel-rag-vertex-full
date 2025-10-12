@@ -16,6 +16,7 @@ use App\Services\RagMetrics;
 use App\Services\ChunkingStrategy;
 use App\Services\EmbeddingCache;
 use App\Services\EnterpriseRagService;
+use App\Services\DocumentPageValidator;
 use Throwable;
 use ZipArchive;
 
@@ -121,10 +122,10 @@ class RagController extends Controller
     // ---------- ENTERPRISE INGEST ----------
     public function ingest(Request $req)
     {
-        // Optimize PHP settings for upload processing with shorter timeout
-        ini_set('max_execution_time', 30); // 30 seconds max to prevent 77s loops
-        ini_set('memory_limit', '512M');
-        set_time_limit(30);
+        // Optimize PHP settings for large file processing (up to 5000 pages)
+        ini_set('max_execution_time', 300); // 5 minutes for large files
+        ini_set('memory_limit', '2G'); // 2GB for large files and embeddings
+        set_time_limit(300);
 
         $startTime = microtime(true);
         $requestId = 'upload_' . uniqid();
@@ -976,20 +977,68 @@ class RagController extends Controller
 
     private function chunkText(string $text, int $window = 1000, int $overlap = 200): array
     {
+        // Optimized for large texts (up to 5000 pages)
         $text = preg_replace("/\r\n|\r/","\n",$text);
         $text = preg_replace("/\n{3,}/","\n\n",$text);
         $text = trim($text);
         $len = mb_strlen($text);
+        
+        // For very large texts (> 5MB), use byte-based chunking (much faster)
+        if ($len > 5000000) {
+            return $this->fastChunkText($text, $window, $overlap);
+        }
+        
         $chunks = [];
         $i = 0;
+        
         while ($i < $len) {
             $end = min($len, $i + $window);
             $chunk = mb_substr($text, $i, $end - $i);
-            $chunks[] = trim($chunk);
+            
+            $trimmed = trim($chunk);
+            if ($trimmed !== '') {
+                $chunks[] = $trimmed;
+            }
+            
             if ($end >= $len) break;
             $i = max(0, $end - $overlap);
+            
+            // Reset timer every 1000 chunks to prevent timeout on gigantic files
+            if (count($chunks) % 1000 == 0) {
+                set_time_limit(300);
+            }
         }
-        return array_values(array_filter($chunks, fn($c) => $c !== ''));
+        
+        return array_values($chunks);
+    }
+    
+    private function fastChunkText(string $text, int $window = 1000, int $overlap = 200): array
+    {
+        // Fast byte-based chunking for gigantic texts (5000+ pages)
+        // Uses strlen/substr instead of mb_strlen/mb_substr for 10x speed
+        $len = strlen($text);
+        $chunks = [];
+        $i = 0;
+        
+        while ($i < $len) {
+            $end = min($len, $i + $window);
+            $chunk = substr($text, $i, $end - $i);
+            
+            $trimmed = trim($chunk);
+            if ($trimmed !== '') {
+                $chunks[] = $trimmed;
+            }
+            
+            if ($end >= $len) break;
+            $i = max(0, $end - $overlap);
+            
+            // Reset timer every 1000 chunks
+            if (count($chunks) % 1000 == 0) {
+                set_time_limit(300);
+            }
+        }
+        
+        return array_values($chunks);
     }
 
     private function getStringParam(Request $req, array $keys): string
@@ -1084,13 +1133,36 @@ class RagController extends Controller
             'mime_type' => $file->getMimeType()
         ]);
 
-        // Basic validation
-        if ($fileSize > 50 * 1024 * 1024) { // 50MB limit
+        // Basic validation - 500MB limit for large documents (up to 5000 pages)
+        if ($fileSize > 500 * 1024 * 1024) { // 500MB limit
             return [
                 'success' => false,
-                'error' => 'Arquivo muito grande. Limite: 50MB'
+                'error' => 'Arquivo muito grande. Limite: 500MB (~5.000 páginas)'
             ];
         }
+
+        // Validate page count (generic for all formats)
+        $validator = new DocumentPageValidator();
+        $pageValidation = $validator->validatePageLimit($file->getPathname(), $ext);
+        
+        if (!$pageValidation['valid']) {
+            Log::warning("Document exceeds page limit", [
+                'file' => $originalName,
+                'estimated_pages' => $pageValidation['estimated_pages'],
+                'max_pages' => $pageValidation['max_pages']
+            ]);
+            
+            return [
+                'success' => false,
+                'error' => $pageValidation['message'],
+                'estimated_pages' => $pageValidation['estimated_pages']
+            ];
+        }
+
+        Log::info("Document page validation passed", [
+            'file' => $originalName,
+            'estimated_pages' => $pageValidation['estimated_pages']
+        ]);
 
         $metadata = [
             'original_name' => $originalName,
@@ -1163,6 +1235,16 @@ class RagController extends Controller
 
                 case 'json':
                     return $this->extractFromJson($path);
+
+                case 'pptx':
+                case 'ppt':
+                    return $this->extractFromPowerPoint($path);
+
+                case 'xml':
+                    return $this->extractFromXml($path);
+
+                case 'rtf':
+                    return $this->extractFromRtf($path);
 
                 default:
                     return $this->extractWithPythonScripts($path, $ext);
@@ -1261,22 +1343,39 @@ class RagController extends Controller
 
     private function extractFromWord(string $path): array
     {
+        Log::debug("Extracting DOCX", ['path' => $path, 'exists' => file_exists($path), 'size' => filesize($path)]);
+        
         // Try Python docx extraction
         $content = $this->runPythonExtractor('docx_extractor.py', $path);
+        
+        Log::debug("DOCX extraction result", ['content_length' => strlen($content ?? ''), 'has_content' => !empty($content)]);
 
-        if ($content) {
+        if ($content && strlen(trim($content)) > 5) {
             return [
                 'success' => true,
                 'content' => trim($content),
                 'method' => 'python_docx',
                 'quality_score' => 0.9,
-                'metadata' => ['extractor' => 'python_docx2txt']
+                'metadata' => ['extractor' => 'python_docx']
+            ];
+        }
+
+        // Fallback to universal extractor
+        $content = $this->runPythonExtractor('universal_extractor.py', $path);
+        
+        if ($content && strlen(trim($content)) > 5) {
+            return [
+                'success' => true,
+                'content' => trim($content),
+                'method' => 'python_universal',
+                'quality_score' => 0.8,
+                'metadata' => ['extractor' => 'universal_python']
             ];
         }
 
         return [
             'success' => false,
-            'error' => 'Falha na extração DOCX. Instale python-docx2txt.'
+            'error' => 'Falha na extração DOCX. Verifique se o arquivo está corrompido.'
         ];
     }
 
@@ -1284,7 +1383,7 @@ class RagController extends Controller
     {
         $content = $this->runPythonExtractor('excel_extractor.py', $path);
 
-        if ($content) {
+        if ($content && strlen(trim($content)) > 5) {
             return [
                 'success' => true,
                 'content' => trim($content),
@@ -1294,9 +1393,116 @@ class RagController extends Controller
             ];
         }
 
+        // Fallback to universal extractor
+        $content = $this->runPythonExtractor('universal_extractor.py', $path);
+        
+        if ($content && strlen(trim($content)) > 5) {
+            return [
+                'success' => true,
+                'content' => trim($content),
+                'method' => 'python_universal',
+                'quality_score' => 0.7,
+                'metadata' => ['extractor' => 'universal_python']
+            ];
+        }
+
         return [
             'success' => false,
-            'error' => 'Falha na extração Excel. Instale python-openpyxl.'
+            'error' => 'Falha na extração Excel. Verifique se o arquivo está corrompido.'
+        ];
+    }
+
+    private function extractFromXml(string $path): array
+    {
+        // Use Python extractor for XML (better structure preservation)
+        $content = $this->runPythonExtractor('universal_extractor.py', $path);
+
+        if ($content) {
+            return [
+                'success' => true,
+                'content' => trim($content),
+                'method' => 'python_xml',
+                'quality_score' => 0.9,
+                'metadata' => ['extractor' => 'python_lxml']
+            ];
+        }
+
+        // Fallback: simple text extraction
+        $xml = file_get_contents($path);
+        $text = strip_tags($xml);
+        
+        return [
+            'success' => true,
+            'content' => trim($text),
+            'method' => 'php_strip_tags',
+            'quality_score' => 0.6,
+            'metadata' => ['extractor' => 'php_fallback']
+        ];
+    }
+
+    private function extractFromPowerPoint(string $path): array
+    {
+        $content = $this->runPythonExtractor('pptx_extractor.py', $path);
+
+        if ($content && strlen(trim($content)) > 5) {
+            return [
+                'success' => true,
+                'content' => trim($content),
+                'method' => 'python_pptx',
+                'quality_score' => 0.85,
+                'metadata' => ['extractor' => 'python_pptx']
+            ];
+        }
+
+        // Fallback to universal
+        $content = $this->runPythonExtractor('universal_extractor.py', $path);
+        
+        if ($content && strlen(trim($content)) > 5) {
+            return [
+                'success' => true,
+                'content' => trim($content),
+                'method' => 'python_universal',
+                'quality_score' => 0.7,
+                'metadata' => ['extractor' => 'universal_python']
+            ];
+        }
+
+        return [
+            'success' => false,
+            'error' => 'Falha na extração PowerPoint. Verifique se o arquivo está corrompido.'
+        ];
+    }
+
+    private function extractFromRtf(string $path): array
+    {
+        $content = $this->runPythonExtractor('rtf_extractor.py', $path);
+
+        if ($content && strlen(trim($content)) > 5) {
+            return [
+                'success' => true,
+                'content' => trim($content),
+                'method' => 'python_rtf',
+                'quality_score' => 0.75,
+                'metadata' => ['extractor' => 'python_striprtf']
+            ];
+        }
+
+        // Fallback to universal
+        $content = $this->runPythonExtractor('universal_extractor.py', $path);
+        
+        if ($content && strlen(trim($content)) > 5) {
+            return [
+                'success' => true,
+                'content' => trim($content),
+                'method' => 'python_universal',
+                'quality_score' => 0.6,
+                'metadata' => ['extractor' => 'universal_python']
+            ];
+        }
+
+        return [
+            'success' => false,
+            'error' => 'Falha na extração RTF. Verifique se o arquivo está corrompido.'
         ];
     }
 
@@ -1395,7 +1601,7 @@ class RagController extends Controller
         ];
     }
 
-    private function runPythonExtractor(string $script, string $filePath, int $timeoutSeconds = 5): ?string
+    private function runPythonExtractor(string $script, string $filePath, int $timeoutSeconds = 120): ?string
     {
         $scriptPath = base_path("scripts/document_extraction/$script");
 
@@ -1404,7 +1610,7 @@ class RagController extends Controller
             return null;
         }
 
-        // Add timeout to prevent hanging
+        // Increased timeout for large files (up to 5000 pages)
         $cmd = "timeout {$timeoutSeconds}s python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($filePath) . " 2>/dev/null";
 
         $startTime = microtime(true);

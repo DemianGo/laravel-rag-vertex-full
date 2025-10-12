@@ -51,8 +51,28 @@ Route::middleware([ForceJsonForRag::class])->group(function () {
     Route::post('/rag/feedback', [\App\Http\Controllers\RagFeedbackController::class, 'store']);
     Route::get('/rag/feedback/stats', [\App\Http\Controllers\RagFeedbackController::class, 'stats']);
     Route::get('/rag/feedback/recent', [\App\Http\Controllers\RagFeedbackController::class, 'recent']);
+    
+    // Bulk Operations & Document Management
+    Route::post('/rag/bulk-ingest', [\App\Http\Controllers\BulkIngestController::class, 'bulkIngest']);
+    Route::delete('/docs/{id}', [\App\Http\Controllers\DocumentManagerController::class, 'delete']);
+    Route::get('/docs/{id}/cache/stats', [\App\Http\Controllers\DocumentManagerController::class, 'cacheStats']);
+    Route::delete('/docs/{id}/cache', [\App\Http\Controllers\DocumentManagerController::class, 'clearCache']);
+    Route::get('/cache/global-stats', [\App\Http\Controllers\DocumentManagerController::class, 'globalCacheStats']);
 });
 
 if (class_exists(\App\Http\Controllers\PdfQualityController::class)) {
     Route::post('/pdf/extract-quality', [\App\Http\Controllers\PdfQualityController::class, 'extractWithQuality']);
 }
+
+// API Key Management Routes (protected by auth middleware)
+Route::middleware(['auth:sanctum'])->prefix('user')->group(function () {
+    Route::get('/api-key', [\App\Http\Controllers\ApiKeyController::class, 'show']);
+    Route::post('/api-key/generate', [\App\Http\Controllers\ApiKeyController::class, 'generate']);
+    Route::post('/api-key/regenerate', [\App\Http\Controllers\ApiKeyController::class, 'regenerate']);
+    Route::delete('/api-key/revoke', [\App\Http\Controllers\ApiKeyController::class, 'revoke']);
+});
+
+// API Key Authentication Test Route (protected by API key)
+Route::middleware([\App\Http\Middleware\ApiKeyAuth::class])->group(function () {
+    Route::get('/auth/test', [\App\Http\Controllers\ApiKeyController::class, 'test']);
+});

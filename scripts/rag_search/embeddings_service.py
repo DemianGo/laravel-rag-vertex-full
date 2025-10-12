@@ -146,3 +146,35 @@ class EmbeddingsService:
             "sentence_transformers_available": self.model is not None,
             "openai_available": bool(self.config.OPENAI_API_KEY)
         }
+
+    def encode_text(self, text: str) -> Optional[List[float]]:
+        """
+        Alias for encode() that returns list instead of numpy array
+        Used for compatibility with batch_embeddings.py
+        """
+        if not text or not text.strip():
+            return None
+        
+        embedding = self.encode(text)
+        return embedding.tolist() if embedding is not None else None
+
+    def generate_embeddings_batch(self, texts: List[str]) -> List[Optional[List[float]]]:
+        """
+        Generate embeddings for batch of texts
+        Returns list of lists (not numpy arrays) for database compatibility
+        Optimized for large documents with 2500+ chunks
+        """
+        if not texts:
+            return []
+        
+        try:
+            # Use the existing encode_batch which is optimized
+            embeddings = self.encode_batch(texts)
+            
+            # Convert numpy arrays to lists for database storage
+            return [emb.tolist() if emb is not None and len(emb) > 0 else None 
+                    for emb in embeddings]
+        except Exception as e:
+            logger.error(f"Batch embedding generation failed: {e}")
+            # Fallback to individual processing
+            return [self.encode_text(text) for text in texts]

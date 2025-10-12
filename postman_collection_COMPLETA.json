@@ -1,0 +1,1130 @@
+{
+  "info": {
+    "name": "Laravel RAG - API COMPLETA",
+    "_postman_id": "rag-api-complete-2025",
+    "description": "Collection COMPLETA com TODOS os 25+ endpoints disponíveis - FASE 3.1",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Health & Setup",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "health"]
+            }
+          }
+        },
+        {
+          "name": "Ping",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/rag/ping",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "ping"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Authentication Tests",
+      "item": [
+        {
+          "name": "✅ Test Auth - Bearer Token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "test"]
+            }
+          }
+        },
+        {
+          "name": "✅ Test Auth - X-API-Key",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "test"]
+            }
+          }
+        },
+        {
+          "name": "❌ No API Key (Should Fail)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "test"]
+            }
+          }
+        },
+        {
+          "name": "❌ Invalid API Key (Should Fail)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer rag_invalid_key_123456789",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "test"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. CORE RAG Operations",
+      "item": [
+        {
+          "name": "Python Search (Smart RAG) ⭐ RECOMENDADO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Quais são os certificados?\",\n  \"document_id\": {{document_id}},\n  \"use_smart_mode\": true,\n  \"top_k\": 5,\n  \"similarity_threshold\": 0.3,\n  \"include_answer\": true,\n  \"strictness\": 2,\n  \"mode\": \"auto\",\n  \"format\": \"plain\",\n  \"length\": \"auto\",\n  \"citations\": 0,\n  \"use_full_document\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            },
+            "description": "Busca RAG usando Python com Smart Router"
+          }
+        },
+        {
+          "name": "PHP RAG Answer (Legacy)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Quais são os certificados?\",\n  \"document_id\": {{document_id}},\n  \"mode\": \"auto\",\n  \"format\": \"plain\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/answer",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "answer"]
+            },
+            "description": "Busca RAG usando PHP (sistema legacy)"
+          }
+        },
+        {
+          "name": "RAG Query (Simple)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"q\": \"certificados\",\n  \"document_id\": {{document_id}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/query",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "query"]
+            },
+            "description": "Busca RAG simples"
+          }
+        },
+        {
+          "name": "Upload Document (Ingest)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/ingest",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "ingest"]
+            },
+            "description": "Upload e processamento de documento"
+          }
+        },
+        {
+          "name": "List Documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/docs/list",
+              "host": ["{{base_url}}"],
+              "path": ["api", "docs", "list"]
+            },
+            "description": "Lista todos os documentos com metadata"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. FEEDBACK System",
+      "item": [
+        {
+          "name": "Submit Feedback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Quais são os certificados?\",\n  \"document_id\": {{document_id}},\n  \"rating\": 1,\n  \"metadata\": {\n    \"mode\": \"auto\",\n    \"format\": \"plain\",\n    \"use_smart_mode\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/feedback",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "feedback"]
+            },
+            "description": "Salva feedback do usuário (1 = positivo, -1 = negativo)"
+          }
+        },
+        {
+          "name": "Get Feedback Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/feedback/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "feedback", "stats"]
+            },
+            "description": "Estatísticas de feedback (taxa de satisfação, top queries, etc)"
+          }
+        },
+        {
+          "name": "Get Recent Feedbacks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/feedback/recent",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "feedback", "recent"]
+            },
+            "description": "Últimos 50 feedbacks com informações do documento"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. ENTERPRISE Operations",
+      "item": [
+        {
+          "name": "Generate Answer (Advanced)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Qual o objetivo do documento?\",\n  \"document_id\": {{document_id}},\n  \"advanced_options\": {\n    \"temperature\": 0.7,\n    \"max_tokens\": 500\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/generate-answer",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "generate-answer"]
+            },
+            "description": "Geração avançada de respostas com parâmetros customizados"
+          }
+        },
+        {
+          "name": "Batch Ingest (Multiple Files)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files[]",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "files[]",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/batch-ingest",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "batch-ingest"]
+            },
+            "description": "Upload e processamento de múltiplos documentos de uma vez"
+          }
+        },
+        {
+          "name": "Reprocess Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": {{document_id}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/reprocess-document",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "reprocess-document"]
+            },
+            "description": "Reprocessa documento existente (regenera chunks e embeddings)"
+          }
+        },
+        {
+          "name": "Compare Search (PHP vs Python)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Quais são os certificados?\",\n  \"document_id\": {{document_id}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/compare-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "compare-search"]
+            },
+            "description": "Compara resultados entre PHP RAG e Python RAG"
+          }
+        },
+        {
+          "name": "Python Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-health"]
+            },
+            "description": "Verifica se o sistema Python está funcionando"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. MONITORING & Metrics",
+      "item": [
+        {
+          "name": "Get RAG Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/metrics",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "metrics"]
+            },
+            "description": "Métricas gerais do sistema RAG"
+          }
+        },
+        {
+          "name": "Get Cache Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/cache/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "cache", "stats"]
+            },
+            "description": "Estatísticas do sistema de cache"
+          }
+        },
+        {
+          "name": "Clear Cache",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/cache/clear",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "cache", "clear"]
+            },
+            "description": "Limpa o cache do sistema RAG"
+          }
+        },
+        {
+          "name": "Get Embeddings Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/embeddings/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "embeddings", "stats"]
+            },
+            "description": "Estatísticas de embeddings (total, por documento, etc)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. DEBUG & Utilities",
+      "item": [
+        {
+          "name": "Debug Echo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"test\": \"data\",\n  \"nested\": {\n    \"key\": \"value\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/debug/echo",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "debug", "echo"]
+            },
+            "description": "Echo de debug - retorna o payload enviado"
+          }
+        },
+        {
+          "name": "Preview Document",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/preview?document_id={{document_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "preview"],
+              "query": [
+                {
+                  "key": "document_id",
+                  "value": "{{document_id}}"
+                }
+              ]
+            },
+            "description": "Preview de documento com chunks"
+          }
+        },
+        {
+          "name": "Ingest with Quality Analysis",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "analyze_quality",
+                  "value": "true",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/ingest-quality",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "ingest-quality"]
+            },
+            "description": "Upload com análise de qualidade detalhada"
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Search Modes Examples",
+      "item": [
+        {
+          "name": "Mode: Summary",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Faça um resumo\",\n  \"document_id\": {{document_id}},\n  \"mode\": \"summary\",\n  \"format\": \"plain\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            }
+          }
+        },
+        {
+          "name": "Mode: Quote (Citações)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"certificados de qualidade\",\n  \"document_id\": {{document_id}},\n  \"mode\": \"quote\",\n  \"format\": \"plain\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            }
+          }
+        },
+        {
+          "name": "Mode: List",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Liste os certificados\",\n  \"document_id\": {{document_id}},\n  \"mode\": \"list\",\n  \"format\": \"markdown\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            }
+          }
+        },
+        {
+          "name": "Mode: Table",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Compare os certificados\",\n  \"document_id\": {{document_id}},\n  \"mode\": \"table\",\n  \"format\": \"markdown\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            }
+          }
+        },
+        {
+          "name": "Mode: Document Full",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Analise o documento completo\",\n  \"document_id\": {{document_id}},\n  \"mode\": \"document_full\",\n  \"use_full_document\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            }
+          }
+        },
+        {
+          "name": "Mode: Direct (Extração Direta)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"certificado de análise\",\n  \"document_id\": {{document_id}},\n  \"mode\": \"direct\",\n  \"strictness\": 3\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Format Examples",
+      "item": [
+        {
+          "name": "Format: Plain Text",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Quais são os certificados?\",\n  \"document_id\": {{document_id}},\n  \"format\": \"plain\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            }
+          }
+        },
+        {
+          "name": "Format: Markdown",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Quais são os certificados?\",\n  \"document_id\": {{document_id}},\n  \"format\": \"markdown\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            }
+          }
+        },
+        {
+          "name": "Format: HTML",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Quais são os certificados?\",\n  \"document_id\": {{document_id}},\n  \"format\": \"html\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Advanced Features",
+      "item": [
+        {
+          "name": "Smart Mode ON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Qual o objetivo do documento?\",\n  \"document_id\": {{document_id}},\n  \"use_smart_mode\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            },
+            "description": "Busca com Smart Router (detecta automaticamente a melhor estratégia)"
+          }
+        },
+        {
+          "name": "Smart Mode OFF (Legacy)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Qual o objetivo do documento?\",\n  \"document_id\": {{document_id}},\n  \"use_smart_mode\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            },
+            "description": "Busca sem Smart Router (modo legado direto)"
+          }
+        },
+        {
+          "name": "Use Full Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Analise completa\",\n  \"document_id\": {{document_id}},\n  \"use_full_document\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            },
+            "description": "Análise do documento completo (não apenas chunks)"
+          }
+        },
+        {
+          "name": "High Strictness (No LLM)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"certificados\",\n  \"document_id\": {{document_id}},\n  \"strictness\": 3,\n  \"include_answer\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            },
+            "description": "Strictness 3 = apenas extração, sem LLM"
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Test Scenarios",
+      "item": [
+        {
+          "name": "Scenario 1: Full Workflow",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Quais são os principais pontos do documento?\",\n  \"document_id\": {{document_id}},\n  \"use_smart_mode\": true,\n  \"mode\": \"auto\",\n  \"format\": \"markdown\",\n  \"length\": \"medium\",\n  \"citations\": 3\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            },
+            "description": "Workflow completo: Smart Mode + Auto + Markdown + Citations"
+          }
+        },
+        {
+          "name": "Scenario 2: Medical Query",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Quais as contraindicações e dosagem?\",\n  \"document_id\": {{document_id}},\n  \"mode\": \"quote\",\n  \"strictness\": 2,\n  \"citations\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            },
+            "description": "Cenário médico: citações exatas com alta precisão"
+          }
+        },
+        {
+          "name": "Scenario 3: Legal Query",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Quais as cláusulas de rescisão?\",\n  \"document_id\": {{document_id}},\n  \"mode\": \"quote\",\n  \"format\": \"plain\",\n  \"strictness\": 3\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            },
+            "description": "Cenário jurídico: extração literal sem interpretação"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "default"
+    },
+    {
+      "key": "api_key",
+      "value": "rag_COLE_SUA_API_KEY_AQUI",
+      "type": "secret"
+    },
+    {
+      "key": "user_id",
+      "value": "1",
+      "type": "default"
+    },
+    {
+      "key": "document_id",
+      "value": "142",
+      "type": "default"
+    }
+  ]
+}
+

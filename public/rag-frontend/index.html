@@ -8,6 +8,8 @@
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"></script>
+  <!-- File Validator (independent module) -->
+  <script src="file-validator.js"></script>
   <style>
     :root {
       --console-bg: #f8f9fa;
@@ -58,7 +60,7 @@
 <body>
   <div class="container py-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <h1 class="h4 m-0">RAG Console — <small class="text-secondary">PRO</small></h1>
+      <h1 class="h4 m-0">RAG Console — <small class="text-secondary">Simplificado</small></h1>
       <div class="d-flex gap-2">
         <button id="btnHealth" class="btn btn-outline-success btn-sm">🩺 Health</button>
         <button id="btnConfig" class="btn btn-outline-dark btn-sm">⚙️ Configurar</button>
@@ -74,13 +76,15 @@
     <!-- Abas -->
     <ul class="nav nav-tabs" id="mainTabs" role="tablist">
       <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ing" type="button">Ingest</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#query" type="button">Query</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#answer" type="button">Answer (RAG+LLM)</button></li>
+      <!-- DESATIVADAS - CENÁRIO MINIMALISTA -->
+      <li class="nav-item" style="display:none;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#query" type="button">Query</button></li>
+      <li class="nav-item" style="display:none;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#answer" type="button">Answer (RAG+LLM)</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#python" type="button">Python RAG</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#gen" type="button">Vertex Generate</button></li>
+      <li class="nav-item" style="display:none;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#gen" type="button">Vertex Generate</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#metrics" type="button">Métricas</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin" type="button">Admin</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cost" type="button">Calculadora de Custos</button></li>
+      <!-- ADMIN E CALCULADORA - Serão movidas para painel admin separado (futuro) -->
+      <li class="nav-item" style="display:none;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin" type="button">Admin</button></li>
+      <li class="nav-item" style="display:none;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cost" type="button">Calculadora de Custos</button></li>
     </ul>
 
     <div class="tab-content border border-top-0 p-3 rounded-bottom">
@@ -98,12 +102,14 @@
               <textarea id="ingText" class="form-control" rows="6" placeholder="Cole aqui um texto para ingestão"></textarea>
             </div>
             <div class="mb-2">
-              <label class="form-label">Arquivos (PDF/Doc/etc.)</label>
+              <label class="form-label">Arquivos (PDF/Doc/etc.) <small class="text-muted">• Máx: 5 arquivos, 500MB, 5.000 páginas cada</small></label>
               <div class="dropzone" id="dzIngest">
                 <div class="dz-icon">📄</div>
                 <div class="dz-sub">Arraste e solte arquivos aqui ou <label class="text-primary" style="text-decoration:underline; cursor:pointer;"><input id="ingFiles" type="file" multiple hidden> clique para selecionar</label></div>
                 <div id="ingFileList" class="mt-2"></div>
               </div>
+              <!-- File validation info (populated by file-validator.js) -->
+              <div id="fileValidationInfo" class="mt-2"></div>
             </div>
             <div class="mb-2">
               <label class="form-label">Metadata (JSON opcional)</label>
@@ -151,7 +157,13 @@
             <div class="mb-2">
               <label class="form-label">Document ID</label>
               <div class="input-group">
-                <input id="aDocId" type="number" class="form-control" placeholder="ID do documento" value="125">
+                <select id="answerDocSelect" class="form-select">
+                  <option value="">Carregando documentos...</option>
+                </select>
+                <input id="aDocId" type="number" class="form-control" placeholder="ID do documento" value="125" style="display:none;">
+                <button id="toggleAnswerDocInput" class="btn btn-outline-secondary" type="button" title="Alternar entre select e input manual">
+                  🔢
+                </button>
                 <button id="btnLoadLatest" class="btn btn-outline-secondary" type="button">Último</button>
               </div>
             </div>
@@ -178,9 +190,17 @@
           <div class="col-12 col-xl-6">
             <!-- MODO SIMPLES (sempre visível) -->
             <div class="mb-3">
-              <label class="form-label fw-bold">📄 Documento</label>
-              <input id="pythonDocId" class="form-control form-control-lg" type="number" placeholder="Digite o ID do documento">
-              <small class="form-text text-muted">Exemplo: 142</small>
+              <label class="form-label fw-bold">📄 Escolher Documento</label>
+              <div class="input-group">
+                <select id="pythonDocSelect" class="form-select form-select-lg">
+                  <option value="">Carregando documentos...</option>
+                </select>
+                <input id="pythonDocId" class="form-control form-control-lg" type="number" placeholder="Ou digite ID manual" style="display:none;">
+                <button id="toggleDocInput" class="btn btn-outline-secondary" type="button" title="Alternar entre select e input manual">
+                  🔢
+                </button>
+              </div>
+              <small class="form-text text-muted">Selecione um documento da lista ou digite o ID manualmente</small>
             </div>
             
             <div id="pythonSuggestedQuestions" class="mb-3" style="display:none;">
@@ -662,6 +682,14 @@
             render();
           });
         });
+        
+        // Trigger file validation if FileValidator is loaded
+        if (window.FileValidator && files.length > 0) {
+          const validationContainer = zoneId === 'dzIngest' ? 'fileValidationInfo' : null;
+          if (validationContainer) {
+            window.FileValidator.displayValidationResults(files, validationContainer);
+          }
+        }
       }
 
       zone.addEventListener("dragover", (e)=>{ e.preventDefault(); zone.classList.add("dragover"); });
@@ -706,17 +734,32 @@
 
       try {
         if (files.length > 0) {
+          // Validate files before upload
+          if (window.FileValidator) {
+            const validation = window.FileValidator.validateFiles(files);
+            if (!validation.valid) {
+              out.textContent = "❌ Validação falhou:\n" + validation.errors.join('\n');
+              return;
+            }
+          }
+          
+          // Use bulk-ingest for multiple files, regular ingest for single file
+          const useBulkIngest = files.length > 1;
+          const baseUrl = getBaseUrl();
+          const endpoint = useBulkIngest ? baseUrl + "/api/rag/bulk-ingest" : baseUrl + "/api/rag/ingest";
+          
           // multipart
           const fd = new FormData();
           files.forEach(f => fd.append("files[]", f, f.name));
           if (urlVal) fd.append("url", urlVal);
           if (textVal) fd.append("text", textVal);
           if (meta) fd.append("metadata", JSON.stringify(meta));
+          fd.append("user_id", "1");
 
           pWrap.classList.remove("d-none");
           pBar.style.width = "0%"; pTxt.textContent = "0%";
 
-          const data = await xhrMultipart("POST","/api/rag/ingest", fd, (loaded,total)=>{
+          const data = await xhrMultipart("POST", endpoint.replace(baseUrl, ''), fd, (loaded,total)=>{
             const pct = Math.max(1, Math.floor((loaded/total)*100));
             pBar.style.width = pct+"%"; pTxt.textContent = pct+"%";
           });
@@ -1100,8 +1143,35 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
             `<div class="text-wrap">${data.answer.replace(/\n/g, '<br>')}</div>` : 
             '<em>Resposta não gerada</em>';
           
-          // Exibir metadados (novo formato com Smart Router info)
+          // DEFINIR METADADOS PRIMEIRO (antes de usar em feedback)
           const metadata = data.debug || data.metadata || {};
+          
+          // MOSTRAR BOTÕES DE FEEDBACK após resposta bem-sucedida
+          if (data.answer) {
+            // Armazena metadados globalmente para uso no feedback
+            window.lastSearchMetadata = {
+              query: query,
+              document_id: docId,
+              mode: mode,
+              format: format,
+              use_smart_mode: useSmartMode,
+              response_metadata: metadata
+            };
+            
+            // Mostra seção de feedback
+            document.getElementById("feedbackSection").style.display = "block";
+            document.getElementById("feedbackStatus").style.display = "none";
+            
+            // Reseta botões
+            document.getElementById("feedbackThumbsUp").disabled = false;
+            document.getElementById("feedbackThumbsDown").disabled = false;
+            document.getElementById("feedbackThumbsUp").classList.remove("active", "btn-success");
+            document.getElementById("feedbackThumbsDown").classList.remove("active", "btn-danger");
+            document.getElementById("feedbackThumbsUp").classList.add("btn-outline-success");
+            document.getElementById("feedbackThumbsDown").classList.add("btn-outline-danger");
+          }
+          
+          // Exibir metadados (novo formato com Smart Router info)
           const displayData = {
             mode_used: data.mode_used,
             format: data.format,
@@ -1236,9 +1306,152 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
 <script src="./rag-client.js"></script>
 
 <script>
+  // Função para carregar documentos da API
+  async function loadDocuments() {
+    try {
+      const response = await fetch('/api/docs/list');
+      const data = await response.json();
+      
+      if (data && data.docs && Array.isArray(data.docs)) {
+        const pythonSelect = document.getElementById('pythonDocSelect');
+        const answerSelect = document.getElementById('answerDocSelect');
+        
+        // Limpa opções existentes
+        pythonSelect.innerHTML = '<option value="">Selecione um documento...</option>';
+        answerSelect.innerHTML = '<option value="">Selecione um documento...</option>';
+        
+        // Filtra documentos: remove fixtures (ID >= 9000) e arquivos de teste
+        const realDocs = data.docs.filter(doc => {
+          return doc.id < 9000 && 
+                 !doc.title.startsWith('test_') && 
+                 !doc.title.startsWith('Fixture');
+        });
+        
+        // Ordena por ID decrescente (mais recentes primeiro)
+        realDocs.sort((a, b) => b.id - a.id);
+        
+        // Adiciona documentos reais
+        realDocs.slice(0, 15).forEach(doc => {
+          // Melhora a formatação do nome
+          let displayName = doc.title;
+          let fileIcon = '📄'; // ícone padrão
+          
+          // Define ícone baseado na extensão (símbolos universais reconhecíveis)
+          if (displayName.endsWith('.pdf')) {
+            fileIcon = '📕'; // Adobe PDF - documento vermelho clássico
+            displayName = displayName.replace('.pdf', '');
+          } else if (displayName.endsWith('.docx') || displayName.endsWith('.doc')) {
+            fileIcon = '📘'; // Microsoft Word - documento azul clássico
+            displayName = displayName.replace('.docx', '').replace('.doc', '');
+          } else if (displayName.endsWith('.xlsx') || displayName.endsWith('.xls')) {
+            fileIcon = '📗'; // Microsoft Excel - planilha verde clássica
+            displayName = displayName.replace('.xlsx', '').replace('.xls', '');
+          } else if (displayName.endsWith('.pptx') || displayName.endsWith('.ppt')) {
+            fileIcon = '📙'; // Microsoft PowerPoint - apresentação laranja clássica
+            displayName = displayName.replace('.pptx', '').replace('.ppt', '');
+          } else if (displayName.endsWith('.txt')) {
+            fileIcon = '📄'; // Arquivo de texto simples
+            displayName = displayName.replace('.txt', '');
+          } else if (displayName.endsWith('.csv')) {
+            fileIcon = '📊'; // Planilha de dados CSV
+            displayName = displayName.replace('.csv', '');
+          } else if (displayName.endsWith('.html') || displayName.endsWith('.htm')) {
+            fileIcon = '🌐'; // HTML - página web
+            displayName = displayName.replace('.html', '').replace('.htm', '');
+          } else if (displayName.endsWith('.xml')) {
+            fileIcon = '📋'; // XML - dados estruturados
+            displayName = displayName.replace('.xml', '');
+          } else if (displayName.endsWith('.rtf')) {
+            fileIcon = '📝'; // RTF - texto formatado
+            displayName = displayName.replace('.rtf', '');
+          }
+          
+          // Remove "(1)" de arquivos duplicados
+          displayName = displayName.replace(' (1)', '');
+          
+          const optionText = `${fileIcon} ${displayName}`;
+          
+          // Python RAG Select
+          const pythonOption = document.createElement('option');
+          pythonOption.value = doc.id;
+          pythonOption.textContent = optionText;
+          pythonOption.title = `ID: ${doc.id} | Chunks: ${doc.chunks || 0} | Tipo: ${fileIcon}`;
+          pythonSelect.appendChild(pythonOption);
+          
+          // Answer Select
+          const answerOption = document.createElement('option');
+          answerOption.value = doc.id;
+          answerOption.textContent = optionText;
+          answerOption.title = `ID: ${doc.id} | Chunks: ${doc.chunks || 0} | Tipo: ${fileIcon}`;
+          answerSelect.appendChild(answerOption);
+        });
+        
+        console.log(`✓ ${realDocs.length} documentos reais carregados nos selects (filtrados de ${data.docs.length} total)`);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar documentos:', error);
+      document.getElementById('pythonDocSelect').innerHTML = '<option value="">Erro ao carregar documentos</option>';
+      document.getElementById('answerDocSelect').innerHTML = '<option value="">Erro ao carregar documentos</option>';
+    }
+  }
+
+  // Event listeners para alternar entre select e input manual
+  document.addEventListener('DOMContentLoaded', function() {
+    // Toggle para Python RAG
+    document.getElementById('toggleDocInput').addEventListener('click', function() {
+      const select = document.getElementById('pythonDocSelect');
+      const input = document.getElementById('pythonDocId');
+      
+      if (select.style.display !== 'none') {
+        select.style.display = 'none';
+        input.style.display = 'block';
+        this.innerHTML = '📋';
+        this.title = 'Voltar para select de documentos';
+      } else {
+        select.style.display = 'block';
+        input.style.display = 'none';
+        this.innerHTML = '🔢';
+        this.title = 'Alternar entre select e input manual';
+      }
+    });
+    
+    // Toggle para Answer
+    document.getElementById('toggleAnswerDocInput').addEventListener('click', function() {
+      const select = document.getElementById('answerDocSelect');
+      const input = document.getElementById('aDocId');
+      
+      if (select.style.display !== 'none') {
+        select.style.display = 'none';
+        input.style.display = 'block';
+        this.innerHTML = '📋';
+        this.title = 'Voltar para select de documentos';
+      } else {
+        select.style.display = 'block';
+        input.style.display = 'none';
+        this.innerHTML = '🔢';
+        this.title = 'Alternar entre select e input manual';
+      }
+    });
+    
+    // Sync entre select e input para Python RAG
+    document.getElementById('pythonDocSelect').addEventListener('change', function() {
+      document.getElementById('pythonDocId').value = this.value;
+      // Trigger change event para carregar perguntas sugeridas
+      document.getElementById('pythonDocId').dispatchEvent(new Event('change'));
+    });
+    
+    // Sync entre select e input para Answer
+    document.getElementById('answerDocSelect').addEventListener('change', function() {
+      document.getElementById('aDocId').value = this.value;
+    });
+  });
+
   // Carregar perguntas sugeridas quando documento for selecionado
   // IMPORTANTE: Deve estar DEPOIS do rag-client.js para window.RAG existir
   window.addEventListener("load", function() {
+    // Carrega documentos automaticamente
+    loadDocuments();
+    
     // Aguarda um pouco para garantir que window.RAG está disponível
     setTimeout(function() {
       if (!window.RAG) {
@@ -1289,51 +1502,21 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
     }, 100);
   });
   
-  // FEEDBACK SYSTEM - Registrar botões de feedback
-  let currentSearchMetadata = null; // Guarda metadados da última busca
-  
-  // Interceptar resultados da busca Python para armazenar metadados
-  const originalPythonSearch = window.RAG.pythonSearch;
-  window.RAG.pythonSearch = async function(params) {
-    const result = await originalPythonSearch.call(this, params);
-    if (result && result.ok) {
-      currentSearchMetadata = {
-        query: params.query,
-        document_id: params.document_id,
-        mode: params.mode,
-        format: params.format,
-        use_smart_mode: params.use_smart_mode,
-        response_metadata: result.metadata || {}
-      };
-      
-      // Mostra botões de feedback após resposta
-      document.getElementById("feedbackSection").style.display = "block";
-      document.getElementById("feedbackStatus").style.display = "none";
-      
-      // Reseta estado dos botões
-      document.getElementById("feedbackThumbsUp").disabled = false;
-      document.getElementById("feedbackThumbsDown").disabled = false;
-      document.getElementById("feedbackThumbsUp").classList.remove("active", "btn-success");
-      document.getElementById("feedbackThumbsDown").classList.remove("active", "btn-danger");
-      document.getElementById("feedbackThumbsUp").classList.add("btn-outline-success");
-      document.getElementById("feedbackThumbsDown").classList.add("btn-outline-danger");
-    }
-    return result;
-  };
+  // FEEDBACK SYSTEM - Event listeners para botões 👍👎
   
   // Botão Thumbs Up
   document.getElementById("feedbackThumbsUp").addEventListener("click", async function() {
-    if (!currentSearchMetadata) {
+    if (!window.lastSearchMetadata) {
       alert("Nenhuma busca ativa para avaliar.");
       return;
     }
     
     try {
       const result = await window.RAG.submitFeedback({
-        query: currentSearchMetadata.query,
-        document_id: currentSearchMetadata.document_id,
+        query: window.lastSearchMetadata.query,
+        document_id: window.lastSearchMetadata.document_id,
         rating: 1,
-        metadata: currentSearchMetadata
+        metadata: window.lastSearchMetadata
       });
       
       if (result && result.ok) {
@@ -1356,17 +1539,17 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
   
   // Botão Thumbs Down
   document.getElementById("feedbackThumbsDown").addEventListener("click", async function() {
-    if (!currentSearchMetadata) {
+    if (!window.lastSearchMetadata) {
       alert("Nenhuma busca ativa para avaliar.");
       return;
     }
     
     try {
       const result = await window.RAG.submitFeedback({
-        query: currentSearchMetadata.query,
-        document_id: currentSearchMetadata.document_id,
+        query: window.lastSearchMetadata.query,
+        document_id: window.lastSearchMetadata.document_id,
         rating: -1,
-        metadata: currentSearchMetadata
+        metadata: window.lastSearchMetadata
       });
       
       if (result && result.ok) {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\DocumentCacheService;
 
 class RagPythonController extends Controller
 {
@@ -27,6 +28,7 @@ class RagPythonController extends Controller
         $length = $request->input('length', 'auto');
         $citations = max(0, min(10, intval($request->input('citations', 0))));
         $useFullDocument = filter_var($request->input('use_full_document', false), FILTER_VALIDATE_BOOLEAN);
+            $useCache = filter_var($request->input('use_cache', true), FILTER_VALIDATE_BOOLEAN);
 
             if (!$query) {
                 return response()->json([
@@ -41,6 +43,22 @@ class RagPythonController extends Controller
                     'success' => false,
                     'error' => "Documento ID {$documentId} não encontrado"
                 ], 404);
+            }
+            
+            // Try to get from cache first
+            if ($useCache && $documentId) {
+                $cacheService = new DocumentCacheService();
+                $cached = $cacheService->getCachedSearchResult($documentId, $query);
+                
+                if ($cached) {
+                    Log::info('Search result from cache', [
+                        'document_id' => $documentId,
+                        'query' => substr($query, 0, 50)
+                    ]);
+                    
+                    $cached['metadata']['cache_hit'] = true;
+                    return response()->json($cached);
+                }
             }
 
             // Verificar se há chunks com embeddings
@@ -171,6 +189,7 @@ class RagPythonController extends Controller
             // Adicionar metadados de execução
             $result['metadata']['python_execution_time'] = round($executionTime, 3);
             $result['metadata']['total_chunks_with_embeddings'] = $chunksWithEmbeddings;
+            $result['metadata']['cache_hit'] = false;
             // Preservar o search_method que vem do Python (não sobrescrever)
 
             Log::info('Busca Python RAG concluída', [
@@ -178,6 +197,13 @@ class RagPythonController extends Controller
                 'chunks_found' => count($result['chunks'] ?? []),
                 'execution_time' => round($executionTime, 3)
             ]);
+
+            // Cache result for future use (only if successful and document_id specified)
+            $isSuccessful = ($result['success'] ?? false) || ($result['ok'] ?? false);
+            if ($useCache && $documentId && $isSuccessful) {
+                $cacheService = new DocumentCacheService();
+                $cacheService->cacheSearchResult($documentId, $query, $result);
+            }
 
             return response()->json($result);
 

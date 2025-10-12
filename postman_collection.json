@@ -1,0 +1,396 @@
+{
+  "info": {
+    "name": "Laravel RAG - API Keys",
+    "_postman_id": "rag-api-keys-2025",
+    "description": "Collection completa para testar o sistema de API Keys - FASE 3.1",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Setup & Preparation",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Verifica se a API está funcionando"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. API Key Authentication Tests",
+      "item": [
+        {
+          "name": "✅ Test Auth - Bearer Token (Valid)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text",
+                "description": "API Key no formato Bearer token"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "test"]
+            },
+            "description": "Testa autenticação com Bearer token válido.\n\nResposta esperada:\n- Status: 200\n- success: true\n- user info\n- plan info"
+          },
+          "response": []
+        },
+        {
+          "name": "✅ Test Auth - X-API-Key Header (Valid)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text",
+                "description": "API Key no header X-API-Key"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "test"]
+            },
+            "description": "Testa autenticação com X-API-Key header.\n\nResposta esperada:\n- Status: 200\n- success: true\n- user info\n- plan info"
+          },
+          "response": []
+        },
+        {
+          "name": "❌ Test Auth - No API Key (Should Fail)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "test"]
+            },
+            "description": "Testa requisição sem API key.\n\nResposta esperada:\n- Status: 401\n- error: \"API key required\""
+          },
+          "response": []
+        },
+        {
+          "name": "❌ Test Auth - Invalid API Key (Should Fail)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer rag_invalid_key_12345678901234567890123456789012345678901234",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "test"]
+            },
+            "description": "Testa requisição com API key inválida.\n\nResposta esperada:\n- Status: 401\n- error: \"Invalid API key\""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. RAG Endpoints (Protected)",
+      "item": [
+        {
+          "name": "List Documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/docs/list",
+              "host": ["{{base_url}}"],
+              "path": ["api", "docs", "list"]
+            },
+            "description": "Lista todos os documentos disponíveis"
+          },
+          "response": []
+        },
+        {
+          "name": "RAG Python Search",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Quais são os certificados?\",\n  \"document_id\": 142,\n  \"use_smart_mode\": true,\n  \"top_k\": 5,\n  \"similarity_threshold\": 0.3,\n  \"include_answer\": true,\n  \"strictness\": 2,\n  \"mode\": \"auto\",\n  \"format\": \"plain\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            },
+            "description": "Faz uma busca RAG usando o sistema Python"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Feedback Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/feedback/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "feedback", "stats"]
+            },
+            "description": "Obtém estatísticas de feedback"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. API Key Management (Requires Session Auth)",
+      "item": [
+        {
+          "name": "Get API Key Info (Masked)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/user/api-key",
+              "host": ["{{base_url}}"],
+              "path": ["api", "user", "api-key"]
+            },
+            "description": "Obtém informações da API key do usuário autenticado (mascarada).\n\nNOTA: Requer autenticação de sessão (Cookie), não API key."
+          },
+          "response": []
+        },
+        {
+          "name": "Generate New API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/user/api-key/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "user", "api-key", "generate"]
+            },
+            "description": "Gera uma nova API key para o usuário.\n\nNOTA: Requer autenticação de sessão (Cookie), não API key."
+          },
+          "response": []
+        },
+        {
+          "name": "Regenerate API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/user/api-key/regenerate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "user", "api-key", "regenerate"]
+            },
+            "description": "Regenera a API key do usuário (invalida a anterior).\n\nNOTA: Requer autenticação de sessão (Cookie), não API key."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke API Key",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/user/api-key/revoke",
+              "host": ["{{base_url}}"],
+              "path": ["api", "user", "api-key", "revoke"]
+            },
+            "description": "Revoga (deleta) a API key do usuário.\n\nNOTA: Requer autenticação de sessão (Cookie), não API key."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Test Scenarios",
+      "item": [
+        {
+          "name": "Scenario 1: Full Auth Flow",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "test"]
+            },
+            "description": "Cenário completo:\n1. Autenticar com API key\n2. Verificar dados do usuário\n3. Verificar plano e limites"
+          },
+          "response": []
+        },
+        {
+          "name": "Scenario 2: RAG Search with Auth",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Qual é o objetivo do documento?\",\n  \"document_id\": 142,\n  \"use_smart_mode\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rag", "python-search"]
+            },
+            "description": "Cenário: Fazer busca RAG autenticada"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "default"
+    },
+    {
+      "key": "api_key",
+      "value": "rag_COLE_SUA_API_KEY_AQUI",
+      "type": "default"
+    }
+  ]
+}
