@@ -6,12 +6,14 @@ use App\Http\Controllers\RagAnswerController;
 use App\Http\Controllers\VertexRagController;
 use App\Http\Middleware\ForceJsonForRag;
 
-// As rotas de API (com prefixo /api) já estão sob o grupo 'api' por padrão.
-// Envelopamos com ForceJsonForRag para garantir JSON até em erros inesperados.
+// Public routes (no auth required)
 Route::middleware([ForceJsonForRag::class])->group(function () {
-
     Route::get('/health', function() { return response()->json(['ok'=>true,'ts'=>now()->toIso8601String()]); });
     Route::match(['GET','POST'], '/rag/ping', function() { return response()->json(['ok'=>true,'who'=>'api.ping']); });
+});
+
+// Protected routes (require authentication)
+Route::middleware([ForceJsonForRag::class, 'auth:sanctum'])->group(function () {
 
     if (class_exists(VertexRagController::class)) {
         Route::get('/vertex/generate',  [VertexRagController::class, 'generateGet']);
@@ -37,12 +39,14 @@ Route::middleware([ForceJsonForRag::class])->group(function () {
     // Debug & Utilities
     Route::match(['GET','POST'], '/rag/debug/echo', [RagController::class, 'echo']);
     Route::get('/docs/list', [RagController::class, 'listDocs']);
+    Route::get('/docs/{id}', [RagController::class, 'getDocument']);
+    Route::get('/docs/{id}/chunks', [RagController::class, 'getDocumentChunks']);
     Route::get('/rag/preview', [RagController::class, 'preview']);
     Route::post('/rag/ingest-quality', [RagController::class, 'ingestWithQuality']);
 });
 
-// Python RAG Integration (novo - não mexe no sistema existente)
-Route::middleware([ForceJsonForRag::class])->group(function () {
+// Python RAG Integration - também protegido por auth
+Route::middleware([ForceJsonForRag::class, 'auth:sanctum'])->group(function () {
     Route::post('/rag/python-search', [\App\Http\Controllers\RagPythonController::class, 'pythonSearch']);
     Route::get('/rag/python-health', [\App\Http\Controllers\RagPythonController::class, 'pythonHealth']);
     Route::post('/rag/compare-search', [\App\Http\Controllers\RagPythonController::class, 'compareSearch']);
@@ -81,6 +85,8 @@ Route::middleware([\App\Http\Middleware\ApiKeyAuth::class])->group(function () {
 Route::post('/excel/query', [\App\Http\Controllers\ExcelQueryController::class, 'query']);
 Route::get('/excel/{documentId}/structure', [\App\Http\Controllers\ExcelQueryController::class, 'getStructuredData']);
 
-// Video Processing Routes (NEW - 2025-10-12)
-Route::post('/video/ingest', [\App\Http\Controllers\VideoController::class, 'ingest']);
-Route::post('/video/info', [\App\Http\Controllers\VideoController::class, 'getInfo']);
+// Video Processing Routes (NEW - 2025-10-12) - Protected by auth
+Route::middleware([ForceJsonForRag::class, 'auth:sanctum'])->group(function () {
+    Route::post('/video/ingest', [\App\Http\Controllers\VideoController::class, 'ingest']);
+    Route::post('/video/info', [\App\Http\Controllers\VideoController::class, 'getInfo']);
+});

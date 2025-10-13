@@ -61,8 +61,10 @@ class BulkIngestController extends Controller
         $successCount = 0;
         $failCount = 0;
         
-        $userId = $req->input('user_id', 1);
-        $tenantSlug = $req->input('tenant_slug', 'default');
+        // Get tenant_slug from authenticated user
+        $user = auth('sanctum')->user();
+        $userId = $user ? $user->id : $req->input('user_id', 1);
+        $tenantSlug = $user ? "user_{$user->id}" : $req->input('tenant_slug', 'default');
 
         foreach ($files as $index => $file) {
             if (!($file instanceof UploadedFile)) {

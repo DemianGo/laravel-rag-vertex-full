@@ -63,7 +63,12 @@ class RagController extends Controller
 
     public function listDocs()
     {
+        // Get tenant_slug from authenticated user
+        $user = auth('sanctum')->user();
+        $tenantSlug = $user ? "user_{$user->id}" : 'default';
+        
         $docs = DB::table('documents')
+            ->where('tenant_slug', $tenantSlug)
             ->orderByDesc('created_at')
             ->limit(100)
             ->get(['id','title','source','created_at','metadata']);
@@ -77,7 +82,30 @@ class RagController extends Controller
             $d->chunks = (int)($counts[$d->id] ?? 0);
         }
 
-        return response()->json(['ok' => true, 'docs' => $docs]);
+        return response()->json(['ok' => true, 'docs' => $docs, 'tenant' => $tenantSlug]);
+    }
+    
+    public function getDocument($id)
+    {
+        $doc = DB::table('documents')
+            ->where('id', $id)
+            ->first(['id','title','source','created_at','metadata','uri']);
+        
+        if (!$doc) {
+            return response()->json(['error' => 'Document not found'], 404);
+        }
+        
+        return response()->json($doc);
+    }
+    
+    public function getDocumentChunks($id)
+    {
+        $chunks = DB::table('chunks')
+            ->where('document_id', $id)
+            ->orderBy('ord')
+            ->get(['id','content','ord','meta']);
+        
+        return response()->json($chunks);
     }
 
     // Fixar doc no cookie
@@ -161,7 +189,10 @@ class RagController extends Controller
                 ], 422);
             }
 
-            $tenantSlug = $req->input('tenant_slug', 'default');
+            // Get tenant_slug from authenticated user (multi-user support)
+            $user = auth('sanctum')->user();
+            $tenantSlug = $user ? "user_{$user->id}" : $req->input('tenant_slug', 'default');
+            
             $title = $extractionResult['title'];
             $text = $extractionResult['content'];
             $metadata = $extractionResult['metadata'];
@@ -410,7 +441,10 @@ class RagController extends Controller
         $q = $this->getStringParam($req, ['q','query','question','prompt','text','message','msg','qtext','search']);
         $topK = $this->getIntParam($req, ['top_k','topk','k','top','limit','n'], 5, 1, 50);
 
-        $tenantSlug = $req->input('tenant_slug', 'default');
+        // Get tenant_slug from authenticated user
+        $user = auth('sanctum')->user();
+        $tenantSlug = $user ? "user_{$user->id}" : $req->input('tenant_slug', 'default');
+        
         $docId = $this->getIntParam($req, ['document_id','doc_id','id'], 0, 0, PHP_INT_MAX) ?: null;
         $title = $this->getStringParam($req, ['title','filename','name']);
 
@@ -453,7 +487,10 @@ class RagController extends Controller
     public function generateAnswer(Request $req, RagPipeline $pipeline)
     {
         $q = $this->getStringParam($req, ['q','query','question','prompt','text','message']);
-        $tenantSlug = $req->input('tenant_slug', 'default');
+        
+        // Get tenant_slug from authenticated user
+        $user = auth('sanctum')->user();
+        $tenantSlug = $user ? "user_{$user->id}" : $req->input('tenant_slug', 'default');
 
         if ($q === '') return response()->json(['ok'=>false,'error'=>'Query parameter required'], 422);
 
@@ -497,7 +534,10 @@ class RagController extends Controller
     {
         try {
             $period = $req->input('period', '1h'); // 1h, 1d, 7d, 30d
-            $tenantSlug = $req->input('tenant_slug', 'default');
+            
+            // Get tenant_slug from authenticated user
+            $user = auth('sanctum')->user();
+            $tenantSlug = $user ? "user_{$user->id}" : $req->input('tenant_slug', 'default');
 
             $stats = $metrics->getMetrics($tenantSlug, $period);
 
@@ -554,7 +594,11 @@ class RagController extends Controller
     {
         try {
             $documents = $req->input('documents', []);
-            $tenantSlug = $req->input('tenant_slug', 'default');
+            
+            // Get tenant_slug from authenticated user
+            $user = auth('sanctum')->user();
+            $tenantSlug = $user ? "user_{$user->id}" : $req->input('tenant_slug', 'default');
+            
             $enableAsync = $req->input('async', false);
 
             if (empty($documents)) {
@@ -858,7 +902,10 @@ class RagController extends Controller
     public function embeddingStats(Request $req, EmbeddingCache $cache)
     {
         try {
-            $tenantSlug = $req->input('tenant_slug', 'default');
+            // Get tenant_slug from authenticated user
+            $user = auth('sanctum')->user();
+            $tenantSlug = $user ? "user_{$user->id}" : $req->input('tenant_slug', 'default');
+            
             $stats = $cache->getStats();
 
             return response()->json([
@@ -877,7 +924,10 @@ class RagController extends Controller
     {
         try {
             $docId = $req->input('document_id');
-            $tenantSlug = $req->input('tenant_slug', 'default');
+            
+            // Get tenant_slug from authenticated user
+            $user = auth('sanctum')->user();
+            $tenantSlug = $user ? "user_{$user->id}" : $req->input('tenant_slug', 'default');
 
             if (!$docId) {
                 return response()->json(['ok'=>false,'error'=>'document_id required'], 422);

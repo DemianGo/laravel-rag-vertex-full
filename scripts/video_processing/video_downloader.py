@@ -92,31 +92,45 @@ class VideoDownloader:
                 else:
                     file_ext = info.get('ext', 'mp4')
                 
-                file_path = output_dir / f"{info['title']}.{file_ext}"
+                # Sanitize title for filename (yt-dlp does this automatically)
+                title = info['title']
+                file_path = output_dir / f"{title}.{file_ext}"
                 
                 # Verify file exists
                 if not file_path.exists():
-                    # Try to find the downloaded file
-                    possible_files = list(output_dir.glob(f"{info['title']}.*"))
+                    # Try to find the downloaded file (yt-dlp may sanitize filename)
+                    possible_files = list(output_dir.glob(f"*{title[:20]}*.{file_ext}"))
+                    if not possible_files:
+                        # Try any file in the directory
+                        possible_files = list(output_dir.glob(f"*.{file_ext}"))
+                    
                     if possible_files:
-                        file_path = possible_files[0]
+                        # Get the most recent file
+                        file_path = max(possible_files, key=lambda p: p.stat().st_mtime)
                     else:
                         return {
                             "success": False,
                             "error": "Downloaded file not found"
                         }
                 
+                # Clean strings to avoid UTF-8 issues
+                def clean_string(s):
+                    if not s:
+                        return ''
+                    # Remove problematic characters
+                    return s.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+                
                 return {
                     "success": True,
                     "file_path": str(file_path),
-                    "title": info.get('title', 'Unknown'),
+                    "title": clean_string(info.get('title', 'Unknown')),
                     "duration": info.get('duration', 0),
                     "format": file_ext,
                     "size_bytes": file_path.stat().st_size,
-                    "thumbnail": info.get('thumbnail', ''),
-                    "description": info.get('description', '')[:500],  # Limit to 500 chars
-                    "uploader": info.get('uploader', 'Unknown'),
-                    "webpage_url": info.get('webpage_url', url),
+                    "thumbnail": clean_string(info.get('thumbnail', '')),
+                    "description": clean_string(info.get('description', ''))[:500],  # Limit to 500 chars
+                    "uploader": clean_string(info.get('uploader', 'Unknown')),
+                    "webpage_url": clean_string(info.get('webpage_url', url)),
                     "view_count": info.get('view_count', 0)
                 }
         
@@ -198,13 +212,31 @@ def main():
     if len(sys.argv) < 2:
         print(json.dumps({
             "success": False,
-            "error": "Usage: video_downloader.py <url> [output_dir] [--audio-only]"
+            "error": "Usage: video_downloader.py <url> [output_dir] [--audio-only] [--info-only]"
         }))
         sys.exit(1)
     
-    url = sys.argv[1]
-    output_dir = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith('--') else None
+    # Check for --info-only flag first
+    info_only = '--info-only' in sys.argv
+    
+    # URL is always the first non-flag argument
+    url = None
+    output_dir = None
+    for i, arg in enumerate(sys.argv[1:], 1):
+        if not arg.startswith('--'):
+            if url is None:
+                url = arg
+            elif output_dir is None:
+                output_dir = arg
+    
     audio_only = '--audio-only' in sys.argv
+    
+    if not url:
+        print(json.dumps({
+            "success": False,
+            "error": "URL is required"
+        }))
+        sys.exit(1)
     
     if not YT_DLP_AVAILABLE:
         print(json.dumps({
@@ -214,7 +246,12 @@ def main():
         sys.exit(1)
     
     downloader = VideoDownloader()
-    result = downloader.download_video(url, output_dir, audio_only)
+    
+    # If info-only flag, just get video info without downloading
+    if info_only:
+        result = downloader.get_video_info(url)
+    else:
+        result = downloader.download_video(url, output_dir, audio_only)
     
     print(json.dumps(result, indent=2, ensure_ascii=False))
     sys.exit(0 if result['success'] else 1)

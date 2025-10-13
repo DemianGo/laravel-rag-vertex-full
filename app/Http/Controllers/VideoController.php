@@ -42,6 +42,24 @@ class VideoController extends Controller
                 
                 Log::info("Processing video URL", ['url' => $url]);
                 
+                // Get video info first to check duration
+                $videoInfo = $this->videoService->getVideoInfo($url);
+                
+                if ($videoInfo && isset($videoInfo['duration'])) {
+                    $durationMinutes = $videoInfo['duration'] / 60;
+                    
+                    // LIMIT: 60 minutes (1 hour) max
+                    if ($durationMinutes > 60) {
+                        return response()->json([
+                            'ok' => false,
+                            'error' => sprintf(
+                                '❌ Vídeo muito longo (%.0f minutos). Limite máximo: 60 minutos (1 hora). Para vídeos mais longos, divida em partes menores.',
+                                $durationMinutes
+                            )
+                        ], 400);
+                    }
+                }
+                
                 // Process URL
                 $result = $this->videoService->processVideo($url, true, [
                     'language' => $language,
@@ -103,37 +121,67 @@ class VideoController extends Controller
                 ], 400);
             }
             
-            // Create document in database
+            // Get tenant_slug from authenticated user
+            $user = auth('sanctum')->user();
+            $tenantSlug = $user ? "user_{$user->id}" : 'default';
+            
+            // Extract video info from metadata
+            $videoMetadata = $result['metadata'];
+            $videoDuration = $videoMetadata['duration'] ?? 
+                            ($videoMetadata['audio']['duration'] ?? 0);
+            $videoThumbnail = $videoMetadata['thumbnail'] ?? '';
+            
+            // Create document in database (using correct schema)
             $document = Document::create([
-                'user_id' => $userId,
                 'title' => $title,
-                'type' => 'video',
-                'file_path' => $result['original_input'],
-                'extraction_method' => 'video_transcription',
-                'quality_score' => $result['metadata']['transcription']['confidence'] ?? 0.9,
-                'metadata' => [
+                'source' => $sourceType,
+                'uri' => $result['original_input'],
+                'tenant_slug' => $tenantSlug,
+                'metadata' => json_encode([
+                    'type' => 'video',
                     'source_type' => $sourceType,
                     'language' => $language,
-                    'transcription_service' => $result['metadata']['transcription']['service_used'] ?? 'unknown',
-                    'duration' => $result['metadata']['audio']['duration'] ?? 0,
-                    'video_metadata' => $result['metadata']
-                ]
+                    'extraction_method' => 'video_transcription',
+                    'quality_score' => $videoMetadata['transcription']['confidence'] ?? 0.9,
+                    'transcription_service' => $videoMetadata['transcription']['service_used'] ?? 'unknown',
+                    'duration' => $videoDuration,
+                    'thumbnail' => $videoThumbnail,
+                    'video_metadata' => $videoMetadata
+                ])
             ]);
             
             // Create chunks from transcription
-            $text = $result['text'];
+            Log::info("Starting chunk creation", [
+                'document_id' => $document->id,
+                'text_length' => strlen($result['text'])
+            ]);
+            
+            // Clean transcription text to avoid UTF-8 issues in chunks
+            $text = $this->cleanUtf8($result['text']);
             $chunkSize = 1000;
             $overlapSize = 200;
             
+            Log::info("Calling chunkText", [
+                'text_length' => strlen($text),
+                'chunk_size' => $chunkSize
+            ]);
+            
             $chunks = $this->chunkText($text, $chunkSize, $overlapSize);
+            
+            Log::info("Chunks generated", [
+                'chunks_count' => count($chunks)
+            ]);
             
             $chunkRecords = [];
             foreach ($chunks as $idx => $chunkText) {
+                // Clean each chunk to avoid UTF-8 issues
+                $cleanChunk = $this->cleanUtf8($chunkText);
+                
                 $chunkRecords[] = [
                     'document_id' => $document->id,
-                    'content' => $chunkText,
-                    'chunk_index' => $idx,
-                    'metadata' => json_encode([
+                    'content' => $cleanChunk,
+                    'ord' => $idx,
+                    'meta' => json_encode([
                         'source' => 'video_transcription',
                         'language' => $language
                     ]),
@@ -142,24 +190,46 @@ class VideoController extends Controller
                 ];
             }
             
-            Chunk::insert($chunkRecords);
+            Log::info("Inserting chunks into database", [
+                'records_count' => count($chunkRecords)
+            ]);
+            
+            if (count($chunkRecords) > 0) {
+                Chunk::insert($chunkRecords);
+                Log::info("Chunks inserted successfully");
+            } else {
+                Log::warning("No chunks to insert");
+            }
             
             Log::info("Video processed successfully", [
                 'document_id' => $document->id,
                 'chunks_created' => count($chunks)
             ]);
             
-            return response()->json([
+            // Use previously extracted video info for response
+            $duration = $videoDuration;
+            $thumbnail = $videoThumbnail;
+            
+            // Clean ALL strings to avoid UTF-8 issues
+            $cleanData = [
                 'ok' => true,
                 'document_id' => $document->id,
-                'title' => $title,
+                'title' => $this->cleanUtf8($title),
                 'chunks_created' => count($chunks),
                 'transcription_length' => strlen($text),
-                'duration' => $result['metadata']['audio']['duration'] ?? 0,
+                'transcription_text' => $text, // Full transcription for display
+                'duration' => $duration,
+                'thumbnail' => $this->cleanUtf8($thumbnail),
                 'language' => $language,
-                'service_used' => $result['metadata']['transcription']['service_used'] ?? 'unknown',
-                'confidence' => $result['metadata']['transcription']['confidence'] ?? 0.0
-            ]);
+                'service_used' => $this->cleanUtf8($videoMetadata['transcription']['service_used'] ?? 'unknown'),
+                'confidence' => $videoMetadata['transcription']['confidence'] ?? 0.0
+            ];
+            
+            // Double-check: encode and decode to ensure valid UTF-8
+            $jsonString = json_encode($cleanData, JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+            
+            return response($jsonString, 200)
+                ->header('Content-Type', 'application/json');
             
         } catch (\Exception $e) {
             Log::error("Video ingest failed", [
@@ -217,6 +287,24 @@ class VideoController extends Controller
     }
     
     /**
+     * Clean UTF-8 string to avoid encoding issues
+     */
+    private function cleanUtf8(?string $str): string
+    {
+        if (!$str) {
+            return '';
+        }
+        
+        // Remove invalid UTF-8 characters
+        $str = mb_convert_encoding($str, 'UTF-8', 'UTF-8');
+        
+        // Remove control characters except newline and tab
+        $str = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $str);
+        
+        return $str;
+    }
+    
+    /**
      * Chunk text helper
      */
     private function chunkText(string $text, int $chunkSize = 1000, int $overlapSize = 200): array
@@ -224,9 +312,11 @@ class VideoController extends Controller
         $chunks = [];
         $length = strlen($text);
         $start = 0;
+        $minChunkSize = 100; // Minimum chunk size to avoid tiny fragments
         
         while ($start < $length) {
             $chunk = substr($text, $start, $chunkSize);
+            $chunkLength = strlen($chunk);
             
             // Try to end at sentence boundary
             if ($start + $chunkSize < $length) {
@@ -238,11 +328,24 @@ class VideoController extends Controller
                 
                 if ($boundary !== false && $boundary > $chunkSize * 0.7) {
                     $chunk = substr($chunk, 0, $boundary + 1);
+                    $chunkLength = strlen($chunk);
                 }
             }
             
-            $chunks[] = trim($chunk);
-            $start += strlen($chunk) - $overlapSize;
+            // Only add chunk if it's large enough
+            $trimmedChunk = trim($chunk);
+            if (strlen($trimmedChunk) >= $minChunkSize) {
+                $chunks[] = $trimmedChunk;
+            }
+            
+            // Ensure we always advance (prevent infinite loop)
+            $advance = max($chunkLength - $overlapSize, 1);
+            $start += $advance;
+            
+            // If remaining text is too small, stop
+            if ($length - $start < $minChunkSize) {
+                break;
+            }
         }
         
         return array_filter($chunks);

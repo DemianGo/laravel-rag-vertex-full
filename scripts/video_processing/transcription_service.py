@@ -47,7 +47,8 @@ class TranscriptionService:
         self.api_key = api_key or os.getenv('GOOGLE_GENAI_API_KEY') or os.getenv('OPENAI_API_KEY')
         self.service = service
         
-        if service == "gemini" and GEMINI_AVAILABLE and self.api_key:
+        # Configure Gemini if available
+        if GEMINI_AVAILABLE and self.api_key:
             genai.configure(api_key=self.api_key)
     
     def transcribe(self, audio_path: str, language: str = "pt-BR") -> Dict:
@@ -82,31 +83,47 @@ class TranscriptionService:
                 "error": f"Audio file not found: {audio_path}"
             }
         
-        # Try services in order
+        # Check audio duration to choose best service
+        # Gemini has output limit (~8k tokens), Google Speech is better for long audios
+        audio_size_mb = audio_path.stat().st_size / (1024 * 1024)
+        is_long_audio = audio_size_mb > 20  # > 20MB ~= > 20 minutes
+        
+        # Try services in order (prioritize Google Speech for long audios)
         if self.service == "auto":
-            services_to_try = ["gemini", "google", "openai"]
+            if is_long_audio and GOOGLE_SPEECH_AVAILABLE:
+                services_to_try = ["google", "gemini", "openai"]
+            else:
+                services_to_try = ["gemini", "google", "openai"]
         else:
             services_to_try = [self.service]
+        
+        errors = []
         
         for service in services_to_try:
             if service == "gemini" and GEMINI_AVAILABLE:
                 result = self._transcribe_gemini(audio_path, language)
                 if result["success"]:
                     return result
+                else:
+                    errors.append(f"Gemini: {result.get('error', 'Unknown error')}")
             
             elif service == "google" and GOOGLE_SPEECH_AVAILABLE:
                 result = self._transcribe_google(audio_path, language)
                 if result["success"]:
                     return result
+                else:
+                    errors.append(f"Google Speech: {result.get('error', 'Unknown error')}")
             
             elif service == "openai" and OPENAI_AVAILABLE:
                 result = self._transcribe_openai(audio_path, language)
                 if result["success"]:
                     return result
+                else:
+                    errors.append(f"OpenAI: {result.get('error', 'Unknown error')}")
         
         return {
             "success": False,
-            "error": "No transcription service available or all services failed"
+            "error": "All transcription services failed: " + "; ".join(errors) if errors else "No transcription service available"
         }
     
     def _transcribe_gemini(self, audio_path: Path, language: str) -> Dict:
@@ -126,17 +143,37 @@ class TranscriptionService:
                     "error": "Gemini audio processing failed"
                 }
             
+            # Use gemini-1.5-pro for long audios (128k context, higher output limit)
+            # Use gemini-2.5-flash for short audios (faster, cheaper, but 8k output limit)
+            audio_size_mb = audio_path.stat().st_size / (1024 * 1024)
+            
+            if audio_size_mb > 15:  # > 15MB ~= > 15 minutes
+                # Use gemini-2.5-pro for long audios (higher output limit)
+                model_name = 'gemini-2.5-pro'
+                max_tokens = 65536  # Maximum output tokens
+                print(f"⚠️ Long audio detected ({audio_size_mb:.1f}MB). Using gemini-2.5-pro for complete transcription.", file=sys.stderr)
+            else:
+                # Use gemini-2.5-flash for short audios (faster, cheaper)
+                model_name = 'gemini-2.5-flash'
+                max_tokens = 8192
+            
             # Create prompt for transcription
-            model = genai.GenerativeModel('gemini-1.5-pro')
+            model = genai.GenerativeModel(
+                model_name,
+                generation_config={
+                    'max_output_tokens': max_tokens,
+                    'temperature': 0.1,  # Low temperature for accurate transcription
+                }
+            )
             
             language_instructions = {
-                "pt-BR": "Transcreva o áudio em português brasileiro.",
-                "en-US": "Transcribe the audio in English.",
-                "es-ES": "Transcribe el audio en español."
+                "pt-BR": "Transcreva TODO o áudio em português brasileiro, do início ao fim, sem omitir nenhuma parte. Inclua TUDO que foi dito.",
+                "en-US": "Transcribe ALL the audio in English, from start to finish, without omitting any part. Include EVERYTHING that was said.",
+                "es-ES": "Transcribe TODO el audio en español, de principio a fin, sin omitir ninguna parte. Incluye TODO lo que se dijo."
             }
             
             prompt = language_instructions.get(language, language_instructions["en-US"])
-            prompt += " Forneça apenas a transcrição, sem comentários adicionais."
+            prompt += "\n\nIMPORTANTE: Forneça APENAS a transcrição completa, sem comentários, sem resumos, sem omissões. Transcreva palavra por palavra."
             
             # Generate transcription
             response = model.generate_content([prompt, audio_file])
@@ -150,7 +187,7 @@ class TranscriptionService:
                 "confidence": 0.9,  # Gemini doesn't provide confidence
                 "duration": 0.0,  # Not available
                 "language": language,
-                "service_used": "gemini",
+                "service_used": f"gemini ({model_name})",
                 "timestamps": []  # Gemini doesn't provide timestamps
             }
         

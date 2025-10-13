@@ -37,12 +37,23 @@ class RagPythonController extends Controller
                 ], 422);
             }
 
-            // Verificar se documento existe (se especificado)
-            if ($documentId && !DB::table('documents')->where('id', $documentId)->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'error' => "Documento ID {$documentId} não encontrado"
-                ], 404);
+            // Get tenant_slug from authenticated user
+            $user = auth('sanctum')->user();
+            $tenantSlug = $user ? "user_{$user->id}" : 'default';
+            
+            // Verificar se documento existe e pertence ao usuário (se especificado)
+            if ($documentId) {
+                $document = DB::table('documents')
+                    ->where('id', $documentId)
+                    ->where('tenant_slug', $tenantSlug)
+                    ->exists();
+                
+                if (!$document) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => "Documento ID {$documentId} não encontrado ou não pertence ao usuário"
+                    ], 404);
+                }
             }
             
             // Try to get from cache first

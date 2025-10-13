@@ -34,19 +34,46 @@ class VideoProcessingService
                 }
                 
                 $videoPath = $downloadResult['file_path'];
+                
+                // Verify file exists
+                if (!file_exists($videoPath)) {
+                    Log::error("Downloaded file not found", [
+                        'expected_path' => $videoPath,
+                        'download_result' => $downloadResult
+                    ]);
+                    return [
+                        'success' => false,
+                        'error' => 'Downloaded file not found'
+                    ];
+                }
+                
                 $metadata = array_merge($metadata, $downloadResult);
             }
             
-            // Step 2: Extract audio from video
-            Log::info("Extracting audio from video", ['video_path' => $videoPath]);
-            $audioResult = $this->extractAudio($videoPath);
+            // Step 2: Extract audio from video (skip if already audio)
+            $extension = strtolower(pathinfo($videoPath, PATHINFO_EXTENSION));
+            $isAudioFile = in_array($extension, ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac']);
             
-            if (!$audioResult['success']) {
-                return $audioResult;
+            if ($isAudioFile) {
+                // Already audio, skip extraction
+                Log::info("File is already audio, skipping extraction", ['path' => $videoPath]);
+                $audioPath = $videoPath;
+                $metadata = array_merge($metadata, ['audio' => [
+                    'format' => $extension,
+                    'skipped_extraction' => true
+                ]]);
+            } else {
+                // Need to extract audio from video
+                Log::info("Extracting audio from video", ['video_path' => $videoPath]);
+                $audioResult = $this->extractAudio($videoPath);
+                
+                if (!$audioResult['success']) {
+                    return $audioResult;
+                }
+                
+                $audioPath = $audioResult['audio_path'];
+                $metadata = array_merge($metadata, ['audio' => $audioResult]);
             }
-            
-            $audioPath = $audioResult['audio_path'];
-            $metadata = array_merge($metadata, ['audio' => $audioResult]);
             
             // Step 3: Transcribe audio
             Log::info("Transcribing audio", ['audio_path' => $audioPath]);
@@ -115,12 +142,33 @@ class VideoProcessingService
                " {$audioOnlyFlag} 2>&1";
         
         $output = shell_exec($cmd);
-        $result = json_decode($output, true);
         
-        if (!$result || !$result['success']) {
+        // Extract JSON from output (yt-dlp prints progress before JSON)
+        // Strategy: Find the position of the first { and extract from there to the end
+        $jsonStart = strpos($output, '{');
+        
+        if ($jsonStart !== false) {
+            $jsonOutput = substr($output, $jsonStart);
+            
+            // Find the last } to close the JSON
+            $jsonEnd = strrpos($jsonOutput, '}');
+            if ($jsonEnd !== false) {
+                $jsonOutput = substr($jsonOutput, 0, $jsonEnd + 1);
+            }
+        } else {
+            // No JSON found, return error
             return [
                 'success' => false,
-                'error' => $result['error'] ?? 'Download failed: ' . $output
+                'error' => 'No JSON response from downloader'
+            ];
+        }
+        
+        $result = json_decode($jsonOutput, true);
+        
+        if (!$result || !isset($result['success']) || !$result['success']) {
+            return [
+                'success' => false,
+                'error' => $result['error'] ?? 'Download failed'
             ];
         }
         
@@ -171,18 +219,47 @@ class VideoProcessingService
             ];
         }
         
-        $cmd = "{$this->pythonPath} " . escapeshellarg($transcriptionScript) . 
+        // Pass API keys via environment variables
+        $geminiKey = env('GOOGLE_GENAI_API_KEY', '');
+        $openaiKey = env('OPENAI_API_KEY', '');
+        
+        $envVars = '';
+        if ($geminiKey) {
+            $envVars .= 'GOOGLE_GENAI_API_KEY=' . escapeshellarg($geminiKey) . ' ';
+        }
+        if ($openaiKey) {
+            $envVars .= 'OPENAI_API_KEY=' . escapeshellarg($openaiKey) . ' ';
+        }
+        
+        $cmd = $envVars . "{$this->pythonPath} " . escapeshellarg($transcriptionScript) . 
                " " . escapeshellarg($audioPath) . 
                " " . escapeshellarg($language) . 
                " " . escapeshellarg($service) . " 2>&1";
         
         $output = shell_exec($cmd);
-        $result = json_decode($output, true);
         
-        if (!$result || !$result['success']) {
+        // Extract JSON from output (ignore warnings and progress messages)
+        $jsonStart = strpos($output, '{');
+        
+        if ($jsonStart !== false) {
+            $jsonOutput = substr($output, $jsonStart);
+            $jsonEnd = strrpos($jsonOutput, '}');
+            if ($jsonEnd !== false) {
+                $jsonOutput = substr($jsonOutput, 0, $jsonEnd + 1);
+            }
+        } else {
             return [
                 'success' => false,
-                'error' => $result['error'] ?? 'Transcription failed: ' . $output
+                'error' => 'No JSON response from transcription service'
+            ];
+        }
+        
+        $result = json_decode($jsonOutput, true);
+        
+        if (!$result || !isset($result['success']) || !$result['success']) {
+            return [
+                'success' => false,
+                'error' => $result['error'] ?? 'Transcription failed'
             ];
         }
         
@@ -209,6 +286,41 @@ class VideoProcessingService
         
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         return in_array($extension, $videoExtensions);
+    }
+    
+    /**
+     * Get video information without downloading
+     */
+    public function getVideoInfo(string $url): ?array
+    {
+        $downloaderScript = $this->videoScriptsPath . '/video_downloader.py';
+        
+        if (!file_exists($downloaderScript)) {
+            return null;
+        }
+        
+        $cmd = "{$this->pythonPath} " . escapeshellarg($downloaderScript) . 
+               " --info-only " . escapeshellarg($url) . " 2>&1";
+        
+        $output = shell_exec($cmd);
+        
+        // Extract JSON from output
+        $jsonStart = strpos($output, '{');
+        if ($jsonStart !== false) {
+            $jsonOutput = substr($output, $jsonStart);
+            $jsonEnd = strrpos($jsonOutput, '}');
+            if ($jsonEnd !== false) {
+                $jsonOutput = substr($jsonOutput, 0, $jsonEnd + 1);
+            }
+            
+            $result = json_decode($jsonOutput, true);
+            
+            if ($result && isset($result['success']) && $result['success']) {
+                return $result;
+            }
+        }
+        
+        return null;
     }
 }
 

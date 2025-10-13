@@ -3,7 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RAG Console — PRO (Light)</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>RAG Console — {{ $user->name ?? 'Guest' }}</title>
+  
+  <!-- User Authentication Data -->
+  <script>
+    window.Laravel = {
+      user: @json($user ?? null),
+      tenant_slug: "{{ $tenant_slug ?? 'default' }}",
+      api_token: "{{ $api_token ?? '' }}",
+      csrf_token: "{{ csrf_token() }}"
+    };
+  </script>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
@@ -58,6 +69,22 @@
   </style>
 </head>
 <body>
+  <!-- User Header -->
+  <nav class="navbar navbar-light bg-light border-bottom">
+    <div class="container">
+      <span class="navbar-brand mb-0 h5">
+        RAG Console — <small class="text-secondary">{{ $user->name ?? 'Guest' }}</small>
+      </span>
+      <div class="d-flex gap-2">
+        <span class="text-muted small">{{ $user->email ?? '' }}</span>
+        <form method="POST" action="{{ route('logout') }}" class="d-inline">
+          @csrf
+          <button type="submit" class="btn btn-sm btn-outline-danger">🚪 Sair</button>
+        </form>
+      </div>
+    </div>
+  </nav>
+  
   <div class="container py-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h1 class="h4 m-0">RAG Console — <small class="text-secondary">Simplificado</small></h1>
@@ -608,13 +635,24 @@
 
     async function doFetchJSON(method,path,bodyObj){
       const url=buildUrl(path), t0=performance.now(); let status=-1, respHeaders={}, respJson=null, err=null;
+      
+      // Add authentication headers
+      const headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      };
+      
+      if (window.Laravel && window.Laravel.api_token) {
+        headers["Authorization"] = "Bearer " + window.Laravel.api_token;
+      }
+      
       try{
-        const res=await fetch(url,{ method, headers:{"Content-Type":"application/json"}, body: bodyObj? JSON.stringify(bodyObj): undefined });
+        const res=await fetch(url,{ method, headers, body: bodyObj? JSON.stringify(bodyObj): undefined });
         status=res.status; res.headers.forEach((v,k)=>{respHeaders[k]=v}); respJson=await res.json().catch(()=>({status:res.status,text:"Resposta não-JSON"})); return respJson;
       }catch(e){ err=e; throw e; }
       finally{
         const t1=performance.now();
-        pushLog({ id:LOGSEQ++, method, url:path, fullUrl:url, requestHeaders:{"Content-Type":"application/json"}, requestBody:bodyObj||null, status, ms:Math.round(t1-t0), responseHeaders:respHeaders, response:respJson, error: err? String(err): null });
+        pushLog({ id:LOGSEQ++, method, url:path, fullUrl:url, requestHeaders:headers, requestBody:bodyObj||null, status, ms:Math.round(t1-t0), responseHeaders:respHeaders, response:respJson, error: err? String(err): null });
       }
     }
 
@@ -624,6 +662,11 @@
         const xhr = new XMLHttpRequest();
         const t0 = performance.now();
         xhr.open(method, url, true);
+        
+        // Add authentication header
+        if (window.Laravel && window.Laravel.api_token) {
+          xhr.setRequestHeader("Authorization", "Bearer " + window.Laravel.api_token);
+        }
         // progress total
         xhr.upload.addEventListener("progress", (e)=>{
           if(e.lengthComputable && onProgress){ onProgress(e.loaded, e.total); }
