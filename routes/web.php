@@ -9,12 +9,61 @@ use App\Http\Controllers\BypassUploadController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
+    // Redireciona usuários autenticados para /rag-frontend
+    if (auth()->check()) {
+        return redirect('/rag-frontend');
+    }
     return view('welcome');
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
-    // RAG Frontend (protected - requires login)
-    Route::get('/rag-frontend', [\App\Http\Controllers\RagFrontendController::class, 'index'])->name('rag-frontend');
+Route::middleware(['auth'])->group(function () {
+    // RAG Frontend (página principal - PROTEGIDA)
+    Route::match(['get', 'head'], '/rag-frontend', function () {
+        $htmlPath = resource_path('views/rag-frontend-static/index.html.protected');
+        
+        if (file_exists($htmlPath)) {
+            $content = file_get_contents($htmlPath);
+            
+            // Injeta o CSRF token no HTML
+            $csrfToken = csrf_token();
+            $content = str_replace(
+                '<meta name="csrf-token" content="">',
+                '<meta name="csrf-token" content="' . $csrfToken . '">',
+                $content
+            );
+            
+            // Também injeta no campo hidden do form de logout
+            $content = str_replace(
+                '<input type="hidden" name="_token" id="csrfToken" value="">',
+                '<input type="hidden" name="_token" id="csrfToken" value="' . $csrfToken . '">',
+                $content
+            );
+            
+            return response($content)
+                ->header('Content-Type', 'text/html; charset=UTF-8')
+                ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
+        
+        abort(404, 'RAG Frontend não encontrado');
+    })->name('rag-frontend');
+    
+    // User info API (JSON endpoint for authenticated users)
+    Route::get('/api/user/info', function () {
+        return response()->json([
+            'user' => [
+                'id' => auth()->user()->id,
+                'name' => auth()->user()->name,
+                'email' => auth()->user()->email,
+                'plan' => auth()->user()->plan,
+                'tokens_used' => auth()->user()->tokens_used,
+                'tokens_limit' => auth()->user()->tokens_limit,
+            ],
+            'csrf_token' => csrf_token()
+        ]);
+    });
+    
+    // RAG API routes are in api.php with auth:sanctum middleware
+
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 

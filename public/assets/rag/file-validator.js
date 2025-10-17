@@ -1,0 +1,1 @@
+../../../resources/views/rag-frontend-static/file-validator.js

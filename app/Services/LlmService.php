@@ -53,7 +53,7 @@ class LlmService
                         "=== RESPOSTA ===\n");
 
         // Chamada via cURL puro (evita adicionar libs); modelo default por ENV
-        $model = env('GOOGLE_GENAI_MODEL', 'gemini-1.5-flash');
+        $model = env('GOOGLE_GENAI_MODEL', 'gemini-2.0-flash-exp');
         $url   = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
         $payload = [
@@ -78,20 +78,42 @@ class LlmService
             CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
             CURLOPT_POSTFIELDS => json_encode($payload),
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 20,
+            CURLOPT_TIMEOUT => 120, // 2 minutos para transcrições grandes
         ]);
         $resp = curl_exec($ch);
         $err  = curl_error($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        if ($resp === false || $err) return null;
+        if ($resp === false || $err) {
+            \Log::error('LLM cURL error', ['error' => $err, 'http_code' => $httpCode]);
+            return null;
+        }
 
         $json = json_decode($resp, true);
-        if (!is_array($json)) return null;
+        if (!is_array($json)) {
+            \Log::error('LLM invalid JSON response', ['response' => substr($resp, 0, 500)]);
+            return null;
+        }
 
+        // Verifica se há erro na resposta
+        if (isset($json['error'])) {
+            \Log::error('LLM API error', [
+                'error' => $json['error'],
+                'content_length' => strlen($content)
+            ]);
+            return null;
+        }
+        
         // Extrai o primeiro texto
         $text = $json['candidates'][0]['content']['parts'][0]['text'] ?? null;
-        if (!is_string($text)) return null;
+        if (!is_string($text)) {
+            \Log::error('LLM no text in response', [
+                'json_keys' => array_keys($json),
+                'full_response' => $json
+            ]);
+            return null;
+        }
 
         return trim($text);
     }

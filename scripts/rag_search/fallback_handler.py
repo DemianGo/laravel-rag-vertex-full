@@ -84,13 +84,21 @@ class FallbackHandler:
         
         print("[FALLBACK] ✗ Tentativa 3 falhou, tentando fallback 4", file=sys.stderr)
         
-        # Tentativa 4: Documento completo (se viável)
-        print("[FALLBACK] Tentativa 4: Documento completo", file=sys.stderr)
-        full_doc_params = params.copy()
-        full_doc_params['use_full_document'] = True
-        full_doc_params['mode'] = 'document_full'
+        # Tentativa 4: Documento completo (APENAS se documento for pequeno)
+        # PROTEÇÃO: Não usar document_full para docs grandes (>100 chunks)
+        chunk_count = self._get_document_chunk_count(document_id)
         
-        result = self._try_search(query, document_id, full_doc_params, "full_document")
+        if chunk_count > 0 and chunk_count <= 100:
+            print(f"[FALLBACK] Tentativa 4: Documento completo ({chunk_count} chunks)", file=sys.stderr)
+            full_doc_params = params.copy()
+            full_doc_params['use_full_document'] = True
+            full_doc_params['mode'] = 'document_full'
+            
+            result = self._try_search(query, document_id, full_doc_params, "full_document")
+        else:
+            # Tentativa 4B: Para documentos GRANDES, usa primeiros 50 chunks + LLM
+            print(f"[FALLBACK] Tentativa 4B: Usando primeiros 50 chunks do documento grande ({chunk_count} chunks)", file=sys.stderr)
+            result = self._try_first_chunks_summary(query, document_id, chunk_count)
         
         if self._is_good_result(result):
             print("[FALLBACK] ✓ Sucesso na tentativa 4", file=sys.stderr)
@@ -135,6 +143,116 @@ class FallbackHandler:
             }
         }
     
+    def _try_first_chunks_summary(self, query: str, document_id: int, total_chunks: int) -> Dict[str, Any]:
+        """
+        Para documentos grandes SEM resultados FTS: usa primeiros N chunks + LLM
+        Estratégia: Pega início do documento (onde geralmente está contexto geral)
+        """
+        if not self.db_config:
+            return {"success": False, "error": "Sem configuração DB"}
+        
+        try:
+            import psycopg2
+            conn = psycopg2.connect(
+                host=self.db_config.get('host', 'localhost'),
+                database=self.db_config.get('database'),
+                user=self.db_config.get('user'),
+                password=self.db_config.get('password'),
+                port=int(self.db_config.get('port', 5432))
+            )
+            
+            # Pega primeiros 50 chunks (suficiente para resumo geral)
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT content 
+                FROM chunks 
+                WHERE document_id = %s 
+                ORDER BY chunk_index ASC 
+                LIMIT 50
+            """, [document_id])
+            
+            chunks = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            
+            if not chunks:
+                return {"success": False, "error": "Nenhum chunk encontrado"}
+            
+            # Monta contexto
+            context = "\n\n".join([chunk[0] for chunk in chunks])
+            
+            # Chama LLM (importa aqui para evitar dependência circular)
+            from llm_service import LLMService
+            llm = LLMService()
+            
+            # Verifica se tem cliente LLM disponível
+            if not llm.gemini_client and not llm.openai_client:
+                return {
+                    "success": True,
+                    "chunks_found": len(chunks),
+                    "answer": f"Documento com {total_chunks} registros. Primeiros {len(chunks)} chunks carregados (resumo sem LLM).",
+                    "sources": [f"chunk#{i+1}" for i in range(min(5, len(chunks)))],
+                    "metadata": {
+                        "fallback_strategy": "first_chunks_no_llm",
+                        "chunks_used": len(chunks),
+                        "total_chunks": total_chunks
+                    }
+                }
+            
+            answer, provider = llm.generate_answer(query, context)
+            
+            return {
+                "success": True,
+                "chunks_found": len(chunks),
+                "answer": answer if answer else f"Documento com {total_chunks} registros. Análise dos primeiros {len(chunks)} chunks.",
+                "sources": [f"chunk#{i+1}" for i in range(min(8, len(chunks)))],
+                "mode_used": "summary",
+                "format": "plain",
+                "debug": {
+                    "search_method": "first_chunks_fallback",
+                    "llm_used": True,
+                    "llm_provider": provider if provider else "unknown"
+                },
+                "metadata": {
+                    "fallback_strategy": "first_chunks_with_llm",
+                    "chunks_used": len(chunks),
+                    "total_chunks": total_chunks,
+                    "note": f"FTS não encontrou resultados. Usando primeiros {len(chunks)} de {total_chunks} chunks."
+                }
+            }
+            
+        except Exception as e:
+            print(f"[FALLBACK] Erro em first_chunks_summary: {e}", file=sys.stderr)
+            return {"success": False, "error": str(e)}
+    
+    def _get_document_chunk_count(self, document_id: Optional[int]) -> int:
+        """
+        Retorna número de chunks do documento
+        """
+        if not document_id or not self.db_config:
+            return 0
+        
+        try:
+            import psycopg2
+            conn = psycopg2.connect(
+                host=self.db_config.get('host', 'localhost'),
+                database=self.db_config.get('database'),
+                user=self.db_config.get('user'),
+                password=self.db_config.get('password'),
+                port=int(self.db_config.get('port', 5432))
+            )
+            
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM chunks WHERE document_id = %s", [document_id])
+            count = cursor.fetchone()[0]
+            cursor.close()
+            conn.close()
+            
+            return count
+        except Exception as e:
+            print(f"[FALLBACK] Erro ao contar chunks: {e}", file=sys.stderr)
+            return 0
+    
     def _try_search(
         self,
         query: str,
@@ -171,11 +289,13 @@ class FallbackHandler:
             cmd.extend(['--db-config', json.dumps(self.db_config)])
         
         try:
+            # Timeout mais curto para fallback (20s por tentativa)
+            # Total máximo: 5 tentativas × 20s = 100s
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=20
             )
             
             if result.returncode == 0 and result.stdout:

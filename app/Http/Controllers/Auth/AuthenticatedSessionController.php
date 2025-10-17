@@ -28,7 +28,8 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        // Redireciona para RAG Frontend (página principal)
+        return redirect('/rag-frontend');
     }
 
     /**

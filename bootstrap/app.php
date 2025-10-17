@@ -12,7 +12,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        $middleware->api(prepend: [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ]);
+        
+        // Middleware aliases
+        $middleware->alias([
+            'auth.dual' => \App\Http\Middleware\AuthenticateWithSanctumOrSession::class,
+            'auth.set' => \App\Http\Middleware\SetAuthUser::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

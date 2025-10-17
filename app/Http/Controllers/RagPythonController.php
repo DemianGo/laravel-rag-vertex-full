@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Services\DocumentCacheService;
@@ -15,6 +16,8 @@ class RagPythonController extends Controller
      */
     public function pythonSearch(Request $request)
     {
+        // Aumenta timeout para queries complexas
+        set_time_limit(600); // 10 minutos
         try {
             // Validação dos parâmetros
             $query = $request->input('query');
@@ -36,10 +39,49 @@ class RagPythonController extends Controller
                     'error' => 'Parâmetro query é obrigatório'
                 ], 422);
             }
+            
+            // OTIMIZAÇÃO: Detecta queries de resumo em vídeos
+            $queryLower = mb_strtolower($query);
+            $isResumoQuery = preg_match('/(resumo|resuma|sumarize|summarize|sobre o que|do que trata)/i', $queryLower);
+            
+            if ($isResumoQuery && $documentId) {
+                // Verifica se é um vídeo
+                $document = DB::table('documents')->where('id', $documentId)->first();
+                
+                if ($document && in_array($document->source, ['video_url', 'video_upload'])) {
+                    // É um vídeo! Usa transcrição completa diretamente
+                    Log::info('Query de resumo em vídeo detectada, usando transcrição completa', [
+                        'document_id' => $documentId,
+                        'source' => $document->source
+                    ]);
+                    
+                    return $this->handleVideoSummary($query, $documentId, $document);
+                }
+                
+                // Para outros documentos, limita top_k
+                $topK = min($topK, 8);
+                Log::info('Query de resumo detectada, limitando top_k', ['top_k' => $topK]);
+            }
 
-            // Get tenant_slug from authenticated user
-            $user = auth('sanctum')->user();
-            $tenantSlug = $user ? "user_{$user->id}" : 'default';
+            // Get tenant_slug from authenticated user - try multiple guards
+            $user = null;
+            $tenantSlug = 'default';
+            
+            // Try web guard first (for session-based auth)
+            if (Auth::guard('web')->check()) {
+                $user = Auth::guard('web')->user();
+                $tenantSlug = "user_{$user->id}";
+            }
+            // Try sanctum guard (for API tokens)
+            elseif (Auth::guard('sanctum')->check()) {
+                $user = Auth::guard('sanctum')->user();
+                $tenantSlug = "user_{$user->id}";
+            }
+            // Fallback to default auth
+            elseif (auth()->check()) {
+                $user = auth()->user();
+                $tenantSlug = "user_{$user->id}";
+            }
             
             // Verificar se documento existe e pertence ao usuário (se especificado)
             if ($documentId) {
@@ -355,6 +397,118 @@ class RagPythonController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'Erro na comparação: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * Processa resumo de vídeo usando transcrição completa
+     * OTIMIZAÇÃO: Envia transcrição direto para LLM sem busca vetorial
+     */
+    private function handleVideoSummary($query, $documentId, $document)
+    {
+        $startTime = microtime(true);
+        
+        try {
+            // Busca todos os chunks do vídeo (transcrição completa)
+            $chunks = DB::table('chunks')
+                ->where('document_id', $documentId)
+                ->orderBy('chunk_index')
+                ->get(['content', 'chunk_index']);
+            
+            if ($chunks->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Transcrição não encontrada'
+                ], 404);
+            }
+            
+            // Monta transcrição completa
+            $transcricao = $chunks->map(fn($c) => $c->content)->join("\n\n");
+            
+            Log::info('Transcrição completa montada', [
+                'document_id' => $documentId,
+                'chunks_count' => $chunks->count(),
+                'text_length' => strlen($transcricao)
+            ]);
+            
+            // Chama LLM diretamente
+            $llmService = app(\App\Services\LlmService::class);
+            
+            if (!$llmService->enabled()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'LLM não está habilitado. Verifique GOOGLE_GENAI_API_KEY'
+                ], 500);
+            }
+            
+            // OTIMIZAÇÃO: Se transcrição muito grande (>20k chars), usa apenas top chunks
+            if (strlen($transcricao) > 20000) {
+                Log::info('Transcrição muito grande, usando apenas primeiros chunks', [
+                    'original_length' => strlen($transcricao),
+                    'chunks_total' => $chunks->count()
+                ]);
+                
+                // Usa apenas os primeiros 15 chunks (~15k chars)
+                $transcricao = $chunks->take(15)->map(fn($c) => $c->content)->join("\n\n");
+                
+                Log::info('Transcrição reduzida', [
+                    'new_length' => strlen($transcricao),
+                    'chunks_used' => 15
+                ]);
+            }
+            
+            Log::info('Chamando LLM com transcrição', [
+                'query_length' => strlen($query),
+                'context_length' => strlen($transcricao)
+            ]);
+            
+            $answer = $llmService->answerFromContext($query, $transcricao);
+            
+            if (!$answer) {
+                Log::error('LLM retornou resposta vazia ou null', [
+                    'document_id' => $documentId,
+                    'transcricao_length' => strlen($transcricao)
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'error' => 'LLM não conseguiu gerar resposta. Transcrição pode ser muito grande.'
+                ], 500);
+            }
+            
+            $executionTime = microtime(true) - $startTime;
+            
+            Log::info('Resumo de vídeo gerado com sucesso', [
+                'document_id' => $documentId,
+                'execution_time' => $executionTime
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'ok' => true,
+                'query' => $query,
+                'answer' => $answer,
+                'document_id' => $documentId,
+                'chunks_used' => $chunks->count(),
+                'method' => 'video_transcription_full',
+                'execution_time' => round($executionTime, 2),
+                'metadata' => [
+                    'strategy' => 'VIDEO_SUMMARY',
+                    'reason' => 'Query de resumo em vídeo - usa transcrição completa',
+                    'optimization' => 'Sem busca vetorial, direto para LLM'
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erro ao processar resumo de vídeo', [
+                'document_id' => $documentId,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'Erro ao processar resumo: ' . $e->getMessage()
             ], 500);
         }
     }

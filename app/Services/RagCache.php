@@ -664,4 +664,85 @@ class RagCache
         // but we can implement custom logic if needed
         return 0;
     }
+
+    /**
+     * Get cache statistics
+     */
+    public function getStats(): array
+    {
+        try {
+            return [
+                'enabled' => $this->isCacheEnabled(),
+                'store' => $this->store,
+                'metrics' => $this->metrics,
+                'hit_rate' => $this->calculateHitRate(),
+                'memory_usage' => $this->getMemoryUsage(),
+                'key_count' => $this->getKeyCount()
+            ];
+        } catch (Throwable $e) {
+            Log::error('Failed to get cache stats', ['error' => $e->getMessage()]);
+            return [
+                'enabled' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Get memory usage
+     */
+    private function getMemoryUsage(): array
+    {
+        try {
+            if ($this->store === 'rag_redis') {
+                $redis = Redis::connection('rag');
+                $info = $redis->info('memory');
+                return [
+                    'used_memory' => $info['used_memory'] ?? 0,
+                    'used_memory_human' => $info['used_memory_human'] ?? '0B'
+                ];
+            }
+            return ['used_memory' => 0, 'used_memory_human' => '0B'];
+        } catch (Throwable $e) {
+            return ['used_memory' => 0, 'used_memory_human' => '0B'];
+        }
+    }
+
+    /**
+     * Get key count
+     */
+    private function getKeyCount(): int
+    {
+        try {
+            if ($this->store === 'rag_redis') {
+                $redis = Redis::connection('rag');
+                $keys = $redis->keys('rag_cache:*');
+                return is_array($keys) ? count($keys) : 0;
+            }
+            return 0;
+        } catch (Throwable $e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Calculate hit rate from metrics
+     */
+    private function calculateHitRate(): float
+    {
+        try {
+            $totalHits = 0;
+            $totalMisses = 0;
+            
+            foreach ($this->metrics as $type => $data) {
+                $totalHits += $data['hits'] ?? 0;
+                $totalMisses += $data['misses'] ?? 0;
+            }
+            
+            $totalRequests = $totalHits + $totalMisses;
+            return $totalRequests > 0 ? round(($totalHits / $totalRequests) * 100, 2) : 0.0;
+        } catch (Throwable $e) {
+            return 0.0;
+        }
+    }
 }

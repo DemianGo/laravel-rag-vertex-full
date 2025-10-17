@@ -121,9 +121,25 @@ class VideoController extends Controller
                 ], 400);
             }
             
-            // Get tenant_slug from authenticated user
-            $user = auth('sanctum')->user();
-            $tenantSlug = $user ? "user_{$user->id}" : 'default';
+            // Get tenant_slug from authenticated user - try multiple guards
+            $user = null;
+            $tenantSlug = 'default';
+            
+            // Try web guard first (for session-based auth)
+            if (Auth::guard('web')->check()) {
+                $user = Auth::guard('web')->user();
+                $tenantSlug = "user_{$user->id}";
+            }
+            // Try sanctum guard (for API tokens)
+            elseif (Auth::guard('sanctum')->check()) {
+                $user = Auth::guard('sanctum')->user();
+                $tenantSlug = "user_{$user->id}";
+            }
+            // Fallback to default auth
+            elseif (auth()->check()) {
+                $user = auth()->user();
+                $tenantSlug = "user_{$user->id}";
+            }
             
             // Extract video info from metadata
             $videoMetadata = $result['metadata'];

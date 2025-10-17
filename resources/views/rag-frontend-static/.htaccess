@@ -1,0 +1,23 @@
+# Bloqueia acesso direto a arquivos neste diretório
+# Força todas as requisições a passarem pelo Laravel
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Redireciona todas as requisições para /rag-frontend (sem barra no final)
+    # para que o Laravel processe com autenticação
+    RewriteRule ^$ /rag-frontend [R=302,L]
+    RewriteRule ^index\.html$ /rag-frontend [R=302,L]
+    
+    # Permite acesso aos assets (JS, CSS)
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteCond %{REQUEST_FILENAME} !index\.html
+    RewriteRule ^ - [L]
+    
+    # Bloqueia tudo mais
+    RewriteRule ^ /rag-frontend [R=302,L]
+</IfModule>
+
+# Bloqueia listagem de diretório
+Options -Indexes
+

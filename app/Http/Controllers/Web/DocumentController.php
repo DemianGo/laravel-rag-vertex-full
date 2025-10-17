@@ -11,12 +11,15 @@ use Illuminate\Support\Facades\DB;
 
 class DocumentController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
         $documents = $this->getDocuments($user);
+        
+        // Support tabs: ingest, python-rag, metrics (default: ingest)
+        $tab = $request->get('tab', 'ingest');
 
-        return view('documents.index', compact('user', 'documents'));
+        return view('documents.index', compact('user', 'documents', 'tab'));
     }
 
     public function upload(Request $request)

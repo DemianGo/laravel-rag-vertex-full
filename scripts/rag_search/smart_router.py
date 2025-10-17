@@ -162,7 +162,8 @@ class SmartRouter:
             'has_numbers': any(char.isdigit() for char in query),
             'doc_size': 0,
             'doc_type': 'unknown',
-            'has_embeddings': False
+            'has_embeddings': False,
+            'chunk_count': 0
         }
         
         # Análise do documento (se especificado)
@@ -182,16 +183,24 @@ class SmartRouter:
                 
                 result = self.db_manager.execute_query(doc_query, [document_id])
                 
-                if result:
+                if result and len(result) > 0:
                     doc = result[0]
-                    context['total_chunks'] = doc[1]
-                    context['has_embeddings'] = doc[2] > 0
+                    # Suporta dict ou tuple
+                    if isinstance(doc, dict):
+                        context['total_chunks'] = doc.get('total_chunks', 0)
+                        context['chunk_count'] = doc.get('total_chunks', 0)
+                        context['has_embeddings'] = doc.get('chunks_with_embeddings', 0) > 0
+                    else:
+                        context['total_chunks'] = doc[1]
+                        context['chunk_count'] = doc[1]
+                        context['has_embeddings'] = doc[2] > 0
                     
                     # Estima tamanho do documento (1 chunk ≈ 1-2 páginas)
-                    context['doc_size'] = max(1, doc[1] // 2)
+                    context['doc_size'] = max(1, context['total_chunks'] // 2)
                     
                     # Tenta detectar tipo do documento pelo título
-                    title = doc[0].lower() if doc[0] else ''
+                    title_val = doc.get('title', '') if isinstance(doc, dict) else doc[0]
+                    title = title_val.lower() if title_val else ''
                     if any(word in title for word in ['bula', 'medicamento', 'remédio']):
                         context['doc_type'] = 'medical'
                     elif any(word in title for word in ['contrato', 'acordo', 'termo']):
@@ -320,16 +329,36 @@ class SmartRouter:
         
         # REGRA 4: Sem embeddings = FTS ou DOCUMENTO COMPLETO
         if not context['has_embeddings']:
-            if context['doc_size'] < 50:
+            chunk_count = context.get('chunk_count', 0)
+            
+            # OTIMIZAÇÃO CRÍTICA: Documentos grandes (>100 chunks) NUNCA usam DOCUMENT_FULL
+            # Mesmo sem página count, limite absoluto de chunks
+            if chunk_count > 100:
+                return {
+                    'name': 'RAG_FTS_ONLY',
+                    'reason': f"Sem embeddings + documento MUITO grande ({chunk_count} chunks) - FTS obrigatório",
+                    'confidence': 0.9
+                }
+            
+            # Documentos médios (50-100 chunks) também usam FTS
+            if chunk_count > 50:
+                return {
+                    'name': 'RAG_FTS_ONLY',
+                    'reason': f"Sem embeddings + documento grande ({chunk_count} chunks) - usa FTS",
+                    'confidence': 0.8
+                }
+            
+            # Apenas documentos REALMENTE pequenos (<50 chunks E <20 pág) usam DOCUMENT_FULL
+            if context['doc_size'] < 20 and chunk_count < 50:
                 return {
                     'name': 'DOCUMENT_FULL',
-                    'reason': 'Sem embeddings + documento pequeno',
+                    'reason': f"Sem embeddings + documento pequeno ({context['doc_size']} pág, {chunk_count} chunks)",
                     'confidence': 0.75
                 }
             else:
                 return {
                     'name': 'RAG_FTS_ONLY',
-                    'reason': 'Sem embeddings, usa apenas FTS',
+                    'reason': f"Sem embeddings + documento médio ({context['doc_size']} pág, {chunk_count} chunks) - usa FTS",
                     'confidence': 0.7
                 }
         

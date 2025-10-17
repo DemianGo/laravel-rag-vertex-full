@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -63,9 +64,25 @@ class RagController extends Controller
 
     public function listDocs()
     {
-        // Get tenant_slug from authenticated user
-        $user = auth('sanctum')->user();
-        $tenantSlug = $user ? "user_{$user->id}" : 'default';
+        // Get tenant_slug from authenticated user - try multiple guards
+        $user = null;
+        $tenantSlug = 'default';
+        
+        // Try web guard first (for session-based auth)
+        if (Auth::guard('web')->check()) {
+            $user = Auth::guard('web')->user();
+            $tenantSlug = "user_{$user->id}";
+        }
+        // Try sanctum guard (for API tokens)
+        elseif (Auth::guard('sanctum')->check()) {
+            $user = Auth::guard('sanctum')->user();
+            $tenantSlug = "user_{$user->id}";
+        }
+        // Fallback to default auth
+        elseif (auth()->check()) {
+            $user = auth()->user();
+            $tenantSlug = "user_{$user->id}";
+        }
         
         $docs = DB::table('documents')
             ->where('tenant_slug', $tenantSlug)
@@ -190,7 +207,7 @@ class RagController extends Controller
             }
 
             // Get tenant_slug from authenticated user (multi-user support)
-            $user = auth('sanctum')->user();
+            $user = auth()->user();
             $tenantSlug = $user ? "user_{$user->id}" : $req->input('tenant_slug', 'default');
             
             $title = $extractionResult['title'];
@@ -1528,7 +1545,7 @@ class RagController extends Controller
         $methodSuffix = '';
         if ($tablesFound > 0) $methodSuffix .= '_tables';
         if ($imagesProcessed > 0) $methodSuffix .= '_ocr';
-        
+
         return [
             'success' => true,
             'content' => trim($finalContent),
@@ -1551,7 +1568,7 @@ class RagController extends Controller
         
         // Try Python docx extraction
         $content = $this->runPythonExtractor('docx_extractor.py', $path);
-        
+
         Log::debug("DOCX extraction result", ['content_length' => strlen($content ?? ''), 'has_content' => !empty($content)]);
 
         if ($content && strlen(trim($content)) > 5) {
@@ -2155,16 +2172,16 @@ class RagController extends Controller
                 ]);
             } else {
                 // Standard chunking for regular documents
-                $chunkSize = $processingOptions['chunk_size'] ?? 1000;
-                $overlapSize = $processingOptions['overlap_size'] ?? 200;
-                $chunks = $this->chunkText($text, $chunkSize, $overlapSize);
-                
-                Log::info('Simple document processing', [
-                    'document_id' => $docId,
-                    'chunks_count' => count($chunks),
-                    'chunk_size' => $chunkSize,
-                    'content_length' => strlen($text)
-                ]);
+            $chunkSize = $processingOptions['chunk_size'] ?? 1000;
+            $overlapSize = $processingOptions['overlap_size'] ?? 200;
+            $chunks = $this->chunkText($text, $chunkSize, $overlapSize);
+
+            Log::info('Simple document processing', [
+                'document_id' => $docId,
+                'chunks_count' => count($chunks),
+                'chunk_size' => $chunkSize,
+                'content_length' => strlen($text)
+            ]);
             }
 
             // Store chunks without embeddings for now (fast mode)

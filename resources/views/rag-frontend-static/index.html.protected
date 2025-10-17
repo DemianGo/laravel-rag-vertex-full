@@ -1,0 +1,2640 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="">
+  <title>RAG Console — PRO (Light)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"></script>
+  <!-- File Validator (independent module) -->
+  <script src="/assets/rag/file-validator.js"></script>
+  <style>
+    :root {
+      --console-bg: #f8f9fa;
+      --console-border: #dee2e6;
+      --console-text: #212529;
+      --zone-border: #cbd5e1;
+      --zone-bg: #ffffff;
+      --zone-hover: #eef2ff;
+    }
+    body { background:#fff; color:#212529; padding-bottom: 300px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+    .card { border-radius: 1rem; }
+    .btn { border-radius: .75rem; }
+    /* Debug console (fixo, claro) */
+    .fixed-console {
+      position: fixed; left:0; right:0; bottom:0; z-index:1030;
+      background: var(--console-bg); border-top: 1px solid var(--console-border); color: var(--console-text);
+      max-height: 260px; overflow: hidden;
+      box-shadow: 0 -6px 30px rgba(0,0,0,.06);
+    }
+    .console-body { max-height: 190px; overflow: auto; }
+    .badge-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .pointer { cursor: pointer; }
+    /* Upload zone (drag & drop) */
+    .dropzone {
+      border: 2px dashed var(--zone-border);
+      background: var(--zone-bg);
+      border-radius: 14px;
+      padding: 20px;
+      transition: background .2s, border-color .2s;
+      text-align: center;
+    }
+    .dropzone.dragover { background: var(--zone-hover); border-color: #94a3b8; }
+    .dz-icon { font-size: 32px; line-height: 1; }
+    .dz-sub { color:#6c757d; }
+    .file-chip {
+      border: 1px solid #e9ecef; border-radius: 999px; padding: 4px 10px; display: inline-flex; gap:8px; align-items:center; margin: 4px 6px 0 0;
+      background: #fff;
+    }
+    .file-chip .x { cursor:pointer; font-weight:bold; color:#dc3545; }
+    .progress { height: 6px; border-radius: 999px; }
+    .table-log td, .table-log th { padding: .25rem .5rem; }
+    .bg-soft { background:#f6f7fb; }
+    code { background: #f8f9fa; padding: .1rem .35rem; border-radius: .25rem; }
+  </style>
+</head>
+<body>
+  <div class="container py-3">
+    <!-- User Info Header (Laravel Auth) -->
+    <div class="alert alert-primary d-flex justify-content-between align-items-center mb-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white;">
+      <div>
+        <div class="fw-bold" id="userName">Carregando...</div>
+        <small id="userEmail" style="opacity: 0.9;">Carregando...</small>
+      </div>
+      <div class="d-flex gap-3 align-items-center">
+        <div class="text-end">
+          <small style="opacity: 0.8;">Plano</small>
+          <div class="fw-bold" id="userPlan">-</div>
+        </div>
+        <div class="text-end">
+          <small style="opacity: 0.8;">Tokens</small>
+          <div class="fw-bold" id="userTokens">-/-</div>
+        </div>
+        <form method="POST" action="/logout" class="mb-0">
+          <input type="hidden" name="_token" id="csrfToken" value="">
+          <button type="submit" class="btn btn-light btn-sm">
+            🚪 Sair
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="h4 m-0">RAG Console — <small class="text-secondary">Simplificado</small></h1>
+      <div class="d-flex gap-2">
+        <button id="btnHealth" class="btn btn-outline-success btn-sm">🩺 Health</button>
+        <button id="btnConfig" class="btn btn-outline-dark btn-sm">⚙️ Configurar</button>
+      </div>
+    </div>
+
+    <div class="alert alert-light border bg-soft" role="alert">
+      Base atual: <span class="mono" id="baseUrlLabel">(mesma origem)</span> ·
+      Modelo padrão: <span class="mono" id="modelLabel">gemini-2.5-flash</span> ·
+      Endpoints: <code>/api/rag/ingest</code>, <code>/api/rag/query</code>, <code>/api/rag/answer</code>, <code>/api/vertex/generate</code>.
+    </div>
+
+    <!-- Abas -->
+    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ing" type="button">Ingest</button></li>
+      <!-- DESATIVADAS - CENÁRIO MINIMALISTA -->
+      <li class="nav-item" style="display:none;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#query" type="button">Query</button></li>
+      <li class="nav-item" style="display:none;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#answer" type="button">Answer (RAG+LLM)</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#python" type="button">Python RAG</button></li>
+      <li class="nav-item" style="display:none;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#gen" type="button">Vertex Generate</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#metrics" type="button">Métricas</button></li>
+      <!-- ADMIN E CALCULADORA - Serão movidas para painel admin separado (futuro) -->
+      <li class="nav-item" style="display:none;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin" type="button">Admin</button></li>
+      <li class="nav-item" style="display:none;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cost" type="button">Calculadora de Custos</button></li>
+    </ul>
+
+    <div class="tab-content border border-top-0 p-3 rounded-bottom">
+
+      <!-- INGEST -->
+      <div class="tab-pane fade show active" id="ing">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <div class="mb-2">
+              <label class="form-label">Fonte (URL opcional)</label>
+              <input id="ingUrl" class="form-control" placeholder="https://exemplo.com/artigo (opcional)">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">🎬 URL de Vídeo <small class="text-muted">• YouTube, Vimeo, etc</small></label>
+              <input id="ingVideoUrl" class="form-control" placeholder="https://youtube.com/watch?v=... (opcional)">
+              <small class="form-text text-muted">
+                Suporta: YouTube, Vimeo, Dailymotion, Facebook, Instagram, TikTok e 1000+ sites
+              </small>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Texto</label>
+              <textarea id="ingText" class="form-control" rows="6" placeholder="Cole aqui um texto para ingestão"></textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Arquivos (PDF/Doc/etc.) <small class="text-muted">• Máx: 5 arquivos, 500MB, 5.000 páginas cada</small></label>
+              <div class="dropzone" id="dzIngest">
+                <div class="dz-icon">📄</div>
+                <div class="dz-sub">Arraste e solte arquivos aqui ou <label class="text-primary" style="text-decoration:underline; cursor:pointer;"><input id="ingFiles" type="file" multiple hidden> clique para selecionar</label></div>
+                <div id="ingFileList" class="mt-2"></div>
+              </div>
+              <!-- File validation info (populated by file-validator.js) -->
+              <div id="fileValidationInfo" class="mt-2"></div>
+              
+              <!-- NOVO: Checkbox para embeddings em XLSX - 2025-10-14 -->
+              <div id="excelEmbeddingsOption" class="mt-3 p-3 border rounded bg-light" style="display:none;">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="generateEmbeddings" checked>
+                  <label class="form-check-label" for="generateEmbeddings">
+                    <strong>📊 Gerar embeddings para busca avançada</strong>
+                    <br>
+                    <small class="text-muted">
+                      ⚡ <strong>Rápido (padrão):</strong> Upload em segundos, busca por texto simples<br>
+                      🎯 <strong>Avançado (com embeddings):</strong> Busca semântica precisa, demora ~1-5 min
+                    </small>
+                  </label>
+                </div>
+                <div id="embeddingProgress" class="mt-2" style="display:none;">
+                  <div class="progress">
+                    <div id="embeddingProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                  </div>
+                  <small id="embeddingProgressText" class="text-muted"></small>
+                </div>
+              </div>
+              
+              <!-- NOVO: Checkbox UNIVERSAL para embeddings em QUALQUER arquivo - 2025-10-14 -->
+              <div id="universalEmbeddingsOption" class="mt-3 p-3 border rounded bg-info bg-opacity-10" style="display:none;">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="generateUniversalEmbeddings" checked>
+                  <label class="form-check-label" for="generateUniversalEmbeddings">
+                    <strong id="universalEmbeddingTitle">🎯 Gerar embeddings para busca avançada</strong>
+                    <br>
+                    <small class="text-muted">
+                      ⚡ <strong>Rápido:</strong> Upload em segundos, busca básica por texto<br>
+                      🎯 <strong>Avançado:</strong> Busca semântica precisa, demora ~1-5 min<br>
+                      <span id="fileTypeInfo" class="text-primary"></span>
+                    </small>
+                  </label>
+                </div>
+                <div id="universalEmbeddingProgress" class="mt-2" style="display:none;">
+                  <div class="progress">
+                    <div id="universalEmbeddingProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                  </div>
+                  <small id="universalEmbeddingProgressText" class="text-muted"></small>
+                </div>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Metadata (JSON opcional)</label>
+              <textarea id="ingMeta" class="form-control mono" rows="3" placeholder='{"source":"manual","tags":["demo"]}'></textarea>
+            </div>
+            <div class="d-grid"><button id="btnIngest" class="btn btn-primary">Enviar Ingestão</button></div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <!-- NOVO: Loading unificado e mais visível para Ingest - 2025-10-14 -->
+            <div id="unifiedIngestLoading" class="alert alert-primary border-2 shadow-sm mb-3" style="display:none;">
+              <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm text-primary me-3" role="status">
+                  <span class="visually-hidden">Processando...</span>
+                </div>
+                <div class="flex-grow-1">
+                  <h6 class="mb-1" id="unifiedIngestTitle">📤 Processando Upload</h6>
+                  <div class="progress mb-2" style="height: 8px;">
+                    <div id="unifiedIngestProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%"></div>
+                  </div>
+                  <small id="unifiedIngestLoadingText" class="text-muted">Iniciando processamento...</small>
+                </div>
+              </div>
+            </div>
+            
+            <h6>Resposta</h6>
+            <pre id="ingestOut" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- QUERY -->
+      <div class="tab-pane fade" id="query">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <div class="mb-2">
+              <label class="form-label">Pergunta</label>
+              <textarea id="qText" class="form-control" rows="6" placeholder="Ex.: O que o documento fala sobre X?"></textarea>
+            </div>
+            <div class="row gx-2">
+              <div class="col-4"><label class="form-label">Top K</label><input id="qTopK" type="number" class="form-control" placeholder="ex.: 4"></div>
+              <div class="col-4"><label class="form-label">Temperature</label><input id="qTemp" type="number" step="0.01" class="form-control" placeholder="ex.: 0.2"></div>
+              <div class="col-4"><label class="form-label">Max Tokens</label><input id="qMaxTokens" type="number" class="form-control" placeholder="ex.: 512"></div>
+            </div>
+            <div class="d-grid mt-2"><button id="btnQuery" class="btn btn-success">Consultar</button></div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <h6>Resposta</h6>
+            <pre id="queryOut" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANSWER -->
+      <div class="tab-pane fade" id="answer">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <div class="mb-2">
+              <label class="form-label">Document ID</label>
+              <div class="input-group">
+                <select id="answerDocSelect" class="form-select">
+                  <option value="">Carregando documentos...</option>
+                </select>
+                <input id="aDocId" type="number" class="form-control" placeholder="ID do documento" value="125" style="display:none;">
+                <button id="toggleAnswerDocInput" class="btn btn-outline-secondary" type="button" title="Alternar entre select e input manual">
+                  🔢
+                </button>
+                <button id="btnLoadLatest" class="btn btn-outline-secondary" type="button">Último</button>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Pergunta</label>
+              <textarea id="aText" class="form-control" rows="6" placeholder="Pergunta para RAG + LLM"></textarea>
+            </div>
+            <div class="row gx-2">
+              <div class="col-4"><label class="form-label">Top K</label><input id="aTopK" type="number" class="form-control" placeholder="ex.: 3"></div>
+              <div class="col-8"><label class="form-label">Modelo (override opcional)</label><input id="aModel" class="form-control" placeholder="ex.: gemini-2.5-flash"></div>
+            </div>
+            <div class="d-grid mt-2"><button id="btnAnswer" class="btn btn-warning">Gerar Resposta</button></div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <h6>Resposta</h6>
+            <pre id="answerOut" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- PYTHON RAG -->
+      <div class="tab-pane fade" id="python">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <!-- MODO SIMPLES (sempre visível) -->
+            <div class="mb-3">
+              <label class="form-label fw-bold">📄 Escolher Documento</label>
+              
+              <!-- Badge de documento ativo -->
+              <div id="activeDocumentBadge" class="alert alert-info py-2 px-3 mb-2" style="display:none;">
+                <strong>🎯 Documento Ativo:</strong> <span id="activeDocumentTitle">-</span>
+              </div>
+              
+              <div class="input-group">
+                <select id="pythonDocSelect" class="form-select form-select-lg">
+                  <option value="">Carregando documentos...</option>
+                </select>
+                <input id="pythonDocId" class="form-control form-control-lg" type="number" placeholder="Ou digite ID manual" style="display:none;">
+                <button id="toggleDocInput" class="btn btn-outline-secondary" type="button" title="Alternar entre select e input manual">
+                  🔢
+                </button>
+                <button id="btnShowTranscription" class="btn btn-outline-primary" type="button" title="Ver transcrição completa (apenas para vídeos)" style="display:none;">
+                  📄 Ver Transcrição
+                </button>
+              </div>
+              <small class="form-text text-muted">Selecione um documento da lista ou digite o ID manualmente</small>
+            </div>
+            
+            <div id="pythonSuggestedQuestions" class="mb-3" style="display:none;">
+              <label class="form-label">💡 Perguntas Sugeridas:</label>
+              <div id="pythonSuggestedList" class="d-flex flex-wrap gap-2"></div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">💬 Sua Pergunta</label>
+              <textarea id="pythonQuery" class="form-control" rows="3" placeholder="Digite sua pergunta aqui... Exemplo: 'Quais os certificados?'"></textarea>
+            </div>
+            
+            <div class="mb-3">
+              <div class="form-check">
+                <input id="pythonUseSmartMode" class="form-check-input" type="checkbox" checked>
+                <label class="form-check-label fw-bold">🧠 Modo Inteligente (Recomendado)</label>
+                <br><small class="form-text text-muted">Sistema decide automaticamente a melhor estratégia</small>
+              </div>
+            </div>
+            
+            <div class="d-grid gap-2 mb-3">
+              <button id="pythonSearchBtn" class="btn btn-primary btn-lg">🔍 Buscar</button>
+            </div>
+            
+            <!-- TOGGLE PARA MODO AVANÇADO -->
+            <div class="mb-3">
+              <button class="btn btn-sm btn-outline-secondary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#pythonAdvancedOptions">
+                ⚙️ Opções Avançadas (opcional)
+              </button>
+            </div>
+            
+            <!-- CONTROLES AVANÇADOS (colapsável) -->
+            <div class="collapse" id="pythonAdvancedOptions">
+              <div class="card card-body bg-light">
+                <h6 class="text-muted">Controles Técnicos</h6>
+                
+                <div class="row gx-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small">Top-K</label>
+                    <input id="pythonTopK" class="form-control form-control-sm" type="number" value="5" min="1" max="20">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Threshold</label>
+                    <input id="pythonThreshold" class="form-control form-control-sm" type="number" value="0.3" min="0.05" max="1.0" step="0.05">
+                  </div>
+                </div>
+                
+                <div class="mb-2">
+                  <div class="form-check">
+                    <input id="pythonIncludeAnswer" class="form-check-input" type="checkbox" checked>
+                    <label class="form-check-label small">Incluir resposta LLM</label>
+                  </div>
+                </div>
+                
+                <div class="mb-2">
+                  <div class="form-check">
+                    <input id="pythonUseFullDocument" class="form-check-input" type="checkbox">
+                    <label class="form-check-label small">Usar Documento Completo</label>
+                  </div>
+                </div>
+                
+                <div class="mb-2">
+                  <label class="form-label small">Strictness (0-3)</label>
+                  <select id="pythonStrictness" class="form-select form-select-sm">
+                    <option value="0">0 - Muito Permissivo</option>
+                    <option value="1">1 - Permissivo</option>
+                    <option value="2" selected>2 - Moderado (Padrão)</option>
+                    <option value="3">3 - Rigoroso (Sem LLM)</option>
+                  </select>
+                </div>
+                
+                <div class="row gx-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small">Modo</label>
+                    <select id="pythonMode" class="form-select form-select-sm">
+                      <option value="auto" selected>Auto (Detecta)</option>
+                      <option value="direct">Direct</option>
+                      <option value="summary">Summary</option>
+                      <option value="quote">Quote</option>
+                      <option value="list">List</option>
+                      <option value="table">Table</option>
+                      <option value="document_full">Document Full</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Formato</label>
+                    <select id="pythonFormat" class="form-select form-select-sm">
+                      <option value="plain" selected>Plain</option>
+                      <option value="markdown">Markdown</option>
+                      <option value="html">HTML</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="row gx-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small">Comprimento</label>
+                    <select id="pythonLength" class="form-select form-select-sm">
+                      <option value="auto" selected>Auto</option>
+                      <option value="short">Short</option>
+                      <option value="medium">Medium</option>
+                      <option value="long">Long</option>
+                      <option value="xl">XL</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Citações (0-10)</label>
+                    <input id="pythonCitations" class="form-control form-control-sm" type="number" value="0" min="0" max="10">
+                  </div>
+                </div>
+                
+                <div class="d-flex gap-2 mt-3">
+                  <button id="pythonCompareBtn" class="btn btn-outline-secondary btn-sm">⚖️ Comparar PHP vs Python</button>
+                  <button id="pythonHealthBtn" class="btn btn-outline-info btn-sm">🏥 Health Check</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <!-- NOVO: Loading explicativo para Python RAG - 2025-10-14 -->
+            <div id="unifiedPythonLoading" class="alert alert-warning border-2 shadow-sm mb-3" style="display:none;">
+              <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm text-warning me-3" role="status">
+                  <span class="visually-hidden">Processando...</span>
+                </div>
+                <div class="flex-grow-1">
+                  <h6 class="mb-1" id="unifiedPythonTitle">🔍 Analisando Consulta</h6>
+                  <div class="progress mb-2" style="height: 8px;">
+                    <div id="unifiedPythonProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning" role="progressbar" style="width: 0%"></div>
+                  </div>
+                  <small id="unifiedPythonLoadingText" class="text-muted">Iniciando análise...</small>
+                </div>
+              </div>
+            </div>
+            
+            <div class="mb-2">
+              <label class="form-label">Resultados Python RAG</label>
+              <div id="pythonStatus" class="alert alert-info">Pronto para busca...</div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Chunks Encontrados</label>
+              <div id="pythonChunks" class="border rounded p-2 bg-light" style="max-height: 300px; overflow-y: auto;"></div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Resposta LLM</label>
+              <div id="pythonAnswer" class="border rounded p-2 bg-light" style="max-height: 200px; overflow-y: auto;"></div>
+              
+              <!-- FEEDBACK BUTTONS -->
+              <div id="feedbackSection" class="mt-2" style="display:none;">
+                <div class="d-flex align-items-center gap-2">
+                  <small class="text-muted">Esta resposta foi útil?</small>
+                  <button id="feedbackThumbsUp" class="btn btn-sm btn-outline-success" title="Resposta útil">
+                    👍 Útil
+                  </button>
+                  <button id="feedbackThumbsDown" class="btn btn-sm btn-outline-danger" title="Resposta não útil">
+                    👎 Não útil
+                  </button>
+                  <span id="feedbackStatus" class="small text-success" style="display:none;"></span>
+                </div>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Metadados</label>
+              <pre id="pythonMetadata" class="mono p-2 border rounded bg-soft small"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GENERATE -->
+      <div class="tab-pane fade" id="gen">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <div class="mb-2">
+              <label class="form-label">Prompt</label>
+              <textarea id="gPrompt" class="form-control" rows="6" placeholder="Prompt para Vertex"></textarea>
+            </div>
+            <div class="row gx-2">
+              <div class="col-6"><label class="form-label">Modelo</label><input id="gModel" class="form-control" placeholder="gemini-2.5-flash (padrão)"></div>
+              <div class="col-6"><label class="form-label">Location</label><input id="gLoc" class="form-control" placeholder="global (padrão)"></div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Arquivos (imagens/otros para o prompt)</label>
+              <div class="dropzone" id="dzGen">
+                <div class="dz-icon">🖼️</div>
+                <div class="dz-sub">Arraste e solte aqui ou <label class="text-primary" style="text-decoration:underline; cursor:pointer;"><input id="gFiles" type="file" multiple hidden> clique para selecionar</label></div>
+                <div id="gFileList" class="mt-2"></div>
+              </div>
+            </div>
+            <div class="d-flex gap-2">
+              <button id="btnGenGET" class="btn btn-outline-info">GET /api/vertex/generate</button>
+              <button id="btnGenPOST" class="btn btn-info">POST /api/vertex/generate</button>
+            </div>
+            <div class="mt-2 d-none" id="genProgressWrap">
+              <div class="progress"><div class="progress-bar" id="genProgress" role="progressbar" style="width:0%"></div></div>
+              <small class="text-muted" id="genProgressText"></small>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <!-- NOVO: Loading unificado e mais visível - 2025-10-14 -->
+            <div id="unifiedVertexLoading" class="alert alert-info border-2 shadow-sm mb-3" style="display:none;">
+              <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm text-primary me-3" role="status">
+                  <span class="visually-hidden">Processando...</span>
+                </div>
+                <div class="flex-grow-1">
+                  <h6 class="mb-1" id="unifiedLoadingTitle">🚀 Processando com Vertex AI</h6>
+                  <div class="progress mb-2" style="height: 8px;">
+                    <div id="unifiedProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%"></div>
+                  </div>
+                  <small id="unifiedLoadingText" class="text-muted">Iniciando processamento...</small>
+                </div>
+              </div>
+            </div>
+            
+            <h6>Resposta</h6>
+            <pre id="genOut" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÉTRICAS -->
+      <div class="tab-pane fade" id="metrics">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <h6>Métricas do Sistema</h6>
+            <div class="d-grid gap-2">
+              <button id="btnMetrics" class="btn btn-outline-primary">Carregar Métricas</button>
+              <button id="btnCacheStats" class="btn btn-outline-info">Estatísticas de Cache</button>
+              <button id="btnEmbeddingsStats" class="btn btn-outline-success">Estatísticas de Embeddings</button>
+            </div>
+            
+            <div class="mt-3">
+              <h6>📊 Feedback & Analytics</h6>
+              <div class="d-grid gap-2">
+                <button id="btnFeedbackStats" class="btn btn-outline-primary">📈 Estatísticas de Feedback</button>
+                <button id="btnRecentFeedbacks" class="btn btn-outline-secondary">📝 Feedbacks Recentes</button>
+              </div>
+            </div>
+            
+            <div class="mt-3">
+              <h6>Cache Management</h6>
+              <div class="d-grid gap-2">
+                <button id="btnClearCache" class="btn btn-outline-warning">Limpar Cache</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <h6>Resultado</h6>
+            <pre id="metricsOut" class="mono p-3 border rounded bg-soft">Clique em um botão para carregar métricas...</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN -->
+      <div class="tab-pane fade" id="admin">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <h6>Administração</h6>
+            <div class="mb-3">
+              <label class="form-label">Document ID para Reprocessar</label>
+              <input id="adminDocId" type="number" class="form-control" placeholder="ID do documento">
+            </div>
+            <div class="d-grid gap-2">
+              <button id="btnReprocessDoc" class="btn btn-outline-warning">Reprocessar Documento</button>
+              <button id="btnBatchIngest" class="btn btn-outline-info">Upload em Lote</button>
+              <button id="btnQualityIngest" class="btn btn-outline-success">Upload com Qualidade</button>
+              <button id="btnPreview" class="btn btn-outline-secondary">Preview Documento</button>
+            </div>
+            <div class="mt-3">
+              <h6>Debug</h6>
+              <div class="d-grid gap-2">
+                <button id="btnDebugEcho" class="btn btn-outline-dark">Debug Echo</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <h6>Resultado</h6>
+            <pre id="adminOut" class="mono p-3 border rounded bg-soft">Selecione uma ação administrativa...</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- COST CALCULATOR -->
+      <div class="tab-pane fade" id="cost">
+        <div class="row g-3">
+          <div class="col-12 col-xl-8">
+            <div class="alert alert-light border">
+              <div><strong>Tabela (USD)</strong> baseada na página oficial de preços da Vertex AI. Valores por <em>1M tokens</em> (ou <em>1M caracteres</em> quando indicado).</div>
+              <div class="small text-secondary">Última verificação: set/2025. Confirme sempre no site oficial.</div>
+            </div>
+            <label class="form-label">Modelo</label>
+            <select id="ccModel" class="form-select">
+              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+              <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+              <option value="gemini-embedding-001">gemini-embedding-001 (tokens)</option>
+              <option value="text-embedding-004">text-embedding-004 (caracteres)</option>
+            </select>
+            <div class="row gx-2 mt-2">
+              <div class="col-12 col-md-6"><label class="form-label">Entrada (tokens ou caracteres)</label><input id="ccIn" type="number" class="form-control" placeholder="ex.: 2000"></div>
+              <div class="col-12 col-md-6"><label class="form-label">Saída (tokens, quando aplicável)</label><input id="ccOut" type="number" class="form-control" placeholder="ex.: 800"></div>
+            </div>
+            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="ccLongCtx"><label class="form-check-label" for="ccLongCtx">Contexto &gt; 200K tokens</label></div>
+            <div class="form-text">Regra prática: ~4 caracteres ≈ 1 token.</div>
+            <button id="btnCalc" class="btn btn-outline-dark mt-2">Calcular</button>
+            <h6 class="mt-3">Estimativa</h6><pre id="ccOutArea" class="mono p-3 border rounded bg-soft"></pre>
+          </div>
+          <div class="col-12 col-xl-4">
+            <div class="card">
+              <div class="card-body">
+                <h6>Preços (por 1M)</h6>
+                <div class="small">
+                  <ul class="mb-2">
+                    <li><span class="mono">gemini-2.5-flash</span>: in $0.30 · out $2.50</li>
+                    <li><span class="mono">gemini-2.5-flash-lite</span>: in $0.10 · out $0.40</li>
+                    <li><span class="mono">gemini-2.5-pro</span>: in $1.25 · out $10</li>
+                    <li><span class="mono">gemini-embedding-001</span>: in $0.15 (tokens)</li>
+                    <li><span class="mono">text-embedding-004</span>: $0.000025 / 1k chars (~$0.025 / 1M chars)</li>
+                  </ul>
+                  <div class="text-secondary">Fonte: Vertex AI pricing.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-content -->
+  </div><!-- /container -->
+
+  <!-- Modal Config -->
+  <div class="modal" tabindex="-1" id="cfgModal"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Configuração</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-2"><label class="form-label">Base URL da API</label><input id="cfgBaseUrl" class="form-control" placeholder="ex.: http://localhost:8000 (vazio = mesma origem)"></div>
+      <div class="mb-2"><label class="form-label">Modelo padrão</label><input id="cfgModel" class="form-control" placeholder="gemini-2.5-flash"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button><button class="btn btn-primary" id="cfgSave">Salvar</button></div>
+  </div></div></div>
+
+  <!-- Debug Console -->
+  <div class="fixed-console">
+    <div class="p-2 d-flex justify-content-between align-items-center">
+      <strong>Debug Console</strong>
+      <div class="d-flex gap-2 align-items-center">
+        <span id="healthDot" class="badge-dot bg-secondary"></span>
+        <small id="healthText" class="text-muted">Sem teste</small>
+        <button id="btnClearLog" class="btn btn-sm btn-outline-dark">Limpar</button>
+        <button id="btnToggleConsole" class="btn btn-sm btn-dark">Ocultar</button>
+      </div>
+    </div>
+    <div class="console-body p-2" id="consoleBody">
+      <table class="table table-striped table-bordered table-log mb-0">
+        <thead class="table-light"><tr><th>#</th><th>Método</th><th>URL</th><th>Status</th><th>ms</th><th>Ver</th></tr></thead>
+        <tbody id="logTable"></tbody>
+      </table>
+      <div id="reqDetail" class="mt-2 d-none">
+        <hr class="border-secondary">
+        <div class="d-flex justify-content-between align-items-center">
+          <h6>Detalhe</h6><button id="btnCopyCurl" class="btn btn-sm btn-outline-primary">Copiar cURL</button>
+        </div>
+        <pre id="detailPre" class="mono p-3 border rounded bg-soft"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ======= CONFIG =======
+    const LS = { baseUrl:"ragpro_base_url", model:"ragpro_model" };
+    function getBaseUrl(){ return localStorage.getItem(LS.baseUrl)||""; }
+    function setBaseUrl(v){ localStorage.setItem(LS.baseUrl, v||""); updateLabels(); }
+    function getModel(){ return localStorage.getItem(LS.model)||"gemini-2.5-flash"; }
+    function setModel(v){ localStorage.setItem(LS.model, v||"gemini-2.5-flash"); updateLabels(); }
+    function updateLabels(){ document.getElementById("baseUrlLabel").textContent=getBaseUrl()||"(mesma origem)"; document.getElementById("modelLabel").textContent=getModel(); }
+    updateLabels();
+
+    // ======= PRICING =======
+    const PRICING = {
+      "gemini-2.5-flash": { unit:"tokens", input_per_1M:{short:0.30,long:0.30}, output_per_1M:{short:2.50,long:2.50} },
+      "gemini-2.5-flash-lite": { unit:"tokens", input_per_1M:{short:0.10,long:0.10}, output_per_1M:{short:0.40,long:0.40} },
+      "gemini-2.5-pro": { unit:"tokens", input_per_1M:{short:1.25,long:2.50}, output_per_1M:{short:10.00,long:15.00} },
+      "gemini-embedding-001": { unit:"tokens", input_per_1M:{short:0.15,long:0.15}, output_per_1M:null },
+      "text-embedding-004": { unit:"chars", input_per_1M_chars:0.025, output_per_1M_chars:0 }
+    };
+
+    // ======= DEBUG CONSOLE =======
+    let LOG=[], LOGSEQ=1;
+    function pushLog(entry){
+      LOG.push(entry);
+      const tr=document.createElement("tr");
+      tr.className="pointer";
+      tr.addEventListener("click",()=>showDetail(entry));
+      tr.innerHTML=`<td>${entry.id}</td><td>${entry.method}</td><td class="mono">${entry.url}</td><td>${entry.status}</td><td>${entry.ms}</td><td>▶</td>`;
+      document.getElementById("logTable").prepend(tr);
+    }
+    function showDetail(entry){
+      const pre=document.getElementById("detailPre");
+      pre.textContent=JSON.stringify(entry,null,2);
+      document.getElementById("reqDetail").classList.remove("d-none");
+      document.getElementById("btnCopyCurl").onclick=()=>{
+        const curl=buildCurl(entry); navigator.clipboard.writeText(curl);
+      };
+    }
+    function buildCurl(e){
+      const headers = e.requestHeaders || {"Content-Type":"application/json"};
+      const hdr = Object.entries(headers).map(([k,v])=>`-H '${k}: ${v}'`).join(" ");
+      let data = "";
+      if (headers["Content-Type"] && headers["Content-Type"].includes("multipart/form-data")) {
+        data = "# multipart form-data (veja os campos abaixo no detalhe do request)";
+      } else if (e.requestBody) {
+        data = `--data '${JSON.stringify(e.requestBody)}'`;
+      }
+      return `curl -s -X ${e.method} ${hdr} ${data} '${e.fullUrl}'`;
+    }
+    document.getElementById("btnClearLog").addEventListener("click",()=>{ LOG=[]; document.getElementById("logTable").innerHTML=""; document.getElementById("reqDetail").classList.add("d-none"); });
+    document.getElementById("btnToggleConsole").addEventListener("click",()=>{ const el=document.getElementById("consoleBody"); el.style.display=(el.style.display==="none")?"block":"none"; });
+
+    function pretty(el,data){ try{ el.textContent=JSON.stringify(data,null,2);}catch{ el.textContent=String(data);} }
+    function buildUrl(path){ const base=getBaseUrl().replace(/\/$/,""); return base? base+path : path; }
+
+    async function doFetchJSON(method,path,bodyObj){
+      const url=buildUrl(path), t0=performance.now(); let status=-1, respHeaders={}, respJson=null, err=null;
+      
+      // Preparar headers com CSRF token
+      const headers = {"Content-Type":"application/json"};
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      if (csrfToken) {
+        headers['X-CSRF-TOKEN'] = csrfToken;
+      }
+      
+      // Se bodyObj existe, adicionar _token
+      if (bodyObj && csrfToken) {
+        bodyObj._token = csrfToken;
+      }
+      
+      try{
+        const res=await fetch(url,{ 
+          method, 
+          headers: headers, 
+          credentials: 'same-origin', // IMPORTANTE: Inclui cookies de sessão para autenticação
+          body: bodyObj? JSON.stringify(bodyObj): undefined 
+        });
+        status=res.status; res.headers.forEach((v,k)=>{respHeaders[k]=v}); respJson=await res.json().catch(()=>({status:res.status,text:"Resposta não-JSON"})); return respJson;
+      }catch(e){ err=e; throw e; }
+      finally{
+        const t1=performance.now();
+        pushLog({ id:LOGSEQ++, method, url:path, fullUrl:url, requestHeaders:{"Content-Type":"application/json"}, requestBody:bodyObj||null, status, ms:Math.round(t1-t0), responseHeaders:respHeaders, response:respJson, error: err? String(err): null });
+      }
+    }
+
+    function xhrMultipart(method, path, formData, onProgress){
+      return new Promise((resolve,reject)=>{
+        const url = buildUrl(path);
+        const xhr = new XMLHttpRequest();
+        const t0 = performance.now();
+        xhr.open(method, url, true);
+        xhr.withCredentials = true; // IMPORTANTE: Inclui cookies de sessão para autenticação
+        // progress total
+        xhr.upload.addEventListener("progress", (e)=>{
+          if(e.lengthComputable && onProgress){ onProgress(e.loaded, e.total); }
+        });
+        xhr.onreadystatechange = ()=>{
+          if (xhr.readyState === 4){
+            const ms = Math.round(performance.now() - t0);
+            let respJson=null;
+            try{ respJson = JSON.parse(xhr.responseText); } catch(_){ respJson = {status:xhr.status, text:"Resposta não-JSON"}; }
+            pushLog({
+              id:LOGSEQ++,
+              method, url:path, fullUrl:url,
+              requestHeaders: {"Content-Type":"multipart/form-data"},
+              requestBody: null,
+              status: xhr.status, ms,
+              responseHeaders: {"content-type": xhr.getResponseHeader("content-type")||""},
+              response: respJson,
+              error: (xhr.status>=200 && xhr.status<300) ? null : `HTTP ${xhr.status}`
+            });
+            if (xhr.status>=200 && xhr.status<300) resolve(respJson); else reject(new Error("HTTP "+xhr.status));
+          }
+        };
+        xhr.onerror = ()=>reject(new Error("Erro de rede"));
+        xhr.send(formData);
+      });
+    }
+
+    // ======= HEALTH =======
+    document.getElementById("btnHealth").addEventListener("click", async ()=>{
+      const dot=document.getElementById("healthDot"), txt=document.getElementById("healthText");
+      dot.className="badge-dot bg-secondary"; txt.textContent="testando...";
+      try{
+        const data=await doFetchJSON("GET","/api/health");
+        if (data && (data.ok || data.status==="ok")) { dot.className="badge-dot bg-success"; txt.textContent="OK"; }
+        else { dot.className="badge-dot bg-warning"; txt.textContent="Falha lógica"; }
+      } catch {
+        dot.className="badge-dot bg-danger"; txt.textContent="Erro de rede";
+      }
+    });
+
+    // ======= CONFIG MODAL =======
+    document.getElementById("btnConfig").addEventListener("click", ()=>{
+      document.getElementById("cfgBaseUrl").value=getBaseUrl();
+      document.getElementById("cfgModel").value=getModel();
+      new bootstrap.Modal(document.getElementById("cfgModal")).show();
+    });
+    document.getElementById("cfgSave").addEventListener("click", ()=>{
+      setBaseUrl(document.getElementById("cfgBaseUrl").value.trim());
+      setModel(document.getElementById("cfgModel").value.trim());
+      bootstrap.Modal.getInstance(document.getElementById("cfgModal")).hide();
+    });
+
+    // ======= UPLOAD WIDGETS =======
+    function initDropzone(zoneId, inputId, listId){
+      const zone = document.getElementById(zoneId);
+      const input = document.getElementById(inputId);
+      const list = document.getElementById(listId);
+      let files = [];
+
+      function render(){
+        list.innerHTML = "";
+        files.forEach((f, idx)=>{
+          const chip = document.createElement("span");
+          chip.className = "file-chip";
+          chip.innerHTML = `<span class="mono">${f.name}</span><span class="text-muted small">${(f.size/1024).toFixed(1)} KB</span><span class="x" data-idx="${idx}">×</span>`;
+          list.appendChild(chip);
+        });
+        list.querySelectorAll(".x").forEach(x=>{
+          x.addEventListener("click", (e)=>{
+            const i = parseInt(e.target.getAttribute("data-idx"),10);
+            files.splice(i,1);
+            render();
+          });
+        });
+        
+        // Trigger file validation if FileValidator is loaded
+        if (window.FileValidator && files.length > 0) {
+          const validationContainer = zoneId === 'dzIngest' ? 'fileValidationInfo' : null;
+          if (validationContainer) {
+            window.FileValidator.displayValidationResults(files, validationContainer);
+          }
+        }
+      }
+
+      zone.addEventListener("dragover", (e)=>{ e.preventDefault(); zone.classList.add("dragover"); });
+      zone.addEventListener("dragleave", ()=> zone.classList.remove("dragover"));
+      zone.addEventListener("drop", (e)=>{
+        e.preventDefault(); zone.classList.remove("dragover");
+        if (e.dataTransfer.files && e.dataTransfer.files.length){
+          files = files.concat(Array.from(e.dataTransfer.files));
+          render();
+        }
+      });
+      input.addEventListener("change", ()=>{
+        if (input.files && input.files.length){
+          files = files.concat(Array.from(input.files));
+          render();
+        }
+      });
+
+      return {
+        getFiles: ()=> files.slice(),
+        clear: ()=> { files = []; render(); }
+      };
+    }
+
+    const dzIngest = initDropzone("dzIngest","ingFiles","ingFileList");
+    const dzGen    = initDropzone("dzGen","gFiles","gFileList");
+
+    // ======= NOVO: Detectar XLSX e mostrar opção de embeddings - 2025-10-14 =======
+    document.getElementById("ingFiles").addEventListener("change", (e) => {
+      const files = e.target.files;
+      const excelOption = document.getElementById("excelEmbeddingsOption");
+      const universalOption = document.getElementById("universalEmbeddingsOption");
+      
+      // NOVO: Lógica inteligente - nunca mostrar os dois checkboxes juntos
+      if (files.length > 0) {
+        const firstFile = files[0];
+        const fileName = firstFile.name.toLowerCase();
+        
+        // Verifica se é um arquivo suportado
+        const supportedExtensions = ['.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt', '.txt', '.csv', '.html', '.htm', '.xml', '.rtf'];
+        let isSupported = false;
+        
+        for (let ext of supportedExtensions) {
+          if (fileName.endsWith(ext)) {
+            isSupported = true;
+            break;
+          }
+        }
+        
+        if (isSupported) {
+          // Sempre usa o sistema universal (azul)
+          universalOption.style.display = 'block';
+          excelOption.style.display = 'none'; // Oculta o específico XLSX
+          
+          // Atualiza informações do tipo de arquivo
+          updateFileTypeInfo(firstFile.name);
+        } else {
+          // Oculta ambos se não suportado
+          universalOption.style.display = 'none';
+          excelOption.style.display = 'none';
+        }
+      } else {
+        // Oculta ambos se nenhum arquivo
+        universalOption.style.display = 'none';
+        excelOption.style.display = 'none';
+      }
+    });
+    
+    // NOVO: Função para atualizar informações do tipo de arquivo
+    async function updateFileTypeInfo(fileName) {
+      try {
+        const response = await doFetchJSON("GET", `/api/embeddings/file-info?filename=${encodeURIComponent(fileName)}`);
+        
+        if (response.success && response.file_info) {
+          const info = response.file_info;
+          const title = document.getElementById("universalEmbeddingTitle");
+          const fileInfo = document.getElementById("fileTypeInfo");
+          
+          title.textContent = `${info.icon} Gerar embeddings para busca avançada (${info.type})`;
+          fileInfo.textContent = `${info.icon} ${info.description}`;
+        }
+      } catch (error) {
+        console.log("Erro ao obter informações do arquivo:", error);
+        // Fallback simples
+        const title = document.getElementById("universalEmbeddingTitle");
+        title.textContent = "🎯 Gerar embeddings para busca avançada";
+      }
+    }
+    
+    // NOVO: Função UNIVERSAL para gerar embeddings se checkbox universal marcado
+    async function checkAndGenerateUniversalEmbeddings(documentId, fileName) {
+      // Verifica se checkbox universal está marcado
+      const checkbox = document.getElementById("generateUniversalEmbeddings");
+      if (!checkbox || !checkbox.checked) {
+        console.log("Embeddings universais não solicitados");
+        return;
+      }
+      
+      // Mostra progresso universal
+      const progressDiv = document.getElementById("universalEmbeddingProgress");
+      const progressBar = document.getElementById("universalEmbeddingProgressBar");
+      const progressText = document.getElementById("universalEmbeddingProgressText");
+      
+      progressDiv.style.display = 'block';
+      progressBar.style.width = '10%';
+      progressText.textContent = '⚙️ Iniciando geração de embeddings universais...';
+      
+      try {
+        // Chama API universal (assíncrono por padrão)
+        const response = await doFetchJSON("POST", "/api/embeddings/generate", {
+          document_id: documentId,
+          async: true
+        });
+        
+        if (response.success) {
+          progressBar.style.width = '100%';
+          progressBar.classList.remove('progress-bar-animated');
+          progressBar.classList.add('bg-success');
+          progressText.textContent = '✅ ' + response.message;
+          
+          // Oculta após 5 segundos
+          setTimeout(() => {
+            progressDiv.style.display = 'none';
+            progressBar.style.width = '0%';
+            progressBar.classList.add('progress-bar-animated');
+            progressBar.classList.remove('bg-success');
+          }, 5000);
+        } else {
+          progressBar.classList.remove('progress-bar-animated');
+          progressBar.classList.add('bg-danger');
+          progressText.textContent = '❌ ' + (response.message || 'Erro ao gerar embeddings universais');
+        }
+      } catch (error) {
+        progressBar.classList.remove('progress-bar-animated');
+        progressBar.classList.add('bg-danger');
+        progressText.textContent = '❌ Erro: ' + error.message;
+        console.error("Erro ao gerar embeddings universais:", error);
+      }
+    }
+    
+    // NOVO: Função para gerar embeddings se XLSX e checkbox marcado
+    async function checkAndGenerateEmbeddings(documentId, fileName) {
+      // Verifica se é XLSX
+      const name = fileName.toLowerCase();
+      if (!name.endsWith('.xlsx') && !name.endsWith('.xls')) {
+        return; // Não é Excel, ignora
+      }
+      
+      // Verifica se checkbox está marcado
+      const checkbox = document.getElementById("generateEmbeddings");
+      if (!checkbox || !checkbox.checked) {
+        console.log("Embeddings não solicitados para XLSX");
+        return;
+      }
+      
+      // Mostra progresso
+      const progressDiv = document.getElementById("embeddingProgress");
+      const progressBar = document.getElementById("embeddingProgressBar");
+      const progressText = document.getElementById("embeddingProgressText");
+      
+      progressDiv.style.display = 'block';
+      progressBar.style.width = '10%';
+      progressText.textContent = '⚙️ Iniciando geração de embeddings...';
+      
+      try {
+        // Chama API (assíncrono por padrão)
+        const response = await doFetchJSON("POST", "/api/excel/generate-embeddings", {
+          document_id: documentId,
+          async: true
+        });
+        
+        if (response.success) {
+          progressBar.style.width = '100%';
+          progressBar.classList.remove('progress-bar-animated');
+          progressBar.classList.add('bg-success');
+          progressText.textContent = '✅ ' + response.message;
+          
+          // Oculta após 5 segundos
+          setTimeout(() => {
+            progressDiv.style.display = 'none';
+            progressBar.style.width = '0%';
+            progressBar.classList.add('progress-bar-animated');
+            progressBar.classList.remove('bg-success');
+          }, 5000);
+        } else {
+          progressBar.classList.remove('progress-bar-animated');
+          progressBar.classList.add('bg-danger');
+          progressText.textContent = '❌ ' + (response.message || 'Erro ao gerar embeddings');
+        }
+      } catch (error) {
+        progressBar.classList.remove('progress-bar-animated');
+        progressBar.classList.add('bg-danger');
+        progressText.textContent = '❌ Erro: ' + error.message;
+        console.error("Erro ao gerar embeddings:", error);
+      }
+    }
+
+    // ======= INGEST =======
+    document.getElementById("btnIngest").addEventListener("click", async ()=>{
+      const out = document.getElementById("ingestOut");
+      const unifiedLoading = document.getElementById("unifiedIngestLoading");
+      const unifiedTitle = document.getElementById("unifiedIngestTitle");
+      const unifiedProgressBar = document.getElementById("unifiedIngestProgressBar");
+      const unifiedLoadingText = document.getElementById("unifiedIngestLoadingText");
+
+      // NOVO: Mostrar loading unificado acima da seção Resposta
+      unifiedLoading.style.display = 'block';
+      unifiedTitle.textContent = "📤 Processando Upload";
+      unifiedLoadingText.textContent = "Iniciando processamento...";
+      
+      // Limpar conteúdo da resposta
+      out.textContent = "";
+      const urlVal = document.getElementById("ingUrl").value.trim();
+      const videoUrlVal = document.getElementById("ingVideoUrl").value.trim();
+      const textVal = document.getElementById("ingText").value;
+      const files = dzIngest.getFiles();
+      let meta = undefined;
+      const metaRaw = document.getElementById("ingMeta").value.trim();
+      if (metaRaw) { try { meta = JSON.parse(metaRaw); } catch(e){ out.textContent = "Metadata inválida: " + e.message; return; } }
+
+      try {
+        // NEW: Check if it's a video URL
+        if (videoUrlVal) {
+          unifiedTitle.textContent = "🎬 Processando Vídeo";
+          
+          // Simulated progress for video processing
+          const progressSteps = [
+            { pct: 10, msg: "🎬 Baixando vídeo..." },
+            { pct: 30, msg: "🎵 Extraindo áudio..." },
+            { pct: 60, msg: "🗣️ Transcrevendo com IA..." },
+            { pct: 90, msg: "📝 Criando chunks..." }
+          ];
+          
+          let currentStep = 0;
+          const updateProgress = () => {
+            if (currentStep < progressSteps.length) {
+              const step = progressSteps[currentStep];
+              unifiedProgressBar.style.width = step.pct + "%";
+              unifiedLoadingText.textContent = step.msg + " (Pode levar alguns minutos)";
+              out.textContent = step.msg + "\n(Pode levar alguns minutos)";
+              currentStep++;
+            }
+          };
+          
+          updateProgress();
+          const progressInterval = setInterval(updateProgress, 15000); // Update every 15s
+          
+          const payload = {
+            url: videoUrlVal,
+            user_id: "1",
+            language: "pt-BR",
+            service: "auto"
+          };
+          
+          try {
+            const data = await doFetchJSON("POST", "/api/video/ingest", payload);
+            clearInterval(progressInterval);
+            unifiedProgressBar.style.width = "100%";
+            unifiedLoadingText.textContent = "✅ Concluído!";
+            
+            pretty(out, data);
+            if (data.ok) {
+              // Show thumbnail if available
+              let outputHtml = '<div class="alert alert-success"><strong>✅ Vídeo processado com sucesso!</strong></div>';
+              
+              if (data.thumbnail) {
+                outputHtml += `<div class="mb-3"><img src="${data.thumbnail}" alt="Thumbnail" class="img-fluid rounded" style="max-width: 400px;"></div>`;
+              }
+              
+              outputHtml += '<div class="card"><div class="card-body">';
+              outputHtml += `<p><strong>🎬 Título:</strong> ${data.title}</p>`;
+              outputHtml += `<p><strong>🔗 URL:</strong> <a href="${videoUrlVal}" target="_blank">${videoUrlVal}</a></p>`;
+              outputHtml += `<p><strong>📄 Documento:</strong> #${data.document_id}</p>`;
+              outputHtml += `<p><strong>📝 Chunks:</strong> ${data.chunks_created}</p>`;
+              
+              // Format duration
+              const duration = Math.round(data.duration);
+              const minutes = Math.floor(duration / 60);
+              const seconds = duration % 60;
+              const durationStr = minutes > 0 ? `${minutes}min ${seconds}s` : `${seconds}s`;
+              
+              outputHtml += `<p><strong>⏱️ Duração:</strong> ${durationStr}</p>`;
+              outputHtml += `<p><strong>🎯 Confiança:</strong> ${Math.round(data.confidence * 100)}%</p>`;
+              outputHtml += '</div></div>';
+              
+              out.innerHTML = outputHtml;
+              
+              // Show transcription in a modal
+              if (data.transcription_text) {
+                out.innerHTML += '<div class="alert alert-info mt-3">📄 Transcrição completa disponível - <a href="#" onclick="const modal = new bootstrap.Modal(document.getElementById(\'transcriptionModal\')); modal.show(); return false;">clique aqui para ver</a></div>';
+                
+                // Create modal with transcription
+                const modalHtml = `
+                  <div class="modal fade" id="transcriptionModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <h5 class="modal-title">📄 Transcrição do Vídeo</h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                          <div class="mb-3">
+                            <strong>🎬 ${data.title}</strong><br>
+                            <a href="${videoUrlVal}" target="_blank" class="text-muted small">${videoUrlVal}</a><br>
+                            <small class="text-muted">${data.transcription_length} caracteres • ${data.chunks_created} chunks</small>
+                          </div>
+                          <textarea id="transcriptionText" class="form-control mono" rows="15" readonly>${data.transcription_text}</textarea>
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-primary" onclick="
+                            const txt = document.getElementById('transcriptionText');
+                            txt.select();
+                            document.execCommand('copy');
+                            this.textContent = '✅ Copiado!';
+                            setTimeout(() => this.textContent = '📋 Copiar Transcrição', 2000);
+                          ">📋 Copiar Transcrição</button>
+                          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                `;
+                
+                // Remove old modal if exists
+                const oldModal = document.getElementById('transcriptionModal');
+                if (oldModal) oldModal.remove();
+                
+                // Add new modal
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+                // Show modal
+                const modal = new bootstrap.Modal(document.getElementById('transcriptionModal'));
+                modal.show();
+              }
+              
+              // Auto-select uploaded video document
+              await autoSelectDocument(data.document_id);
+            }
+          } catch (error) {
+            clearInterval(progressInterval);
+            unifiedLoading.style.display = 'none';
+            out.textContent = "❌ Erro: " + (error.message || error);
+          }
+          
+          document.getElementById("ingVideoUrl").value = "";
+          setTimeout(() => unifiedLoading.style.display = 'none', 3000);
+          return;
+        }
+        
+        if (files.length > 0) {
+          unifiedTitle.textContent = `📤 Processando ${files.length} arquivo(s)`;
+          
+          // Validate files before upload
+          if (window.FileValidator) {
+            const validation = window.FileValidator.validateFiles(files);
+            if (!validation.valid) {
+              unifiedLoading.style.display = 'none';
+              out.textContent = "❌ Validação falhou:\n" + validation.errors.join('\n');
+              return;
+            }
+          }
+          
+          // Use bulk-ingest for multiple files, regular ingest for single file
+          const useBulkIngest = files.length > 1;
+          const baseUrl = getBaseUrl();
+          const endpoint = useBulkIngest ? baseUrl + "/api/rag/bulk-ingest" : baseUrl + "/api/rag/ingest";
+          
+          // multipart
+          const fd = new FormData();
+          files.forEach(f => fd.append("files[]", f, f.name));
+          if (urlVal) fd.append("url", urlVal);
+          if (textVal) fd.append("text", textVal);
+          if (meta) fd.append("metadata", JSON.stringify(meta));
+          
+          // Adiciona CSRF token
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+          if (csrfToken) {
+            fd.append("_token", csrfToken);
+          }
+
+          unifiedLoadingText.textContent = "Enviando arquivos...";
+
+          const data = await xhrMultipart("POST", endpoint.replace(baseUrl, ''), fd, (loaded,total)=>{
+            const pct = Math.max(1, Math.floor((loaded/total)*100));
+            unifiedProgressBar.style.width = pct+"%";
+            unifiedLoadingText.textContent = `📤 Upload: ${pct}%`;
+          });
+          pretty(out, data);
+          dzIngest.clear();
+          
+          // IMPORTANTE: Esconde o loading principal imediatamente após sucesso
+          unifiedLoading.style.display = 'none';
+          
+          // Auto-select uploaded document
+          if (data.ok && data.document_id) {
+            await autoSelectDocument(data.document_id);
+            
+            // NOVO: Gerar embeddings se XLSX e checkbox marcado - 2025-10-14 (código original mantido)
+            await checkAndGenerateEmbeddings(data.document_id, files[0].name);
+            
+            // NOVO: Gerar embeddings UNIVERSAL se checkbox universal marcado - 2025-10-14
+            await checkAndGenerateUniversalEmbeddings(data.document_id, files[0].name);
+          } else if (data.ok && data.results && data.results.length > 0) {
+            // Bulk upload: select first document
+            await autoSelectDocument(data.results[0].document_id);
+            
+            // NOVO: Gerar embeddings para cada arquivo XLSX no bulk (código original mantido)
+            for (let result of data.results) {
+              const fileName = result.title || '';
+              await checkAndGenerateEmbeddings(result.document_id, fileName);
+              // NOVO: Gerar embeddings UNIVERSAL para cada arquivo no bulk
+              await checkAndGenerateUniversalEmbeddings(result.document_id, fileName);
+            }
+          }
+        } else {
+          // json
+          const payload = { url: urlVal || undefined, text: textVal, metadata: meta };
+          const data = await doFetchJSON("POST","/api/rag/ingest", payload);
+          pretty(out, data);
+          
+          // IMPORTANTE: Esconde o loading principal imediatamente após sucesso
+          unifiedLoading.style.display = 'none';
+          
+          // Auto-select uploaded document
+          if (data.ok && data.document_id) {
+            await autoSelectDocument(data.document_id);
+          }
+        }
+      } catch (e) {
+        unifiedLoading.style.display = 'none';
+        out.textContent = "Erro: " + e.message;
+      } finally {
+        // Reset progress bar (loading já foi escondido acima)
+        unifiedProgressBar.style.width = "0%";
+        unifiedLoadingText.textContent = "Iniciando processamento...";
+      }
+    });
+
+    // ======= QUERY =======
+    document.getElementById("btnQuery").addEventListener("click", async ()=>{
+      const out=document.getElementById("queryOut");
+      out.textContent="Consultando...";
+      const payload = {
+        query: document.getElementById("qText").value,
+        top_k: parseInt(document.getElementById("qTopK").value || "3", 10),
+        temperature: parseFloat(document.getElementById("qTemp").value || "0") || undefined,
+        max_tokens: parseInt(document.getElementById("qMaxTokens").value || "0", 10) || undefined
+      };
+      try{
+        const data = await doFetchJSON("POST","/api/rag/query", payload);
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    // ======= LOAD LATEST DOCUMENT =======
+    document.getElementById("btnLoadLatest").addEventListener("click", async ()=>{
+      try{
+        const data = await doFetchJSON("GET","/api/docs/list");
+        if (data && data.docs && data.docs.length > 0) {
+          const latest = data.docs[0]; // Primeiro é o mais recente
+          document.getElementById("aDocId").value = latest.id;
+          console.log(`Carregado documento: ${latest.title} (ID: ${latest.id})`);
+        }
+      }catch(e){ console.error("Erro ao carregar documentos:", e); }
+    });
+
+    // ======= ANSWER =======
+    document.getElementById("btnAnswer").addEventListener("click", async ()=>{
+      const out=document.getElementById("answerOut");
+      out.textContent="Gerando...";
+      const payload = {
+        query: document.getElementById("aText").value,
+        document_id: parseInt(document.getElementById("aDocId").value || "125", 10),
+        top_k: parseInt(document.getElementById("aTopK").value || "3", 10),
+        model: document.getElementById("aModel").value.trim() || getModel()
+      };
+      try{
+        const data = await doFetchJSON("POST","/api/rag/answer", payload);
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    // ======= VERTEX GENERATE (com upload) =======
+    document.getElementById("btnGenGET").addEventListener("click", async ()=>{
+      const out=document.getElementById("genOut");
+      out.textContent="Chamando GET...";
+      const params=new URLSearchParams();
+      const p=document.getElementById("gPrompt").value;
+      const m=document.getElementById("gModel").value.trim();
+      const l=document.getElementById("gLoc").value.trim();
+      if (p) params.set("prompt", p);
+      if (m) params.set("model", m);
+      if (l) params.set("location", l);
+      // GET normalmente ignora corpo/arquivos; usado só para teste rápido
+      try{
+        const data = await doFetchJSON("GET","/api/vertex/generate?"+params.toString());
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnGenPOST").addEventListener("click", async ()=>{
+      const out = document.getElementById("genOut");
+      const unifiedLoading = document.getElementById("unifiedVertexLoading");
+      const unifiedTitle = document.getElementById("unifiedLoadingTitle");
+      const unifiedProgressBar = document.getElementById("unifiedProgressBar");
+      const unifiedLoadingText = document.getElementById("unifiedLoadingText");
+
+      const files = dzGen.getFiles();
+      const prompt = document.getElementById("gPrompt").value;
+      const model  = document.getElementById("gModel").value.trim();
+      const loc    = document.getElementById("gLoc").value.trim();
+
+      // NOVO: Mostrar loading unificado e mais visível
+      unifiedLoading.style.display = 'block';
+      unifiedTitle.textContent = files.length > 0 ? 
+        `🚀 Processando ${files.length} arquivo(s) com Vertex AI` : 
+        "🤖 Processando com Vertex AI";
+      
+      // Limpar conteúdo da resposta
+      out.textContent = "";
+
+      try{
+        if (files.length > 0){
+          const fd = new FormData();
+          fd.append("prompt", prompt);
+          if (model) fd.append("model", model);
+          if (loc)   fd.append("location", loc);
+          files.forEach(f => fd.append("files[]", f, f.name));
+          
+          // Adiciona CSRF token
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+          if (csrfToken) {
+            fd.append("_token", csrfToken);
+          }
+
+          const startTime = Date.now();
+
+          // Simular progresso de processamento
+          const progressInterval = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const seconds = Math.floor(elapsed / 1000);
+            
+            if (seconds < 5) {
+              unifiedLoadingText.textContent = `📤 Enviando arquivos para Vertex AI... (${seconds}s)`;
+              unifiedProgressBar.style.width = "20%";
+            } else if (seconds < 15) {
+              unifiedLoadingText.textContent = `🔍 Extraindo conteúdo dos arquivos... (${seconds}s)`;
+              unifiedProgressBar.style.width = "40%";
+            } else if (seconds < 30) {
+              unifiedLoadingText.textContent = `🤖 Processando com Gemini... (${seconds}s)`;
+              unifiedProgressBar.style.width = "60%";
+            } else if (seconds < 60) {
+              unifiedLoadingText.textContent = `⚡ Gerando respostas contextuais... (${seconds}s)`;
+              unifiedProgressBar.style.width = "80%";
+            } else {
+              unifiedLoadingText.textContent = `🔄 Processamento em andamento... (${seconds}s)`;
+              unifiedProgressBar.style.width = "90%";
+            }
+          }, 1000);
+
+          const data = await xhrMultipart("POST","/api/vertex/generate", fd, (loaded,total)=>{
+            const pct = Math.max(1, Math.floor((loaded/total)*100));
+            unifiedProgressBar.style.width = pct+"%";
+            unifiedLoadingText.textContent = `📤 Upload: ${pct}%`;
+          });
+
+          clearInterval(progressInterval);
+
+          // Atualizar progresso final
+          unifiedProgressBar.style.width = "100%";
+          unifiedLoadingText.textContent = "✅ Processamento concluído!";
+          unifiedProgressBar.classList.remove("progress-bar-animated");
+          unifiedProgressBar.classList.add("bg-success");
+
+          // Mostrar resultado detalhado
+          out.innerHTML = `
+            <div class="alert alert-success">
+              <h5>✅ Processamento Concluído!</h5>
+              <div class="mb-3">
+                <strong>📊 Resumo:</strong> ${data.summary || 'Processamento realizado com sucesso'}<br>
+                <strong>⏱️ Tempo total:</strong> ${data.total_time || 'N/A'}s<br>
+                <strong>📁 Arquivos processados:</strong> ${data.files_processed || files.length}<br>
+                <strong>🤖 Modelo usado:</strong> ${data.model || model || 'gemini-1.5-flash'}
+              </div>
+            </div>
+          `;
+
+          // Mostrar respostas de cada arquivo
+          if (data.processed_files && data.processed_files.length > 0) {
+            out.innerHTML += '<div class="card mt-3"><div class="card-header"><h6>📄 Respostas por Arquivo</h6></div><div class="card-body">';
+            
+            data.processed_files.forEach((file, index) => {
+              out.innerHTML += `
+                <div class="mb-3 p-3 border rounded">
+                  <h6>📁 ${file.filename}</h6>
+                  <small class="text-muted">
+                    Tamanho: ${(file.size / 1024).toFixed(1)}KB | 
+                    Processamento: ${file.processing_time}s
+                  </small>
+                  <div class="mt-2 p-2 bg-light rounded">
+                    <strong>Resposta:</strong><br>
+                    ${file.response.replace(/\n/g, '<br>')}
+                  </div>
+                </div>
+              `;
+            });
+            
+            out.innerHTML += '</div></div>';
+          }
+
+          // Mostrar dados brutos (desenvolvimento)
+          out.innerHTML += `
+            <div class="card mt-3">
+              <div class="card-header">
+                <h6>🔧 Dados Técnicos</h6>
+              </div>
+              <div class="card-body">
+                <pre class="small">${JSON.stringify(data, null, 2)}</pre>
+              </div>
+            </div>
+          `;
+
+          dzGen.clear();
+        } else {
+          // Processamento sem arquivos (texto apenas)
+          unifiedLoadingText.textContent = "🤖 Processando com Vertex AI...";
+          unifiedProgressBar.style.width = "50%";
+          
+          const payload = { prompt, model: model || undefined, location: loc || undefined };
+          const data = await doFetchJSON("POST","/api/vertex/generate", payload);
+          
+          unifiedProgressBar.style.width = "100%";
+          unifiedLoadingText.textContent = "✅ Resposta gerada!";
+          unifiedProgressBar.classList.remove("progress-bar-animated");
+          unifiedProgressBar.classList.add("bg-success");
+          
+          out.innerHTML = `
+            <div class="alert alert-success">
+              <h5>✅ Resposta Gerada</h5>
+              <div class="mt-3 p-3 bg-light rounded">
+                <strong>Prompt:</strong> ${prompt}<br><br>
+                <strong>Resposta:</strong><br>
+                ${data.text ? data.text.replace(/\n/g, '<br>') : 'Nenhuma resposta gerada'}
+              </div>
+            </div>
+          `;
+        }
+      }catch(e){ 
+        unifiedProgressBar.classList.remove("progress-bar-animated");
+        unifiedProgressBar.classList.add("bg-danger");
+        unifiedLoadingText.textContent = "❌ Erro no processamento";
+        
+        out.innerHTML = `
+          <div class="alert alert-danger">
+            <h5>❌ Erro no Processamento</h5>
+            <p><strong>Erro:</strong> ${e.message}</p>
+            <small class="text-muted">Verifique os logs do servidor para mais detalhes.</small>
+          </div>
+        `;
+      }
+      finally { 
+        setTimeout(()=>{ 
+          // Ocultar loading unificado após 3 segundos
+          unifiedLoading.style.display = 'none';
+          
+          // Reset progress bar
+          unifiedProgressBar.style.width = "0%";
+          unifiedProgressBar.classList.remove("bg-success", "bg-danger");
+          unifiedProgressBar.classList.add("progress-bar-animated");
+          
+          // Reset loading text
+          unifiedLoadingText.textContent = "Iniciando processamento...";
+        }, 3000); 
+      }
+    });
+
+    // ======= MÉTRICAS =======
+    document.getElementById("btnMetrics").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Carregando métricas...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/metrics");
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnCacheStats").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Carregando estatísticas de cache...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/cache/stats");
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnEmbeddingsStats").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Carregando estatísticas de embeddings...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/embeddings/stats");
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnClearCache").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Limpando cache...";
+      try{
+        const data = await doFetchJSON("POST","/api/rag/cache/clear");
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    // ======= FEEDBACK ANALYTICS =======
+    document.getElementById("btnFeedbackStats").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Carregando estatísticas de feedback...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/feedback/stats");
+        
+        if (data && data.ok) {
+          const stats = data.stats;
+          const topQueries = data.top_queries || [];
+          const worstQueries = data.worst_queries || [];
+          const topDocs = data.top_documents || [];
+          const daily = data.daily_trend || [];
+          
+          let html = `
+📊 ESTATÍSTICAS DE FEEDBACK
+
+═══════════════════════════════════════
+RESUMO GERAL:
+═══════════════════════════════════════
+Total de feedbacks: ${stats.total_feedbacks}
+Feedbacks positivos (👍): ${stats.positive_feedbacks}
+Feedbacks negativos (👎): ${stats.negative_feedbacks}
+Taxa de satisfação: ${stats.satisfaction_rate}%
+
+═══════════════════════════════════════
+TOP 5 QUERIES COM MELHOR AVALIAÇÃO:
+═══════════════════════════════════════
+${topQueries.length > 0 ? topQueries.map((q, i) => 
+  `${i+1}. "${q.query.substring(0, 60)}${q.query.length > 60 ? '...' : ''}"
+     Rating: ${q.avg_rating.toFixed(2)} | Avaliações: ${q.count}`
+).join('\n\n') : 'Sem dados suficientes (mínimo 2 avaliações por query)'}
+
+═══════════════════════════════════════
+TOP 5 QUERIES COM PIOR AVALIAÇÃO:
+═══════════════════════════════════════
+${worstQueries.length > 0 ? worstQueries.map((q, i) => 
+  `${i+1}. "${q.query.substring(0, 60)}${q.query.length > 60 ? '...' : ''}"
+     Rating: ${q.avg_rating.toFixed(2)} | Avaliações: ${q.count}`
+).join('\n\n') : 'Sem dados suficientes'}
+
+═══════════════════════════════════════
+TOP 5 DOCUMENTOS COM MELHOR PERFORMANCE:
+═══════════════════════════════════════
+${topDocs.length > 0 ? topDocs.map((d, i) => 
+  `${i+1}. Doc ID: ${d.document_id} - ${d.document ? d.document.title : 'Sem título'}
+     Rating: ${d.avg_rating.toFixed(2)} | Avaliações: ${d.count}`
+).join('\n\n') : 'Sem dados suficientes (mínimo 3 avaliações por documento)'}
+
+═══════════════════════════════════════
+TENDÊNCIA (ÚLTIMOS 7 DIAS):
+═══════════════════════════════════════
+${daily.length > 0 ? daily.map(d => 
+  `${d.date}: ${d.total} feedbacks (${d.positive} 👍 / ${d.negative} 👎)`
+).join('\n') : 'Sem dados nos últimos 7 dias'}
+          `;
+          
+          out.textContent = html;
+        } else {
+          out.textContent = "Erro: " + (data.error || "Resposta inválida");
+        }
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnRecentFeedbacks").addEventListener("click", async ()=>{
+      const out=document.getElementById("metricsOut");
+      out.textContent="Carregando feedbacks recentes...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/feedback/recent");
+        
+        if (data && data.ok) {
+          const feedbacks = data.feedbacks || [];
+          
+          let html = `
+📝 FEEDBACKS RECENTES (Últimos 50)
+
+═══════════════════════════════════════
+Total: ${feedbacks.length} feedbacks
+═══════════════════════════════════════
+
+${feedbacks.length > 0 ? feedbacks.map((f, i) => {
+  const rating = f.rating === 1 ? '👍 POSITIVO' : '👎 NEGATIVO';
+  const docInfo = f.document ? `Doc: ${f.document.title} (ID: ${f.document_id})` : 'Sem documento';
+  const date = new Date(f.created_at).toLocaleString('pt-BR');
+  
+  return `${i+1}. ${rating} | ${date}
+   Query: "${f.query.substring(0, 80)}${f.query.length > 80 ? '...' : ''}"
+   ${docInfo}
+   ───────────────────────────────────────`;
+}).join('\n') : 'Nenhum feedback encontrado'}
+          `;
+          
+          out.textContent = html;
+        } else {
+          out.textContent = "Erro: " + (data.error || "Resposta inválida");
+        }
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    // ======= ADMIN =======
+    document.getElementById("btnReprocessDoc").addEventListener("click", async ()=>{
+      const out=document.getElementById("adminOut");
+      const docId = document.getElementById("adminDocId").value;
+      if (!docId) { out.textContent="Digite um Document ID"; return; }
+      out.textContent="Reprocessando documento...";
+      try{
+        const data = await doFetchJSON("POST","/api/rag/reprocess-document", {document_id: parseInt(docId)});
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnBatchIngest").addEventListener("click", async ()=>{
+      const out=document.getElementById("adminOut");
+      out.textContent="Upload em lote não implementado no frontend ainda...";
+    });
+
+    document.getElementById("btnQualityIngest").addEventListener("click", async ()=>{
+      const out=document.getElementById("adminOut");
+      out.textContent="Upload com qualidade não implementado no frontend ainda...";
+    });
+
+    document.getElementById("btnPreview").addEventListener("click", async ()=>{
+      const out=document.getElementById("adminOut");
+      out.textContent="Carregando preview...";
+      try{
+        const data = await doFetchJSON("GET","/api/rag/preview");
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    document.getElementById("btnDebugEcho").addEventListener("click", async ()=>{
+      const out=document.getElementById("adminOut");
+      out.textContent="Testando debug echo...";
+      try{
+        const data = await doFetchJSON("POST","/api/rag/debug/echo", {test: "debug message"});
+        pretty(out, data);
+      }catch(e){ out.textContent="Erro: "+e.message; }
+    });
+
+    // ======= CALCULADORA =======
+    function calcCost(model, inCount, outCount=0, longCtx=false){
+      const m = PRICING[model]; if(!m) return {error:"Modelo desconhecido"};
+      const res = { model, unit:m.unit };
+      if(m.unit==="tokens"){
+        const inPerM = m.input_per_1M[longCtx?"long":"short"]; const inCost = (inCount/1_000_000)*inPerM;
+        let outCost=0; if(m.output_per_1M){ const outPerM=m.output_per_1M[longCtx?"long":"short"]; outCost=(outCount/1_000_000)*outPerM; }
+        res.input_cost=+inCost.toFixed(6); res.output_cost=+outCost.toFixed(6); res.total=+(inCost+outCost).toFixed(6); return res;
+      } else {
+        const inPerM=m.input_per_1M_chars||0, outPerM=m.output_per_1M_chars||0;
+        const inCost=(inCount/1_000_000)*inPerM, outCost=(outCount/1_000_000)*outPerM;
+        res.input_cost=+inCost.toFixed(6); res.output_cost=+outCost.toFixed(6); res.total=+(inCost+outCost).toFixed(6); return res;
+      }
+    }
+    document.getElementById("btnCalc").addEventListener("click",()=>{
+      const model=document.getElementById("ccModel").value, long=document.getElementById("ccLongCtx").checked;
+      const inp=parseFloat(document.getElementById("ccIn").value||"0"), out=parseFloat(document.getElementById("ccOut").value||"0");
+      const est = calcCost(model, inp, out, long);
+      document.getElementById("ccOutArea").textContent=JSON.stringify(est,null,2);
+    });
+
+    // ======= PYTHON RAG =======
+    
+    // NOVO: Função para limpar warnings do Google Cloud dos chunks - 2025-10-14
+    function cleanChunkContent(content) {
+      if (!content) return '';
+      
+      // Remove warnings comuns do Google Cloud
+      const warnings = [
+        'WARNING: All log messages before absl::InitializeLog()',
+        'ALTS creds ignored. Not running on GCP',
+        'E0000 00:00:',
+        'alts_credentials.cc:',
+        'untruste',
+        'WARNING:',
+        'ERROR:',
+        'INFO:'
+      ];
+      
+      let cleanContent = content;
+      
+      // Remove linhas que começam com warnings
+      warnings.forEach(warning => {
+        const lines = cleanContent.split('\n');
+        cleanContent = lines.filter(line => 
+          !line.includes(warning) && 
+          !line.trim().startsWith('E0000') &&
+          !line.trim().startsWith('WARNING:') &&
+          !line.trim().startsWith('ERROR:') &&
+          !line.trim().startsWith('INFO:')
+        ).join('\n');
+      });
+      
+      // Remove linhas vazias extras
+      cleanContent = cleanContent.replace(/\n\s*\n\s*\n/g, '\n\n');
+      
+      return cleanContent.trim();
+    }
+    
+    document.getElementById("pythonSearchBtn").addEventListener("click", async ()=>{
+      const query = document.getElementById("pythonQuery").value.trim();
+      const unifiedLoading = document.getElementById("unifiedPythonLoading");
+      const unifiedTitle = document.getElementById("unifiedPythonTitle");
+      const unifiedProgressBar = document.getElementById("unifiedPythonProgressBar");
+      const unifiedLoadingText = document.getElementById("unifiedPythonLoadingText");
+      
+      if (!query) {
+        document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-warning">Digite uma query</div>';
+        return;
+      }
+
+      // NOVO: Mostrar loading explicativo
+      unifiedLoading.style.display = 'block';
+      unifiedTitle.textContent = "🔍 Analisando Consulta";
+      unifiedLoadingText.textContent = "Iniciando análise...";
+      unifiedProgressBar.style.width = "10%";
+
+      const topK = parseInt(document.getElementById("pythonTopK").value) || 5;
+      const threshold = parseFloat(document.getElementById("pythonThreshold").value) || 0.3;
+      const docId = document.getElementById("pythonDocId").value ? parseInt(document.getElementById("pythonDocId").value) : null;
+      const includeAnswer = document.getElementById("pythonIncludeAnswer").checked;
+
+      // NOVO: Progresso explicativo durante a busca
+      const startTime = Date.now();
+      const progressSteps = [
+        { pct: 20, msg: "🔍 Analisando consulta e selecionando estratégia..." },
+        { pct: 40, msg: "📊 Buscando chunks relevantes no banco de dados..." },
+        { pct: 60, msg: "🧠 Processando com IA (Gemini/OpenAI)..." },
+        { pct: 80, msg: "📝 Formatando resposta e metadados..." },
+        { pct: 95, msg: "✅ Finalizando processamento..." }
+      ];
+      
+      let currentStep = 0;
+      const updateProgress = () => {
+        if (currentStep < progressSteps.length) {
+          const step = progressSteps[currentStep];
+          unifiedProgressBar.style.width = step.pct + "%";
+          unifiedLoadingText.textContent = step.msg;
+          currentStep++;
+        }
+      };
+      
+      // Iniciar progresso
+      updateProgress();
+      const progressInterval = setInterval(updateProgress, 2000); // Atualiza a cada 2 segundos
+      const strictness = parseInt(document.getElementById("pythonStrictness").value) || 2;
+      const mode = document.getElementById("pythonMode").value || "auto";
+      const format = document.getElementById("pythonFormat").value || "plain";
+      const length = document.getElementById("pythonLength").value || "auto";
+      const citations = parseInt(document.getElementById("pythonCitations").value) || 0;
+      const useFullDocument = document.getElementById("pythonUseFullDocument").checked;
+      const useSmartMode = document.getElementById("pythonUseSmartMode").checked;
+
+      document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-info">🔍 Buscando com Python RAG...</div>';
+      document.getElementById("pythonChunks").innerHTML = '';
+      document.getElementById("pythonAnswer").innerHTML = '';
+      document.getElementById("pythonMetadata").textContent = '';
+
+      try {
+        const payload = {
+          query: query,
+          top_k: topK,
+          threshold: threshold,
+          include_answer: includeAnswer,
+          strictness: strictness,
+          mode: mode,
+          format: format,
+          length: length,
+          citations: citations,
+          use_full_document: useFullDocument,
+          use_smart_mode: useSmartMode
+        };
+        
+        if (docId) payload.document_id = docId;
+
+        const data = await doFetchJSON("POST", "/api/rag/python-search", payload);
+        
+        // Finalizar progresso
+        clearInterval(progressInterval);
+        unifiedProgressBar.style.width = "100%";
+        unifiedLoadingText.textContent = "✅ Busca concluída!";
+        unifiedProgressBar.classList.remove("progress-bar-animated");
+        unifiedProgressBar.classList.add("bg-success");
+        
+        if (data.ok || data.success) {
+          document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-success">✅ Busca concluída com sucesso!</div>';
+          
+          // Exibir chunks (novo formato)
+          let chunksHtml = '';
+          if (data.chunks && data.chunks.length > 0) {
+            chunksHtml = data.chunks.map(chunk => 
+              `<div class="border-bottom pb-2 mb-2">
+                <strong>Chunk ID:</strong> ${chunk.id} | 
+                <strong>Doc:</strong> ${chunk.document_id} | 
+                <strong>Similarity:</strong> ${chunk.similarity ? chunk.similarity.toFixed(4) : 'N/A'}
+                <br><small class="text-muted">${cleanChunkContent(chunk.content).substring(0, 200)}${chunk.content.length > 200 ? '...' : ''}</small>
+              </div>`
+            ).join('');
+          } else {
+            chunksHtml = `<em>Nenhum chunk encontrado (${data.used_chunks ? data.used_chunks.length : 0} chunks usados)</em>`;
+          }
+          document.getElementById("pythonChunks").innerHTML = chunksHtml;
+          
+          // Exibir resposta (limpa)
+          document.getElementById("pythonAnswer").innerHTML = data.answer ? 
+            `<div class="text-wrap">${cleanChunkContent(data.answer).replace(/\n/g, '<br>')}</div>` : 
+            '<em>Resposta não gerada</em>';
+          
+          // DEFINIR METADADOS PRIMEIRO (antes de usar em feedback)
+          const metadata = data.debug || data.metadata || {};
+          
+          // MOSTRAR BOTÕES DE FEEDBACK após resposta bem-sucedida
+          if (data.answer) {
+            // Armazena metadados globalmente para uso no feedback
+            window.lastSearchMetadata = {
+              query: query,
+              document_id: docId,
+              mode: mode,
+              format: format,
+              use_smart_mode: useSmartMode,
+              response_metadata: metadata
+            };
+            
+            // Mostra seção de feedback
+            document.getElementById("feedbackSection").style.display = "block";
+            document.getElementById("feedbackStatus").style.display = "none";
+            
+            // Reseta botões
+            document.getElementById("feedbackThumbsUp").disabled = false;
+            document.getElementById("feedbackThumbsDown").disabled = false;
+            document.getElementById("feedbackThumbsUp").classList.remove("active", "btn-success");
+            document.getElementById("feedbackThumbsDown").classList.remove("active", "btn-danger");
+            document.getElementById("feedbackThumbsUp").classList.add("btn-outline-success");
+            document.getElementById("feedbackThumbsDown").classList.add("btn-outline-danger");
+          }
+          
+          // Exibir metadados (novo formato com Smart Router info)
+          const displayData = {
+            mode_used: data.mode_used,
+            format: data.format,
+            sources: data.sources,
+            used_chunks: data.used_chunks,
+            smart_router: metadata.smart_router || null,
+            cache_hit: metadata.cache_hit || false,
+            cache_level: metadata.cache_level || null,
+            debug: metadata
+          };
+          document.getElementById("pythonMetadata").textContent = JSON.stringify(displayData, null, 2);
+          
+          // Exibir badge se usou Smart Router
+          if (metadata.smart_router) {
+            const smartInfo = metadata.smart_router;
+            const badge = `<span class="badge bg-info ms-2">🧠 Smart: ${smartInfo.strategy}</span>`;
+            document.getElementById("pythonStatus").innerHTML += badge;
+          }
+          
+          // Exibir badge se veio do cache
+          if (metadata.cache_hit) {
+            const cacheBadge = `<span class="badge bg-success ms-2">⚡ Cache ${metadata.cache_level}</span>`;
+            document.getElementById("pythonStatus").innerHTML += cacheBadge;
+          }
+          
+        } else {
+          unifiedProgressBar.classList.remove("progress-bar-animated");
+          unifiedProgressBar.classList.add("bg-danger");
+          unifiedLoadingText.textContent = "❌ Erro na busca";
+          document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Erro: ${data.error}</div>`;
+        }
+        
+      } catch(e) {
+        clearInterval(progressInterval);
+        unifiedProgressBar.classList.remove("progress-bar-animated");
+        unifiedProgressBar.classList.add("bg-danger");
+        unifiedLoadingText.textContent = "❌ Erro na busca";
+        document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Erro: ${e.message}</div>`;
+      } finally {
+        // Ocultar loading após 3 segundos
+        setTimeout(() => {
+          unifiedLoading.style.display = 'none';
+          // Reset progress bar
+          unifiedProgressBar.style.width = "0%";
+          unifiedProgressBar.classList.remove("bg-success", "bg-danger");
+          unifiedProgressBar.classList.add("progress-bar-animated");
+          unifiedLoadingText.textContent = "Iniciando análise...";
+        }, 3000);
+      }
+    });
+
+    document.getElementById("pythonCompareBtn").addEventListener("click", async ()=>{
+      const query = document.getElementById("pythonQuery").value.trim();
+      if (!query) {
+        document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-warning">Digite uma query para comparar</div>';
+        return;
+      }
+
+      const topK = parseInt(document.getElementById("pythonTopK").value) || 5;
+      const docId = document.getElementById("pythonDocId").value ? parseInt(document.getElementById("pythonDocId").value) : null;
+
+      document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-info">⚖️ Comparando PHP vs Python...</div>';
+
+      try {
+        const payload = {
+          query: query,
+          top_k: topK
+        };
+        
+        if (docId) payload.document_id = docId;
+
+        const data = await doFetchJSON("POST", "/api/rag/compare-search", payload);
+        
+        if (data.success) {
+          const php = data.comparison.php;
+          const python = data.comparison.python;
+          
+          document.getElementById("pythonStatus").innerHTML = `
+            <div class="alert alert-success">
+              <h6>📊 Comparação PHP vs Python</h6>
+              <div class="row">
+                <div class="col-6">
+                  <strong>PHP (FTS):</strong><br>
+                  ✅ Sucesso: ${php.success}<br>
+                  📄 Chunks: ${php.chunks_found}<br>
+                  ⏱️ Tempo: ${php.execution_time}s
+                </div>
+                <div class="col-6">
+                  <strong>Python (Vector):</strong><br>
+                  ✅ Sucesso: ${python.success}<br>
+                  📄 Chunks: ${python.chunks_found}<br>
+                  ⏱️ Tempo: ${python.execution_time}s
+                </div>
+              </div>
+              <hr>
+              <strong>🏆 Vencedor:</strong> Velocidade: ${data.winner.speed} | Chunks: ${data.winner.chunks}
+            </div>
+          `;
+          
+          document.getElementById("pythonMetadata").textContent = JSON.stringify(data, null, 2);
+          
+        } else {
+          document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Erro na comparação: ${data.error}</div>`;
+        }
+        
+      } catch(e) {
+        document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Erro: ${e.message}</div>`;
+      }
+    });
+
+    document.getElementById("pythonHealthBtn").addEventListener("click", async ()=>{
+      document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-info">🏥 Verificando saúde do sistema Python...</div>';
+
+      try {
+        const data = await doFetchJSON("GET", "/api/rag/python-health");
+        
+        if (data.success) {
+          document.getElementById("pythonStatus").innerHTML = `
+            <div class="alert alert-success">
+              <h6>🏥 Sistema Python RAG - Saudável</h6>
+              <div class="row">
+                <div class="col-6">
+                  <strong>Python:</strong> ${data.python_version}<br>
+                  <strong>Script:</strong> ✅ Encontrado<br>
+                  <strong>Dependências:</strong> ✅ OK
+                </div>
+                <div class="col-6">
+                  <strong>Docs:</strong> ${data.database_stats.total_documents}<br>
+                  <strong>Chunks:</strong> ${data.database_stats.total_chunks}<br>
+                  <strong>Embeddings:</strong> ${data.database_stats.chunks_with_embeddings} (${data.database_stats.embedding_coverage}%)
+                </div>
+              </div>
+            </div>
+          `;
+          
+          document.getElementById("pythonMetadata").textContent = JSON.stringify(data, null, 2);
+          
+        } else {
+          document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Sistema com problemas: ${data.error}</div>`;
+        }
+        
+      } catch(e) {
+        document.getElementById("pythonStatus").innerHTML = `<div class="alert alert-danger">❌ Erro: ${e.message}</div>`;
+      }
+    });
+
+  </script>
+  <!-- ADICIONE esta linha no final do seu index.html, antes de fechar </body> -->
+<script src="/assets/rag/rag-client.js"></script>
+
+<script>
+  // Função para auto-selecionar documento após upload
+  async function autoSelectDocument(documentId) {
+    try {
+      console.log(`🎯 Auto-selecionando documento ID: ${documentId}`);
+      
+      // 1. Recarrega lista de documentos
+      await loadDocuments();
+      
+      // 2. Aguarda um pouco para garantir que o select foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // 3. Seleciona o documento nos selects
+      const pythonDocSelect = document.getElementById('pythonDocSelect');
+      const pythonDocId = document.getElementById('pythonDocId');
+      const answerDocSelect = document.getElementById('answerDocSelect');
+      
+      if (pythonDocSelect) {
+        pythonDocSelect.value = documentId;
+        // Dispara evento change para carregar perguntas sugeridas
+        pythonDocSelect.dispatchEvent(new Event('change'));
+      }
+      
+      if (pythonDocId) {
+        pythonDocId.value = documentId;
+      }
+      
+      if (answerDocSelect) {
+        answerDocSelect.value = documentId;
+      }
+      
+      // 4. Muda para a aba Python RAG
+      const pythonTab = document.querySelector('button[data-bs-target="#pythonRag"]');
+      if (pythonTab) {
+        const tab = new bootstrap.Tab(pythonTab);
+        tab.show();
+      }
+      
+      // 5. Mostra notificação visual
+      showDocumentActiveNotification(documentId);
+      
+      console.log(`✅ Documento ${documentId} selecionado e aba Python RAG ativada`);
+    } catch (error) {
+      console.error("Erro ao auto-selecionar documento:", error);
+    }
+  }
+  
+  // Função para mostrar notificação de documento ativo
+  function showDocumentActiveNotification(documentId) {
+    // Busca o título do documento
+    const pythonDocSelect = document.getElementById('pythonDocSelect');
+    const selectedOption = pythonDocSelect?.querySelector(`option[value="${documentId}"]`);
+    const docTitle = selectedOption?.textContent || `Documento #${documentId}`;
+    
+    // 1. Atualiza badge permanente
+    const badge = document.getElementById('activeDocumentBadge');
+    const badgeTitle = document.getElementById('activeDocumentTitle');
+    if (badge && badgeTitle) {
+      badgeTitle.textContent = docTitle;
+      badge.style.display = 'block';
+      badge.className = 'alert alert-success py-2 px-3 mb-2'; // Verde para indicar ativo
+    }
+    
+    // 2. Remove notificação anterior se existir
+    const oldNotif = document.getElementById('activeDocNotification');
+    if (oldNotif) oldNotif.remove();
+    
+    // 3. Cria notificação temporária
+    const notif = document.createElement('div');
+    notif.id = 'activeDocNotification';
+    notif.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    notif.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
+    notif.innerHTML = `
+      <strong>✅ Documento Selecionado!</strong><br>
+      <small>${docTitle}</small>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notif);
+    
+    // Remove automaticamente após 5 segundos
+    setTimeout(() => {
+      if (notif.parentNode) {
+        notif.classList.remove('show');
+        setTimeout(() => notif.remove(), 150);
+      }
+    }, 5000);
+  }
+  
+  // Função para carregar documentos da API
+  async function loadDocuments() {
+    try {
+      const data = await doFetchJSON('GET', '/api/docs/list');
+      
+      if (data && data.docs && Array.isArray(data.docs)) {
+        const pythonSelect = document.getElementById('pythonDocSelect');
+        const answerSelect = document.getElementById('answerDocSelect');
+        
+        // Limpa opções existentes
+        pythonSelect.innerHTML = '<option value="">Selecione um documento...</option>';
+        answerSelect.innerHTML = '<option value="">Selecione um documento...</option>';
+        
+        // Filtra documentos: remove fixtures (ID >= 9000) e arquivos de teste
+        const realDocs = data.docs.filter(doc => {
+          return doc.id < 9000 && 
+                 !doc.title.startsWith('test_') && 
+                 !doc.title.startsWith('Fixture');
+        });
+        
+        // Ordena por ID decrescente (mais recentes primeiro)
+        realDocs.sort((a, b) => b.id - a.id);
+        
+        // Adiciona documentos reais
+        realDocs.slice(0, 15).forEach(doc => {
+          // Melhora a formatação do nome
+          let displayName = doc.title;
+          let fileIcon = '📄'; // ícone padrão
+          let fileExtension = ''; // extensão do arquivo
+          
+          // Define ícone baseado na extensão (símbolos universais reconhecíveis)
+          if (displayName.endsWith('.pdf')) {
+            fileIcon = '📕'; // Adobe PDF - documento vermelho clássico
+            fileExtension = '.pdf';
+            displayName = displayName.replace('.pdf', '');
+          } else if (displayName.endsWith('.docx') || displayName.endsWith('.doc')) {
+            fileIcon = '📘'; // Microsoft Word - documento azul clássico
+            fileExtension = displayName.endsWith('.docx') ? '.docx' : '.doc';
+            displayName = displayName.replace('.docx', '').replace('.doc', '');
+          } else if (displayName.endsWith('.xlsx') || displayName.endsWith('.xls')) {
+            fileIcon = '📗'; // Microsoft Excel - planilha verde clássica
+            fileExtension = displayName.endsWith('.xlsx') ? '.xlsx' : '.xls';
+            displayName = displayName.replace('.xlsx', '').replace('.xls', '');
+          } else if (displayName.endsWith('.pptx') || displayName.endsWith('.ppt')) {
+            fileIcon = '📙'; // Microsoft PowerPoint - apresentação laranja clássica
+            fileExtension = displayName.endsWith('.pptx') ? '.pptx' : '.ppt';
+            displayName = displayName.replace('.pptx', '').replace('.ppt', '');
+          } else if (displayName.endsWith('.txt')) {
+            fileIcon = '📄'; // Arquivo de texto simples
+            fileExtension = '.txt';
+            displayName = displayName.replace('.txt', '');
+          } else if (displayName.endsWith('.csv')) {
+            fileIcon = '📊'; // Planilha de dados CSV
+            fileExtension = '.csv';
+            displayName = displayName.replace('.csv', '');
+          } else if (displayName.endsWith('.html') || displayName.endsWith('.htm')) {
+            fileIcon = '🌐'; // HTML - página web
+            fileExtension = displayName.endsWith('.html') ? '.html' : '.htm';
+            displayName = displayName.replace('.html', '').replace('.htm', '');
+          } else if (displayName.endsWith('.xml')) {
+            fileIcon = '📋'; // XML - dados estruturados
+            fileExtension = '.xml';
+            displayName = displayName.replace('.xml', '');
+          } else if (displayName.endsWith('.rtf')) {
+            fileIcon = '📝'; // RTF - texto formatado
+            fileExtension = '.rtf';
+            displayName = displayName.replace('.rtf', '');
+          } else if (displayName.endsWith('.png')) {
+            fileIcon = '🖼️'; // PNG - imagem
+            fileExtension = '.png';
+            displayName = displayName.replace('.png', '');
+          } else if (displayName.endsWith('.jpg') || displayName.endsWith('.jpeg')) {
+            fileIcon = '🖼️'; // JPG/JPEG - imagem
+            fileExtension = displayName.endsWith('.jpg') ? '.jpg' : '.jpeg';
+            displayName = displayName.replace('.jpg', '').replace('.jpeg', '');
+          } else if (displayName.endsWith('.gif')) {
+            fileIcon = '🎞️'; // GIF - animação
+            fileExtension = '.gif';
+            displayName = displayName.replace('.gif', '');
+          } else if (displayName.endsWith('.bmp')) {
+            fileIcon = '🖼️'; // BMP - bitmap
+            fileExtension = '.bmp';
+            displayName = displayName.replace('.bmp', '');
+          } else if (displayName.endsWith('.tiff') || displayName.endsWith('.tif')) {
+            fileIcon = '🖼️'; // TIFF - imagem
+            fileExtension = displayName.endsWith('.tiff') ? '.tiff' : '.tif';
+            displayName = displayName.replace('.tiff', '').replace('.tif', '');
+          } else if (displayName.endsWith('.webp')) {
+            fileIcon = '🖼️'; // WebP - imagem moderna
+            fileExtension = '.webp';
+            displayName = displayName.replace('.webp', '');
+          }
+          
+          // Detect videos by source (not by extension in title)
+          if (doc.source === 'video_url' || doc.source === 'video_upload') {
+            fileIcon = '🎬'; // Vídeo
+            fileExtension = ' [VIDEO]';
+          }
+          
+          // Remove "(1)" de arquivos duplicados
+          displayName = displayName.replace(' (1)', '');
+          
+          const optionText = `${fileIcon} ${displayName}${fileExtension}`;
+          
+          // Python RAG Select
+          const pythonOption = document.createElement('option');
+          pythonOption.value = doc.id;
+          pythonOption.textContent = optionText;
+          pythonOption.title = `ID: ${doc.id} | Chunks: ${doc.chunks || 0} | Tipo: ${fileIcon}`;
+          pythonSelect.appendChild(pythonOption);
+          
+          // Answer Select
+          const answerOption = document.createElement('option');
+          answerOption.value = doc.id;
+          answerOption.textContent = optionText;
+          answerOption.title = `ID: ${doc.id} | Chunks: ${doc.chunks || 0} | Tipo: ${fileIcon}`;
+          answerSelect.appendChild(answerOption);
+        });
+        
+        console.log(`✓ ${realDocs.length} documentos reais carregados nos selects (filtrados de ${data.docs.length} total)`);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar documentos:', error);
+      document.getElementById('pythonDocSelect').innerHTML = '<option value="">Erro ao carregar documentos</option>';
+      document.getElementById('answerDocSelect').innerHTML = '<option value="">Erro ao carregar documentos</option>';
+    }
+  }
+
+  // Event listeners para alternar entre select e input manual
+  document.addEventListener('DOMContentLoaded', function() {
+    // Toggle para Python RAG
+    document.getElementById('toggleDocInput').addEventListener('click', function() {
+      const select = document.getElementById('pythonDocSelect');
+      const input = document.getElementById('pythonDocId');
+      
+      if (select.style.display !== 'none') {
+        select.style.display = 'none';
+        input.style.display = 'block';
+        this.innerHTML = '📋';
+        this.title = 'Voltar para select de documentos';
+      } else {
+        select.style.display = 'block';
+        input.style.display = 'none';
+        this.innerHTML = '🔢';
+        this.title = 'Alternar entre select e input manual';
+      }
+    });
+    
+    // Toggle para Answer
+    document.getElementById('toggleAnswerDocInput').addEventListener('click', function() {
+      const select = document.getElementById('answerDocSelect');
+      const input = document.getElementById('aDocId');
+      
+      if (select.style.display !== 'none') {
+        select.style.display = 'none';
+        input.style.display = 'block';
+        this.innerHTML = '📋';
+        this.title = 'Voltar para select de documentos';
+      } else {
+        select.style.display = 'block';
+        input.style.display = 'none';
+        this.innerHTML = '🔢';
+        this.title = 'Alternar entre select e input manual';
+      }
+    });
+    
+    // Sync entre select e input para Python RAG + Perguntas Sugeridas
+    document.getElementById('pythonDocSelect').addEventListener('change', async function() {
+      const docId = parseInt(this.value);
+      document.getElementById('pythonDocId').value = this.value;
+      
+      console.log("📝 Documento selecionado no select:", docId);
+      
+      // Atualiza badge de documento ativo
+      if (this.value) {
+        const selectedOption = this.options[this.selectedIndex];
+        const docTitle = selectedOption?.textContent || `Documento #${this.value}`;
+        const badge = document.getElementById('activeDocumentBadge');
+        const badgeTitle = document.getElementById('activeDocumentTitle');
+        if (badge && badgeTitle) {
+          badgeTitle.textContent = docTitle;
+          badge.style.display = 'block';
+          badge.className = 'alert alert-success py-2 px-3 mb-2';
+        }
+        
+        // Check if document is a video and show transcription button
+        const btnShowTranscription = document.getElementById('btnShowTranscription');
+        if (btnShowTranscription) {
+          try {
+            const docData = await doFetchJSON("GET", `/api/docs/${this.value}`);
+            const isVideo = docData.source === 'video_url' || docData.source === 'video_upload';
+            btnShowTranscription.style.display = isVideo ? 'block' : 'none';
+          } catch (e) {
+            btnShowTranscription.style.display = 'none';
+          }
+        }
+        
+        // CARREGAR PERGUNTAS SUGERIDAS
+        if (window.RAG && window.RAG.getSuggestedQuestions) {
+          try {
+            console.log("🔍 Buscando perguntas sugeridas para doc", docId);
+            const questions = await window.RAG.getSuggestedQuestions(docId);
+            console.log("📋 Perguntas recebidas:", questions ? questions.length : 0, questions);
+            
+            if (questions && questions.length > 0) {
+              const listEl = document.getElementById("pythonSuggestedList");
+              listEl.innerHTML = '';
+              
+              questions.forEach(q => {
+                const btn = document.createElement("button");
+                btn.className = "btn btn-sm btn-outline-primary suggested-question";
+                btn.textContent = q;
+                btn.onclick = () => {
+                  document.getElementById("pythonQuery").value = q;
+                  console.log("✓ Pergunta selecionada:", q);
+                };
+                listEl.appendChild(btn);
+              });
+              
+              document.getElementById("pythonSuggestedQuestions").style.display = "block";
+              console.log("✓ Perguntas exibidas na interface!");
+            } else {
+              document.getElementById("pythonSuggestedQuestions").style.display = "none";
+              console.log("⚠️ Nenhuma pergunta sugerida encontrada para este documento");
+            }
+          } catch(e) {
+            console.error("❌ Erro ao carregar perguntas sugeridas:", e);
+          }
+        } else {
+          console.warn("⚠️ window.RAG.getSuggestedQuestions não está disponível ainda");
+        }
+      } else {
+        // Esconde perguntas se nenhum documento selecionado
+        document.getElementById("pythonSuggestedQuestions").style.display = "none";
+      }
+    });
+    
+    // Sync entre select e input para Answer
+    document.getElementById('answerDocSelect').addEventListener('change', function() {
+      document.getElementById('aDocId').value = this.value;
+    });
+    
+    // Show transcription button click
+    document.getElementById('btnShowTranscription').addEventListener('click', async function() {
+      const docId = document.getElementById('pythonDocId').value || document.getElementById('pythonDocSelect').value;
+      if (!docId) {
+        alert('Selecione um documento primeiro');
+        return;
+      }
+      
+      try {
+        // Get document data
+        const docData = await doFetchJSON("GET", `/api/docs/${docId}`);
+        
+        // Get all chunks to reconstruct transcription
+        const chunks = await doFetchJSON("GET", `/api/docs/${docId}/chunks`);
+        
+        // Sort chunks by ord
+        chunks.sort((a, b) => a.ord - b.ord);
+        
+        // Remove overlap: only use first chunk fully, then remove overlapping text from subsequent chunks
+        let transcription = '';
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i].content;
+          
+          if (i === 0) {
+            // First chunk: add completely
+            transcription = chunk;
+          } else {
+            // Find where this chunk overlaps with previous text
+            // Look for the last 50-200 chars of current transcription in this chunk
+            let added = false;
+            for (let searchLen = 200; searchLen >= 50 && !added; searchLen -= 10) {
+              const lastPart = transcription.slice(-searchLen);
+              const overlapIndex = chunk.indexOf(lastPart);
+              
+              if (overlapIndex >= 0) {
+                // Found overlap, add only the new part
+                const newPart = chunk.slice(overlapIndex + searchLen);
+                if (newPart.trim().length > 0) {
+                  transcription += ' ' + newPart.trim();
+                }
+                added = true;
+              }
+            }
+            
+            // If no overlap found (shouldn't happen), just add with space
+            if (!added && chunk.trim().length > 10) {
+              transcription += ' ' + chunk.trim();
+            }
+          }
+        }
+        
+        // Show modal
+        const modalHtml = `
+          <div class="modal fade" id="transcriptionModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">📄 Transcrição do Vídeo</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3">
+                    <strong>🎬 ${docData.title}</strong><br>
+                    <small class="text-muted">${transcription.length} caracteres • ${chunks.length} chunks</small>
+                  </div>
+                  <textarea id="transcriptionText" class="form-control mono" rows="15" readonly>${transcription}</textarea>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-primary" onclick="
+                    const txt = document.getElementById('transcriptionText');
+                    txt.select();
+                    document.execCommand('copy');
+                    this.textContent = '✅ Copiado!';
+                    setTimeout(() => this.textContent = '📋 Copiar Transcrição', 2000);
+                  ">📋 Copiar Transcrição</button>
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        // Remove old modal if exists
+        const oldModal = document.getElementById('transcriptionModal');
+        if (oldModal) oldModal.remove();
+        
+        // Add new modal
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('transcriptionModal'));
+        modal.show();
+      } catch (error) {
+        alert('Erro ao carregar transcrição: ' + (error.message || error));
+      }
+    });
+  });
+
+  // Função para carregar informações do usuário autenticado
+  async function loadUserInfo() {
+    try {
+      // Busca dados do usuário e CSRF token
+      const csrfResponse = await fetch('/api/user/info', {
+        credentials: 'same-origin' // Importante para enviar cookies de sessão
+      });
+      const userData = await csrfResponse.json();
+      
+      if (userData && userData.user) {
+        // Atualiza header com dados do usuário
+        document.getElementById('userName').textContent = '👋 Olá, ' + userData.user.name;
+        document.getElementById('userEmail').textContent = userData.user.email;
+        document.getElementById('userPlan').textContent = userData.user.plan.charAt(0).toUpperCase() + userData.user.plan.slice(1);
+        document.getElementById('userTokens').textContent = userData.user.tokens_used + '/' + userData.user.tokens_limit;
+        
+        // Define CSRF token no formulário de logout E na meta tag
+        if (userData.csrf_token) {
+          document.getElementById('csrfToken').value = userData.csrf_token;
+          
+          // Atualiza meta tag também
+          const metaTag = document.querySelector('meta[name="csrf-token"]');
+          if (metaTag) {
+            metaTag.setAttribute('content', userData.csrf_token);
+          }
+        }
+        
+        console.log('✓ Informações do usuário carregadas:', userData.user.name);
+      } else {
+        console.error('Erro: Dados do usuário não encontrados na resposta');
+      }
+    } catch (error) {
+      console.error('Erro ao carregar informações do usuário:', error);
+      // Mostra mensagem de erro no header
+      document.getElementById('userName').textContent = '⚠️ Erro ao carregar';
+      document.getElementById('userEmail').textContent = 'Recarregue a página';
+    }
+  }
+
+  // Carregar perguntas sugeridas quando documento for selecionado
+  // IMPORTANTE: Deve estar DEPOIS do rag-client.js para window.RAG existir
+  window.addEventListener("load", function() {
+    // Carrega informações do usuário autenticado
+    loadUserInfo();
+    
+    // Carrega documentos automaticamente
+    loadDocuments();
+    
+    // Aguarda um pouco para garantir que window.RAG está disponível
+    setTimeout(function() {
+      if (!window.RAG) {
+        console.error("❌ window.RAG não está disponível!");
+        return;
+      }
+      
+      console.log("✓ window.RAG disponível, registrando event listener para perguntas sugeridas");
+      
+      // Event listener para pythonDocId (input manual)
+      document.getElementById("pythonDocId").addEventListener("change", async function() {
+        const docId = parseInt(this.value);
+        console.log("📝 Event change disparado (input manual), docId:", docId);
+        
+        if (!docId) {
+          document.getElementById("pythonSuggestedQuestions").style.display = "none";
+          return;
+        }
+
+        try {
+          console.log("🔍 Buscando perguntas sugeridas para doc", docId);
+          const questions = await window.RAG.getSuggestedQuestions(docId);
+          console.log("📋 Perguntas recebidas:", questions ? questions.length : 0, questions);
+          
+          if (questions && questions.length > 0) {
+            const listEl = document.getElementById("pythonSuggestedList");
+            listEl.innerHTML = '';
+            
+            questions.forEach(q => {
+              const btn = document.createElement("button");
+              btn.className = "btn btn-sm btn-outline-primary suggested-question";
+              btn.textContent = q;
+              btn.onclick = () => {
+                document.getElementById("pythonQuery").value = q;
+                console.log("✓ Pergunta selecionada:", q);
+              };
+              listEl.appendChild(btn);
+            });
+            
+            document.getElementById("pythonSuggestedQuestions").style.display = "block";
+            console.log("✓ Perguntas exibidas na interface!");
+          } else {
+            document.getElementById("pythonSuggestedQuestions").style.display = "none";
+            console.log("⚠️ Nenhuma pergunta sugerida encontrada para este documento");
+          }
+        } catch(e) {
+          console.error("❌ Erro ao carregar perguntas sugeridas:", e);
+        }
+      });
+      
+      console.log("✓ Event listener registrado com sucesso!");
+    }, 500);
+  });
+  
+  // FEEDBACK SYSTEM - Event listeners para botões 👍👎
+  
+  // Botão Thumbs Up
+  document.getElementById("feedbackThumbsUp").addEventListener("click", async function() {
+    if (!window.lastSearchMetadata) {
+      alert("Nenhuma busca ativa para avaliar.");
+      return;
+    }
+    
+    try {
+      const result = await window.RAG.submitFeedback({
+        query: window.lastSearchMetadata.query,
+        document_id: window.lastSearchMetadata.document_id,
+        rating: 1,
+        metadata: window.lastSearchMetadata
+      });
+      
+      if (result && result.ok) {
+        document.getElementById("feedbackStatus").textContent = "✓ Obrigado pelo feedback!";
+        document.getElementById("feedbackStatus").style.display = "inline";
+        
+        // Destaca botão clicado
+        this.disabled = true;
+        document.getElementById("feedbackThumbsDown").disabled = true;
+        this.classList.remove("btn-outline-success");
+        this.classList.add("btn-success", "active");
+      } else {
+        alert("Erro ao salvar feedback: " + (result.error || "Desconhecido"));
+      }
+    } catch (e) {
+      console.error("Erro ao enviar feedback:", e);
+      alert("Erro ao enviar feedback: " + e.message);
+    }
+  });
+  
+  // Botão Thumbs Down
+  document.getElementById("feedbackThumbsDown").addEventListener("click", async function() {
+    if (!window.lastSearchMetadata) {
+      alert("Nenhuma busca ativa para avaliar.");
+      return;
+    }
+    
+    try {
+      const result = await window.RAG.submitFeedback({
+        query: window.lastSearchMetadata.query,
+        document_id: window.lastSearchMetadata.document_id,
+        rating: -1,
+        metadata: window.lastSearchMetadata
+      });
+      
+      if (result && result.ok) {
+        document.getElementById("feedbackStatus").textContent = "✓ Obrigado pelo feedback! Vamos melhorar.";
+        document.getElementById("feedbackStatus").style.display = "inline";
+        
+        // Destaca botão clicado
+        this.disabled = true;
+        document.getElementById("feedbackThumbsUp").disabled = true;
+        this.classList.remove("btn-outline-danger");
+        this.classList.add("btn-danger", "active");
+      } else {
+        alert("Erro ao salvar feedback: " + (result.error || "Desconhecido"));
+      }
+    } catch (e) {
+      console.error("Erro ao enviar feedback:", e);
+      alert("Erro ao enviar feedback: " + e.message);
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -61,10 +61,27 @@ class BulkIngestController extends Controller
         $successCount = 0;
         $failCount = 0;
         
-        // Get tenant_slug from authenticated user
-        $user = auth('sanctum')->user();
+        // Get tenant_slug from authenticated user - try multiple guards
+        $user = null;
+        $tenantSlug = 'default';
+        
+        // Try web guard first (for session-based auth)
+        if (Auth::guard('web')->check()) {
+            $user = Auth::guard('web')->user();
+            $tenantSlug = "user_{$user->id}";
+        }
+        // Try sanctum guard (for API tokens)
+        elseif (Auth::guard('sanctum')->check()) {
+            $user = Auth::guard('sanctum')->user();
+            $tenantSlug = "user_{$user->id}";
+        }
+        // Fallback to default auth
+        elseif (auth()->check()) {
+            $user = auth()->user();
+            $tenantSlug = "user_{$user->id}";
+        }
+        
         $userId = $user ? $user->id : $req->input('user_id', 1);
-        $tenantSlug = $user ? "user_{$user->id}" : $req->input('tenant_slug', 'default');
 
         foreach ($files as $index => $file) {
             if (!($file instanceof UploadedFile)) {
