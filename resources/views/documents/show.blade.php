@@ -64,7 +64,7 @@
                             @foreach($chunks as $chunk)
                                 <div class="border border-gray-200 rounded-lg p-4">
                                     <div class="flex justify-between items-start mb-2">
-                                        <h4 class="text-sm font-medium text-gray-900">Chunk #{{ ($chunk->chunk_index ?? 0) + 1 }}</h4>
+                                        <h4 class="text-sm font-medium text-gray-900">Chunk #{{ ($chunk->ord ?? 0) + 1 }}</h4>
                                         <div class="text-xs text-gray-500">
                                             {{ strlen($chunk->content ?? '') }} characters
                                         </div>

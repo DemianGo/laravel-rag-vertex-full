@@ -2106,7 +2106,9 @@ class RagController extends Controller
             if (!$file) return null;
 
             $fileName = time() . '_' . $file->getClientOriginalName();
-            $storedPath = $file->storeAs('uploads', $fileName, 'local');
+            // Store in tenant-specific directory without 'uploads' prefix
+            $tenantSlug = auth('sanctum')->user() ? 'user_' . auth('sanctum')->user()->id : 'default';
+            $storedPath = $file->storeAs($tenantSlug, $fileName, 'local');
 
             Log::info('File stored successfully', [
                 'original_name' => $file->getClientOriginalName(),

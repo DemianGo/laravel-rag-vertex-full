@@ -29,6 +29,12 @@
 
             <!-- Settings Dropdown -->
             <div class="hidden sm:flex sm:items-center sm:ms-6">
+                @guest
+                <a href="{{ route('login') }}" class="text-sm text-gray-700 underline me-4">Login</a>
+                <a href="{{ route('register') }}" class="text-sm text-gray-700 underline">Register</a>
+                @endguest
+                
+                @auth
                 <!-- Plan Badge -->
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ Auth::user()->plan === 'enterprise' ? 'bg-purple-100 text-purple-800' : (Auth::user()->plan === 'pro' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800') }} me-4">
                     {{ ucfirst(Auth::user()->plan) }}
@@ -69,6 +75,7 @@
                         </form>
                     </x-slot>
                 </x-dropdown>
+                @endauth
             </div>
 
             <!-- Hamburger -->
@@ -102,6 +109,7 @@
 
         <!-- Responsive Settings Options -->
         <div class="pt-4 pb-1 border-t border-gray-200">
+            @auth
             <div class="px-4">
                 <div class="font-medium text-base text-gray-800">{{ Auth::user()->name }}</div>
                 <div class="font-medium text-sm text-gray-500">{{ Auth::user()->email }}</div>
@@ -123,6 +131,18 @@
                     </x-responsive-nav-link>
                 </form>
             </div>
+            @endauth
+            
+            @guest
+            <div class="mt-3 space-y-1">
+                <x-responsive-nav-link :href="route('login')">
+                    {{ __('Login') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('register')">
+                    {{ __('Register') }}
+                </x-responsive-nav-link>
+            </div>
+            @endguest
         </div>
     </div>
 </nav>

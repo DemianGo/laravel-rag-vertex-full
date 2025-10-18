@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class DocumentController extends Controller
 {
@@ -74,11 +75,14 @@ class DocumentController extends Controller
     {
         $user = Auth::user();
 
-        // Buscar documento do tenant correto
-        $document = DB::table('documents')
-            ->where('id', $id)
-            ->where('tenant_slug', 'user_' . $user->id)
-            ->first();
+        // Buscar documento - admin pode ver qualquer documento, usuário comum só os seus
+        $query = DB::table('documents')->where('id', $id);
+        
+        if (!$user->is_admin) {
+            $query->where('tenant_slug', 'user_' . $user->id);
+        }
+        
+        $document = $query->first();
 
         if (!$document) {
             return redirect()->route('documents.index')
@@ -88,10 +92,55 @@ class DocumentController extends Controller
         // Buscar chunks reais do banco
         $chunks = DB::table('chunks')
             ->where('document_id', $id)
-            ->orderBy('chunk_index')
+            ->orderBy('ord')
             ->get();
 
         return view('documents.show', compact('user', 'document', 'chunks'));
+    }
+
+    public function download($id)
+    {
+        $user = Auth::user();
+
+        // Buscar documento - admin pode ver qualquer documento, usuário comum só os seus
+        $query = DB::table('documents')->where('id', $id);
+        
+        if (!$user->is_admin) {
+            $query->where('tenant_slug', 'user_' . $user->id);
+        }
+        
+        $document = $query->first();
+
+        if (!$document) {
+            return redirect()->route('documents.index')
+                ->with('error', 'Document not found');
+        }
+
+        // Tentar encontrar arquivo original
+        $metadata = json_decode($document->metadata, true);
+        $filePath = $metadata['file_path'] ?? null;
+
+        if ($filePath && Storage::exists($filePath)) {
+            // Arquivo encontrado - fazer download
+            return Storage::download($filePath, $document->title);
+        }
+
+        // Tentar encontrar arquivo por padrão de nome
+        $uploadsPath = 'uploads';
+        $files = Storage::files($uploadsPath);
+        
+        foreach ($files as $file) {
+            $fileName = basename($file);
+            // Verificar se o arquivo corresponde ao documento (por timestamp ou nome)
+            if (strpos($fileName, $document->title) !== false || 
+                strpos($document->title, pathinfo($fileName, PATHINFO_FILENAME)) !== false) {
+                return Storage::download($file, $document->title);
+            }
+        }
+
+        // Arquivo não encontrado
+        return redirect()->route('documents.show', $id)
+            ->with('error', 'Arquivo original não encontrado. Apenas o conteúdo extraído está disponível.');
     }
 
     private function getDocuments($user): array

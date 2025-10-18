@@ -415,7 +415,7 @@ class RagPipeline
                     'content' => $chunk['content'],
                     'content_preview' => mb_substr($chunk['content'], 0, 200),
                     'embedding' => $embedding ? json_encode($embedding) : null,
-                    'metadata' => $chunkMetadata,
+                    'meta' => $chunkMetadata,
                     'word_count' => str_word_count($chunk['content']),
                     'char_count' => mb_strlen($chunk['content']),
                 ]);

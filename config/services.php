@@ -27,4 +27,12 @@ return [
         'generation_model' => env('VERTEX_GENERATION_MODEL', 'gemini-2.5-flash'),
     ],
 
+    // -------- Mercado Pago --------
+    'mercadopago' => [
+        'access_token' => env('MERCADOPAGO_ACCESS_TOKEN'),
+        'public_key' => env('MERCADOPAGO_PUBLIC_KEY'),
+        'sandbox' => env('MERCADOPAGO_SANDBOX', true),
+        'webhook_secret' => env('MERCADOPAGO_WEBHOOK_SECRET'),
+    ],
+
 ];

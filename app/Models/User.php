@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\Subscription;
+use App\Models\Payment;
 
 class User extends Authenticatable
 {
@@ -22,6 +24,11 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'is_admin',
+        'is_super_admin',
+        'admin_permissions',
+        'last_login_at',
+        'last_login_ip',
     ];
 
     /**
@@ -47,6 +54,10 @@ class User extends Authenticatable
             'password' => 'hashed',
             'api_key_created_at' => 'datetime',
             'api_key_last_used_at' => 'datetime',
+            'is_admin' => 'boolean',
+            'is_super_admin' => 'boolean',
+            'admin_permissions' => 'array',
+            'last_login_at' => 'datetime',
         ];
     }
 
@@ -115,5 +126,77 @@ class User extends Authenticatable
     public function userPlan()
     {
         return $this->hasOne(\App\Models\UserPlan::class);
+    }
+
+    /**
+     * Relacionamentos admin
+     */
+    public function subscriptions()
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function getDocuments()
+    {
+        // Busca documentos do usuário usando tenant_slug
+        return Document::where('tenant_slug', $this->email)
+            ->orWhere('tenant_slug', 'user_' . $this->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+    }
+
+    /**
+     * Verifica se o usuário é admin
+     */
+    public function isAdmin(): bool
+    {
+        return $this->is_admin || $this->is_super_admin;
+    }
+
+    /**
+     * Verifica se o usuário é super admin
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->is_super_admin;
+    }
+
+    /**
+     * Verifica se o usuário tem uma permissão específica
+     */
+    public function hasAdminPermission(string $permission): bool
+    {
+        if ($this->is_super_admin) {
+            return true;
+        }
+
+        return $this->is_admin && in_array($permission, $this->admin_permissions ?? []);
+    }
+
+    /**
+     * Retorna a assinatura ativa do usuário
+     */
+    public function activeSubscription()
+    {
+        return $this->subscriptions()
+            ->where('status', 'active')
+            ->where('ends_at', '>', now())
+            ->first();
+    }
+
+    /**
+     * Atualiza último login do usuário
+     */
+    public function updateLastLogin(?string $ip = null): void
+    {
+        $this->update([
+            'last_login_at' => now(),
+            'last_login_ip' => $ip,
+        ]);
     }
 }

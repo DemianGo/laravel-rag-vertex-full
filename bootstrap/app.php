@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'auth.dual' => \App\Http\Middleware\AuthenticateWithSanctumOrSession::class,
             'auth.set' => \App\Http\Middleware\SetAuthUser::class,
+            'admin' => \App\Http\Middleware\AdminMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
