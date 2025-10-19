@@ -1408,7 +1408,7 @@ class RagController extends Controller
             
             // Try OCR as last resort
             try {
-                $ocrScriptPath = base_path('scripts/document_extraction/pdf_ocr_processor.py');
+                $ocrScriptPath = base_path('scripts/document_extraction/advanced_ocr_processor.py');
                 if (file_exists($ocrScriptPath)) {
                     $adaptiveTimeout = $this->calculateOCRTimeout(filesize($path));
                     $ocrCmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($ocrScriptPath) . " " . escapeshellarg($path) . " por+eng 2>/dev/null";
@@ -1480,7 +1480,7 @@ class RagController extends Controller
         $isScanned = false;
         
         try {
-            $ocrScriptPath = base_path('scripts/document_extraction/pdf_ocr_processor.py');
+            $ocrScriptPath = base_path('scripts/document_extraction/advanced_ocr_processor.py');
             if (file_exists($ocrScriptPath)) {
                 // First check if PDF has images (quick check)
                 $checkCmd = "python3 " . base_path('scripts/document_extraction/pdf_image_extractor.py') . " " . escapeshellarg($path) . " --check-only 2>/dev/null";
