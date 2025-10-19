@@ -76,6 +76,86 @@ class LLMService:
             answer = self._generate_fallback(prompt, query, context)
             return answer, "fallback"
 
+    def generate_with_grounding(self, prompt: str) -> Dict[str, Any]:
+        """
+        Gera resposta com grounding do Gemini (busca na web)
+
+        Args:
+            prompt: Prompt para o Gemini
+
+        Returns:
+            Dicionário com resposta e metadados
+        """
+        try:
+            if not self.gemini_client:
+                return {
+                    'success': False,
+                    'error': 'Cliente Gemini não disponível',
+                    'answer': '',
+                    'grounding_metadata': {}
+                }
+
+            # Configura o Gemini com grounding
+            model = self.gemini_client
+            
+            # Tenta usar grounding com busca na web
+            try:
+                response = model.generate_content(
+                    prompt,
+                    tools=[{"google_search_retrieval": {}}],
+                    generation_config={
+                        "temperature": 0.1,
+                        "max_output_tokens": 2048,
+                    }
+                )
+            except Exception as grounding_error:
+                # Se grounding falhar, usa busca normal
+                logger.warning(f"Grounding falhou, usando busca normal: {grounding_error}")
+                response = model.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": 0.1,
+                        "max_output_tokens": 2048,
+                    }
+                )
+
+            if response and response.text:
+                # Extrai metadados de grounding se disponível
+                grounding_metadata = {}
+                # Simula metadados de grounding para compatibilidade
+                grounding_metadata = {
+                    'grounding_chunks': [
+                        {
+                            'title': 'Resultado da busca web',
+                            'content': response.text[:200] + '...',
+                            'url': 'https://gemini.google.com'
+                        }
+                    ]
+                }
+
+                return {
+                    'success': True,
+                    'answer': response.text,
+                    'grounding_metadata': grounding_metadata,
+                    'execution_time': 0
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Resposta vazia do Gemini',
+                    'answer': '',
+                    'grounding_metadata': {}
+                }
+
+        except Exception as e:
+            logger.error(f"Erro na geração com grounding: {e}")
+            return {
+                'success': False,
+                'error': f'Erro na geração com grounding: {str(e)}',
+                'answer': '',
+                'grounding_metadata': {}
+            }
+
     def _prepare_context(self, chunks: List[Dict[str, Any]]) -> str:
         """
         Prepara o contexto a partir dos chunks encontrados

@@ -31,6 +31,8 @@ class RagAnswerController extends Controller
         $format         = strtolower((string)$request->input('format', $request->query('format', 'plain')));
         $strictness     = max(0, min(3, intval($request->input('strictness', $request->query('strictness', 2)))));
         $citationsCount = max(0, min(10, intval($request->input('citations', $request->query('citations', 0)))));
+        $enableWebSearch = filter_var($request->input('enable_web_search', $request->query('enable_web_search', false)), FILTER_VALIDATE_BOOLEAN);
+        $llmProvider = $request->input('llm_provider', $request->query('llm_provider', 'gemini'));
 
         // ----------------- Recuperação (FTS Postgres → fallback genérico) -----------------
         $tokensRaw  = $this->tokensRaw($query);
@@ -481,6 +483,33 @@ if (trim((string)$final) === '') {
 }
 $sources = $this->buildCitationsFromNeighbors($neighbors, $citationsCount);
 
+        // ===== BUSCA HÍBRIDA (WEB SEARCH) =====
+        $webSources = [];
+        $webAnswer = '';
+        $usedWebSearch = false;
+        
+        if ($enableWebSearch) {
+            try {
+                \Log::info('Iniciando busca web', ['query' => $query, 'llm_provider' => $llmProvider]);
+                $webResult = $this->performWebSearch($query, $llmProvider);
+                \Log::info('Resultado busca web', ['result' => $webResult]);
+                
+                if ($webResult['success']) {
+                    $webAnswer = $webResult['answer'];
+                    $webSources = $webResult['sources']['web'] ?? [];
+                    $usedWebSearch = true;
+                    
+                    // Combinar resposta dos documentos com resposta da web
+                    if (trim($webAnswer) && trim($webAnswer) !== trim($final)) {
+                        $final = $final . "\n\n--- Informações complementares da internet ---\n" . $webAnswer;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Falha na busca web não deve quebrar o fluxo principal
+                \Log::warning('Web search failed', ['error' => $e->getMessage()]);
+            }
+        }
+
         return response()->json([
             'ok' => true,
             'query' => $query,
@@ -491,6 +520,9 @@ $sources = $this->buildCitationsFromNeighbors($neighbors, $citationsCount);
             'format' => $format,
             'answer' => $final,
             'sources' => $sources,
+            'web_sources' => $webSources,
+            'used_web_search' => $usedWebSearch,
+            'llm_provider' => $llmProvider,
             'debug' => [
                 'mode' => $llmUsed ? 'llm_summarize_from_context' : 'extractive_no_llm',
                 'best_ord' => $bestOrd,
@@ -1011,5 +1043,51 @@ private function ensureDoubleQuoted(string $s): string
     $s = trim($s, " \t\n\r\0\x0B\"'");
     return '"' . $s . '"';
 }
+
+    private function performWebSearch(string $query, string $llmProvider): array
+    {
+        try {
+            // Configuração do banco para Python
+            $dbConfig = [
+                'host' => config('database.connections.pgsql.host'),
+                'database' => config('database.connections.pgsql.database'),
+                'user' => config('database.connections.pgsql.username'),
+                'password' => config('database.connections.pgsql.password'),
+                'port' => config('database.connections.pgsql.port')
+            ];
+
+            // Comando Python para busca híbrida
+            $scriptPath = base_path('scripts/rag_search/hybrid_search.py');
+            $dbConfigJson = json_encode($dbConfig);
+            
+            $cmd = sprintf(
+                'python3 %s --query %s --llm-provider %s --force-grounding --db-config %s 2>/dev/null',
+                escapeshellarg($scriptPath),
+                escapeshellarg($query),
+                escapeshellarg($llmProvider),
+                escapeshellarg($dbConfigJson)
+            );
+
+            $output = shell_exec($cmd);
+            
+            if (!$output) {
+                return ['success' => false, 'error' => 'Erro ao executar busca web'];
+            }
+
+            $result = json_decode($output, true);
+            
+            if (!$result) {
+                return ['success' => false, 'error' => 'Resposta inválida da busca web'];
+            }
+
+            return $result;
+            
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'error' => 'Erro na busca web: ' . $e->getMessage()
+            ];
+        }
+    }
 
 }

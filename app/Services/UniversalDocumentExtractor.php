@@ -36,7 +36,7 @@ class UniversalDocumentExtractor
 
         try {
             // Execute Python extraction script
-            $command = sprintf('python3 %s %s 2>&1',
+            $command = sprintf('python3 %s %s 2>/dev/null',
                 escapeshellarg($this->extractorPath),
                 escapeshellarg($filePath)
             );

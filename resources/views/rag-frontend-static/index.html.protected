@@ -317,6 +317,45 @@
               </div>
             </div>
             
+            <!-- GROUNDING / WEB SEARCH SECTION -->
+            <div class="mb-3">
+              <div class="form-check">
+                <input id="pythonEnableWebSearch" class="form-check-input" type="checkbox">
+                <label class="form-check-label fw-bold">🌐 Busca na Internet (Grounding)</label>
+                <br><small class="form-text text-muted">Complementa a busca em documentos com informações da web usando Gemini Grounding</small>
+              </div>
+            </div>
+            
+            <div id="webSearchOptions" class="mb-3" style="display:none;">
+              <div class="card card-body bg-light">
+                <h6 class="text-muted mb-3">⚙️ Configurações de Busca Web</h6>
+                
+                <div class="mb-3">
+                  <label class="form-label small">Provedor de LLM</label>
+                  <select id="pythonLlmProvider" class="form-select form-select-sm">
+                    <option value="gemini" selected>Gemini (Recomendado)</option>
+                    <option value="openai">OpenAI</option>
+                  </select>
+                </div>
+                
+                <div class="mb-3">
+                  <div class="form-check">
+                    <input id="pythonForceGrounding" class="form-check-input" type="checkbox">
+                    <label class="form-check-label small">Forçar Grounding</label>
+                    <br><small class="form-text text-muted">Sempre usar busca web, mesmo quando encontra nos documentos</small>
+                  </div>
+                </div>
+                
+                <div class="alert alert-info py-2">
+                  <small><strong>💡 Como funciona:</strong><br>
+                  • Primeiro busca nos seus documentos<br>
+                  • Se não encontrar ou resposta for insuficiente, busca na web<br>
+                  • Combina informações dos documentos com dados da internet<br>
+                  • Separa visualmente as fontes (documentos vs web)</small>
+                </div>
+              </div>
+            </div>
+            
             <div class="d-grid gap-2 mb-3">
               <button id="pythonSearchBtn" class="btn btn-primary btn-lg">🔍 Buscar</button>
             </div>
@@ -457,6 +496,18 @@
                   <span id="feedbackStatus" class="small text-success" style="display:none;"></span>
                 </div>
               </div>
+            </div>
+            
+            <!-- WEB SEARCH RESULTS SECTION -->
+            <div id="webSearchResults" class="mb-2" style="display:none;">
+              <label class="form-label">🌐 Informações da Internet</label>
+              <div id="pythonWebAnswer" class="border rounded p-2 bg-light" style="max-height: 200px; overflow-y: auto;"></div>
+            </div>
+            
+            <!-- WEB SOURCES SECTION -->
+            <div id="webSourcesSection" class="mb-2" style="display:none;">
+              <label class="form-label">🔗 Fontes da Web</label>
+              <div id="pythonWebSources" class="border rounded p-2 bg-light" style="max-height: 150px; overflow-y: auto;"></div>
             </div>
             <div class="mb-2">
               <label class="form-label">Metadados</label>
@@ -1748,6 +1799,19 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
       return cleanContent.trim();
     }
     
+    // GROUNDING / WEB SEARCH FUNCTIONALITY
+    document.getElementById("pythonEnableWebSearch").addEventListener("change", function() {
+      const webSearchOptions = document.getElementById("webSearchOptions");
+      if (this.checked) {
+        webSearchOptions.style.display = "block";
+      } else {
+        webSearchOptions.style.display = "none";
+        // Hide web search results when disabled
+        document.getElementById("webSearchResults").style.display = "none";
+        document.getElementById("webSourcesSection").style.display = "none";
+      }
+    });
+
     document.getElementById("pythonSearchBtn").addEventListener("click", async ()=>{
       const query = document.getElementById("pythonQuery").value.trim();
       const unifiedLoading = document.getElementById("unifiedPythonLoading");
@@ -1808,6 +1872,11 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
       document.getElementById("pythonMetadata").textContent = '';
 
       try {
+        // GROUNDING / WEB SEARCH PARAMETERS
+        const enableWebSearch = document.getElementById("pythonEnableWebSearch").checked;
+        const llmProvider = document.getElementById("pythonLlmProvider").value;
+        const forceGrounding = document.getElementById("pythonForceGrounding").checked;
+
         const payload = {
           query: query,
           top_k: topK,
@@ -1819,7 +1888,10 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
           length: length,
           citations: citations,
           use_full_document: useFullDocument,
-          use_smart_mode: useSmartMode
+          use_smart_mode: useSmartMode,
+          enable_web_search: enableWebSearch,
+          llm_provider: llmProvider,
+          force_grounding: forceGrounding
         };
         
         if (docId) payload.document_id = docId;
@@ -1856,6 +1928,49 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
           document.getElementById("pythonAnswer").innerHTML = data.answer ? 
             `<div class="text-wrap">${cleanChunkContent(data.answer).replace(/\n/g, '<br>')}</div>` : 
             '<em>Resposta não gerada</em>';
+          
+          // PROCESSAR RESULTADOS DA BUSCA WEB (GROUNDING)
+          if (data.used_web_search && data.web_sources && data.web_sources.length > 0) {
+            // Mostrar seção de resultados da web
+            document.getElementById("webSearchResults").style.display = "block";
+            document.getElementById("webSourcesSection").style.display = "block";
+            
+            // Extrair resposta da web se houver separação
+            let webAnswer = '';
+            if (data.answer && data.answer.includes('--- Informações complementares da internet ---')) {
+              const parts = data.answer.split('--- Informações complementares da internet ---');
+              if (parts.length > 1) {
+                webAnswer = parts[1].trim();
+              }
+            }
+            
+            // Exibir resposta da web
+            document.getElementById("pythonWebAnswer").innerHTML = webAnswer ? 
+              `<div class="text-wrap">${cleanChunkContent(webAnswer).replace(/\n/g, '<br>')}</div>` : 
+              '<em>Informações da web integradas na resposta principal</em>';
+            
+            // Exibir fontes da web
+            let webSourcesHtml = '';
+            data.web_sources.forEach((source, index) => {
+              webSourcesHtml += `
+                <div class="mb-2 p-2 border rounded bg-white">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                      <strong>${source.title || `Fonte ${index + 1}`}</strong><br>
+                      <small class="text-muted">${source.content ? source.content.substring(0, 200) + '...' : 'Conteúdo não disponível'}</small>
+                    </div>
+                    ${source.url ? `<a href="${source.url}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">🔗</a>` : ''}
+                  </div>
+                </div>
+              `;
+            });
+            
+            document.getElementById("pythonWebSources").innerHTML = webSourcesHtml || '<em>Fontes da web não disponíveis</em>';
+          } else {
+            // Ocultar seções de busca web se não foram usadas
+            document.getElementById("webSearchResults").style.display = "none";
+            document.getElementById("webSourcesSection").style.display = "none";
+          }
           
           // DEFINIR METADADOS PRIMEIRO (antes de usar em feedback)
           const metadata = data.debug || data.metadata || {};

@@ -16,11 +16,26 @@ class EmbeddingsService:
         self._load_model()
 
     def _load_model(self):
-        """Carrega o modelo sentence-transformers"""
+        """Carrega o modelo sentence-transformers com cache"""
         try:
+            # Tenta carregar do cache primeiro
+            from model_cache import ModelCache
+            cache = ModelCache()
+            cached_model = cache.load_model("all-mpnet-base-v2")
+            
+            if cached_model is not None:
+                logger.info("Modelo carregado do cache")
+                self.model = cached_model
+                return
+            
+            # Se não está em cache, carrega normalmente
             from sentence_transformers import SentenceTransformer
+            logger.info("Carregando modelo de embeddings (pode demorar na primeira vez)...")
             self.model = SentenceTransformer(self.model_name)
-            logger.info(f"Modelo {self.model_name} carregado com sucesso")
+            
+            # Armazena no cache para próximas vezes
+            cache.cache_model("all-mpnet-base-v2", self.model)
+            logger.info(f"Modelo {self.model_name} carregado e armazenado no cache")
 
         except ImportError:
             logger.warning("sentence-transformers não disponível, usando fallback OpenAI")

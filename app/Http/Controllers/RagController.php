@@ -1410,7 +1410,8 @@ class RagController extends Controller
             try {
                 $ocrScriptPath = base_path('scripts/document_extraction/pdf_ocr_processor.py');
                 if (file_exists($ocrScriptPath)) {
-                    $ocrCmd = "timeout 120s python3 " . escapeshellarg($ocrScriptPath) . " " . escapeshellarg($path) . " por+eng 2>&1";
+                    $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), 120);
+                    $ocrCmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($ocrScriptPath) . " " . escapeshellarg($path) . " por+eng 2>/dev/null";
                     $ocrOutput = shell_exec($ocrCmd);
                     
                     if ($ocrOutput && strlen(trim($ocrOutput)) > 50) {
@@ -1444,7 +1445,8 @@ class RagController extends Controller
         try {
             $tablesScriptPath = base_path('scripts/document_extraction/pdf_tables_extractor.py');
             if (file_exists($tablesScriptPath)) {
-                $tablesCmd = "timeout 30s python3 " . escapeshellarg($tablesScriptPath) . " " . escapeshellarg($path) . " 2>&1";
+                $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), 30);
+                $tablesCmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($tablesScriptPath) . " " . escapeshellarg($path) . " 2>/dev/null";
                 $tablesOutput = shell_exec($tablesCmd);
                 
                 if ($tablesOutput) {
@@ -1481,7 +1483,7 @@ class RagController extends Controller
             $ocrScriptPath = base_path('scripts/document_extraction/pdf_ocr_processor.py');
             if (file_exists($ocrScriptPath)) {
                 // First check if PDF has images (quick check)
-                $checkCmd = "python3 " . base_path('scripts/document_extraction/pdf_image_extractor.py') . " " . escapeshellarg($path) . " --check-only 2>&1";
+                $checkCmd = "python3 " . base_path('scripts/document_extraction/pdf_image_extractor.py') . " " . escapeshellarg($path) . " --check-only 2>/dev/null";
                 $checkOutput = shell_exec($checkCmd);
                 
                 if ($checkOutput) {
@@ -1501,8 +1503,9 @@ class RagController extends Controller
                                 'text_length' => strlen($bestContent)
                             ]);
                             
-                            // Run OCR processor (timeout 120s for large PDFs)
-                            $ocrCmd = "timeout 120s python3 " . escapeshellarg($ocrScriptPath) . " " . escapeshellarg($path) . " por+eng 2>&1";
+                            // Run OCR processor (timeout adaptativo para arquivos grandes)
+                            $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), 120);
+                            $ocrCmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($ocrScriptPath) . " " . escapeshellarg($path) . " por+eng 2>/dev/null";
                             $ocrOutput = shell_exec($ocrCmd);
                             
                             if ($ocrOutput && strlen(trim($ocrOutput)) > 50) {
@@ -1578,7 +1581,8 @@ class RagController extends Controller
             try {
                 $tablesScript = base_path('scripts/document_extraction/docx_tables_extractor.py');
                 if (file_exists($tablesScript)) {
-                    $tablesCmd = "timeout 30s python3 " . escapeshellarg($tablesScript) . " " . escapeshellarg($path) . " 2>&1";
+                    $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), 30);
+                    $tablesCmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($tablesScript) . " " . escapeshellarg($path) . " 2>/dev/null";
                     $tablesOutput = shell_exec($tablesCmd);
                     
                     if ($tablesOutput) {
@@ -1722,7 +1726,8 @@ class RagController extends Controller
         
         if (file_exists($scriptPath)) {
             try {
-                $cmd = "timeout 120s python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($path) . " 2>&1";
+                $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), 120);
+                $cmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($path) . " 2>/dev/null";
                 $output = shell_exec($cmd);
                 
                 if ($output) {
@@ -1829,7 +1834,8 @@ class RagController extends Controller
         try {
             $tablesScript = base_path('scripts/document_extraction/html_tables_extractor.py');
             if (file_exists($tablesScript)) {
-                $tablesCmd = "timeout 30s python3 " . escapeshellarg($tablesScript) . " " . escapeshellarg($path) . " 2>&1";
+                $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), 30);
+                $tablesCmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($tablesScript) . " " . escapeshellarg($path) . " 2>/dev/null";
                 $tablesOutput = shell_exec($tablesCmd);
                 
                 if ($tablesOutput) {
@@ -1868,7 +1874,7 @@ class RagController extends Controller
         
         if (file_exists($scriptPath)) {
             try {
-                $cmd = "python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($path) . " 2>&1";
+                $cmd = "python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($path) . " 2>/dev/null";
                 $output = shell_exec($cmd);
                 
                 if ($output) {
@@ -1966,7 +1972,9 @@ class RagController extends Controller
         ]);
 
         try {
-            $cmd = "timeout {$timeoutSeconds}s python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($path) . " 2>&1";
+            // Calcula timeout adaptativo baseado no tamanho da imagem
+            $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), $timeoutSeconds);
+            $cmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($path) . " 2>/dev/null";
             $output = shell_exec($cmd);
             
             if ($output === null || trim($output) === '') {
@@ -2041,6 +2049,18 @@ class RagController extends Controller
         if (!file_exists($scriptPath)) {
             Log::warning("Python extractor not found: $script");
             return null;
+        }
+
+        // Calcula timeout adaptativo baseado no tamanho do arquivo
+        if (file_exists($filePath)) {
+            $fileSize = filesize($filePath);
+            $adaptiveTimeout = $this->calculateAdaptiveTimeout($fileSize, $timeoutSeconds);
+            Log::debug("Adaptive timeout calculated", [
+                'file_size_mb' => round($fileSize / (1024 * 1024), 2),
+                'original_timeout' => $timeoutSeconds,
+                'adaptive_timeout' => $adaptiveTimeout
+            ]);
+            $timeoutSeconds = $adaptiveTimeout;
         }
 
         // Increased timeout for large files (up to 5000 pages)
@@ -2424,7 +2444,7 @@ class RagController extends Controller
             
             // Executa em background (não bloqueia)
             $cmd = sprintf(
-                'python3 %s --document-id %d --db-config %s > /dev/null 2>&1 &',
+                'python3 %s --document-id %d --db-config %s > /dev/null 2>/dev/null &',
                 escapeshellarg($scriptPath),
                 $docId,
                 escapeshellarg($dbConfig)
@@ -2440,6 +2460,24 @@ class RagController extends Controller
                 'document_id' => $docId,
                 'error' => $e->getMessage()
             ]);
+        }
+    }
+
+    /**
+     * Calcula timeout adaptativo baseado no tamanho do arquivo
+     */
+    private function calculateAdaptiveTimeout(int $fileSizeBytes, int $defaultTimeout): int
+    {
+        $fileSizeMB = $fileSizeBytes / (1024 * 1024);
+        
+        if ($fileSizeMB < 1) {
+            return 15; // 15s para arquivos pequenos
+        } elseif ($fileSizeMB < 10) {
+            return 60; // 1min para arquivos médios
+        } elseif ($fileSizeMB < 100) {
+            return 180; // 3min para arquivos grandes
+        } else {
+            return 300; // 5min para arquivos muito grandes
         }
     }
 }

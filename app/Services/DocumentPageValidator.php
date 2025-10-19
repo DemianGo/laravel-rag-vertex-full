@@ -337,7 +337,7 @@ PYTHON;
                 $this->createImagePageCounter($scriptPath);
             }
 
-            $output = shell_exec("python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($filePath) . " 2>&1");
+            $output = shell_exec("python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($filePath) . " 2>/dev/null");
             $pages = (int)trim($output);
             
             return max(1, $pages); // Images are always at least 1 page

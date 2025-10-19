@@ -291,7 +291,7 @@ class RagPythonController extends Controller
             }
 
             // Verificar Python
-            $pythonVersion = shell_exec('python3 --version 2>&1');
+            $pythonVersion = shell_exec('python3 --version 2>/dev/null');
             if (!$pythonVersion) {
                 return response()->json([
                     'success' => false,
@@ -300,7 +300,7 @@ class RagPythonController extends Controller
             }
 
             // Verificar dependências Python (teste rápido)
-            $testCmd = 'python3 -c "import sys; sys.path.insert(0, \'' . dirname($scriptPath) . '\'); import config, embeddings_service, vector_search, llm_service, database; print(\'OK\')" 2>&1';
+            $testCmd = 'python3 -c "import sys; sys.path.insert(0, \'' . dirname($scriptPath) . '\'); import config, embeddings_service, vector_search, llm_service, database; print(\'OK\')" 2>/dev/null';
             $depsTest = shell_exec($testCmd);
 
             // Verificar dados no banco

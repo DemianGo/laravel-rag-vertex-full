@@ -119,7 +119,7 @@ class UniversalEmbeddingService
         $startTime = microtime(true);
         
         $command = sprintf(
-            'python3 %s --document-id %d 2>&1',
+            'python3 %s --document-id %d 2>/dev/null',
             escapeshellarg($this->pythonScript),
             $documentId
         );

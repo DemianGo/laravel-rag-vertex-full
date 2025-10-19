@@ -81,6 +81,12 @@ fi
 # 4) Migrations (cria extensão vector, tabelas e índice)
 php artisan migrate --force
 
+# 4.5) Preload de modelos para otimizar performance
+echo "==> Preload de modelos de embeddings..."
+cd scripts/rag_search
+python3 -c "import sys; sys.path.insert(0, '.'); import config, embeddings_service, vector_search, llm_service, database; print('✅ Modelos carregados com sucesso')" 2>/dev/null || echo "⚠️  Preload de modelos falhou (não crítico)"
+cd ../..
+
 # 5) Start server automaticamente (desative com START_SERVER=no)
 if [ "${START_SERVER:-yes}" = "yes" ]; then
   PORT="${PORT:-8000}"

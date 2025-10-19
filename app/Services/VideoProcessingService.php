@@ -139,7 +139,7 @@ class VideoProcessingService
         $cmd = "{$this->pythonPath} " . escapeshellarg($downloaderScript) . 
                " " . escapeshellarg($url) . 
                " " . escapeshellarg($tempDir) . 
-               " {$audioOnlyFlag} 2>&1";
+               " {$audioOnlyFlag} 2>/dev/null";
         
         $output = shell_exec($cmd);
         
@@ -190,7 +190,7 @@ class VideoProcessingService
         }
         
         $cmd = "{$this->pythonPath} " . escapeshellarg($extractorScript) . 
-               " " . escapeshellarg($videoPath) . " 2>&1";
+               " " . escapeshellarg($videoPath) . " 2>/dev/null";
         
         $output = shell_exec($cmd);
         $result = json_decode($output, true);
@@ -234,7 +234,7 @@ class VideoProcessingService
         $cmd = $envVars . "{$this->pythonPath} " . escapeshellarg($transcriptionScript) . 
                " " . escapeshellarg($audioPath) . 
                " " . escapeshellarg($language) . 
-               " " . escapeshellarg($service) . " 2>&1";
+               " " . escapeshellarg($service) . " 2>/dev/null";
         
         $output = shell_exec($cmd);
         
@@ -300,7 +300,7 @@ class VideoProcessingService
         }
         
         $cmd = "{$this->pythonPath} " . escapeshellarg($downloaderScript) . 
-               " --info-only " . escapeshellarg($url) . " 2>&1";
+               " --info-only " . escapeshellarg($url) . " 2>/dev/null";
         
         $output = shell_exec($cmd);
         

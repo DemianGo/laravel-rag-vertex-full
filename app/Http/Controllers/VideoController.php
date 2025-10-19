@@ -277,7 +277,7 @@ class VideoController extends Controller
             }
             
             $infoScript = base_path('scripts/video_processing/video_downloader.py');
-            $cmd = "python3 " . escapeshellarg($infoScript) . " info " . escapeshellarg($url) . " 2>&1";
+            $cmd = "python3 " . escapeshellarg($infoScript) . " info " . escapeshellarg($url) . " 2>/dev/null";
             
             $output = shell_exec($cmd);
             $result = json_decode($output, true);
