@@ -149,6 +149,18 @@ def extract_rtf(file_path: str) -> Dict[str, Any]:
         lines = [line.strip() for line in extracted_text.split('\n')]
         extracted_text = '\n'.join(line for line in lines if line)
 
+        # Process images with Google Vision OCR
+        try:
+            from universal_image_ocr import UniversalImageOCR
+            ocr_processor = UniversalImageOCR(use_google_vision=True)
+            ocr_result = ocr_processor.extract_and_process_images(file_path, 'rtf')
+            
+            if ocr_result.get('success') and ocr_result.get('ocr_text'):
+                extracted_text += '\n\n=== TEXTO DE IMAGENS (OCR) ===\n\n' + ocr_result['ocr_text']
+        except Exception as e:
+            # Falha silenciosa - OCR é opcional
+            logging.debug(f"RTF OCR processing failed: {e}")
+
         return {
             "success": True,
             "extracted_text": extracted_text,

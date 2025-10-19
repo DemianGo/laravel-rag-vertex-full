@@ -128,6 +128,28 @@ def extract_pptx_enhanced(file_path: str) -> Dict[str, Any]:
                 except:
                     pass
             
+            # Process images in this slide with Google Vision OCR
+            if slide_info["has_images"]:
+                try:
+                    from universal_image_ocr import UniversalImageOCR
+                    ocr_processor = UniversalImageOCR(use_google_vision=True)
+                    # Extract images from this specific slide
+                    slide_images = ocr_processor._extract_pptx_slide_images(file_path, slide_idx - 1)
+                    if slide_images:
+                        slide_ocr_text = ""
+                        for img_path in slide_images:
+                            try:
+                                result = ocr_processor.advanced_ocr.process_image(str(img_path))
+                                if result.get('success') and result.get('text'):
+                                    slide_ocr_text += result['text'] + '\n'
+                            except:
+                                continue
+                        if slide_ocr_text:
+                            slide_info["content"] += '\n\n=== TEXTO DE IMAGENS (OCR) ===\n\n' + slide_ocr_text
+                except Exception as e:
+                    # Falha silenciosa - OCR é opcional
+                    pass
+            
             slides_data.append(slide_info)
             
             # Build text representation for this slide

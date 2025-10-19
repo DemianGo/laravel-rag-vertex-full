@@ -86,6 +86,18 @@ def extract_html(file_path: str) -> Dict[str, Any]:
 
         extracted_text = '\n'.join(text_parts)
 
+        # Process images with Google Vision OCR
+        try:
+            from universal_image_ocr import UniversalImageOCR
+            ocr_processor = UniversalImageOCR(use_google_vision=True)
+            ocr_result = ocr_processor.extract_and_process_images(file_path, 'html')
+            
+            if ocr_result.get('success') and ocr_result.get('ocr_text'):
+                extracted_text += '\n\n=== TEXTO DE IMAGENS (OCR) ===\n\n' + ocr_result['ocr_text']
+        except Exception as e:
+            # Falha silenciosa - OCR é opcional
+            logging.debug(f"HTML OCR processing failed: {e}")
+
         return {
             "success": True,
             "extracted_text": extracted_text,
@@ -140,6 +152,18 @@ def extract_xml(file_path: str) -> Dict[str, Any]:
                     extract_element_text(root_element)
 
         extracted_text = '\n'.join(text_parts)
+
+        # Process images with Google Vision OCR
+        try:
+            from universal_image_ocr import UniversalImageOCR
+            ocr_processor = UniversalImageOCR(use_google_vision=True)
+            ocr_result = ocr_processor.extract_and_process_images(file_path, 'xml')
+            
+            if ocr_result.get('success') and ocr_result.get('ocr_text'):
+                extracted_text += '\n\n=== TEXTO DE IMAGENS (OCR) ===\n\n' + ocr_result['ocr_text']
+        except Exception as e:
+            # Falha silenciosa - OCR é opcional
+            logging.debug(f"XML OCR processing failed: {e}")
 
         return {
             "success": True,

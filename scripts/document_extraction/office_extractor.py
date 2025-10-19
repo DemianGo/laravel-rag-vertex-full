@@ -37,6 +37,18 @@ def extract_docx(file_path: str) -> Dict[str, Any]:
 
         extracted_text = '\n'.join(text_parts)
 
+        # Process images with Google Vision OCR
+        try:
+            from universal_image_ocr import UniversalImageOCR
+            ocr_processor = UniversalImageOCR(use_google_vision=True)
+            ocr_result = ocr_processor.extract_and_process_images(file_path, 'docx')
+            
+            if ocr_result.get('success') and ocr_result.get('ocr_text'):
+                extracted_text += '\n\n=== TEXTO DE IMAGENS (OCR) ===\n\n' + ocr_result['ocr_text']
+        except Exception as e:
+            # Falha silenciosa - OCR é opcional
+            logging.debug(f"DOCX OCR processing failed: {e}")
+
         return {
             "success": True,
             "extracted_text": extracted_text,
@@ -71,6 +83,18 @@ def extract_xlsx(file_path: str) -> Dict[str, Any]:
 
         extracted_text = '\n'.join(text_parts)
 
+        # Process images with Google Vision OCR
+        try:
+            from universal_image_ocr import UniversalImageOCR
+            ocr_processor = UniversalImageOCR(use_google_vision=True)
+            ocr_result = ocr_processor.extract_and_process_images(file_path, 'xlsx')
+            
+            if ocr_result.get('success') and ocr_result.get('ocr_text'):
+                extracted_text += '\n\n=== TEXTO DE IMAGENS (OCR) ===\n\n' + ocr_result['ocr_text']
+        except Exception as e:
+            # Falha silenciosa - OCR é opcional
+            logging.debug(f"XLSX OCR processing failed: {e}")
+
         return {
             "success": True,
             "extracted_text": extracted_text,
@@ -99,6 +123,18 @@ def extract_pptx(file_path: str) -> Dict[str, Any]:
                     text_parts.append(shape.text.strip())
 
         extracted_text = '\n'.join(text_parts)
+
+        # Process images with Google Vision OCR
+        try:
+            from universal_image_ocr import UniversalImageOCR
+            ocr_processor = UniversalImageOCR(use_google_vision=True)
+            ocr_result = ocr_processor.extract_and_process_images(file_path, 'pptx')
+            
+            if ocr_result.get('success') and ocr_result.get('ocr_text'):
+                extracted_text += '\n\n=== TEXTO DE IMAGENS (OCR) ===\n\n' + ocr_result['ocr_text']
+        except Exception as e:
+            # Falha silenciosa - OCR é opcional
+            logging.debug(f"PPTX OCR processing failed: {e}")
 
         return {
             "success": True,
