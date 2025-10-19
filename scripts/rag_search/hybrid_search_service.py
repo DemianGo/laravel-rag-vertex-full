@@ -81,7 +81,7 @@ class HybridSearchService:
                 Responda de forma clara e precisa, baseando-se apenas no contexto fornecido.
                 """
                 
-                answer = self.llm_service.generate_text(prompt)
+                answer, _ = self.llm_service.generate_answer(query, context)
                 
                 return {
                     'success': True,

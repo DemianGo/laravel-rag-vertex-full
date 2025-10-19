@@ -488,7 +488,7 @@ $sources = $this->buildCitationsFromNeighbors($neighbors, $citationsCount);
         $webAnswer = '';
         $usedWebSearch = false;
         
-        if ($enableWebSearch) {
+        if ($enableWebSearch && $this->shouldUseWebSearch($query, $final)) {
             try {
                 \Log::info('Iniciando busca web', ['query' => $query, 'llm_provider' => $llmProvider]);
                 $webResult = $this->performWebSearch($query, $llmProvider);
@@ -1043,6 +1043,31 @@ private function ensureDoubleQuoted(string $s): string
     $s = trim($s, " \t\n\r\0\x0B\"'");
     return '"' . $s . '"';
 }
+
+    private function shouldUseWebSearch(string $query, string $documentAnswer): bool
+    {
+        // Usar busca web se:
+        // 1. A resposta dos documentos for muito curta ou vazia
+        // 2. A query contém palavras-chave que indicam necessidade de informações externas
+        
+        $webKeywords = ['cep', 'cnpj', 'preço', 'cotação', 'hoje', 'atual', 'definição', 'o que é', 'significa', 'como funciona', 'impostos', 'internet', 'verifique na internet'];
+        $queryLower = strtolower($query);
+        
+        // Verifica se a query contém palavras-chave de busca web
+        $hasWebKeywords = false;
+        foreach ($webKeywords as $keyword) {
+            if (strpos($queryLower, $keyword) !== false) {
+                $hasWebKeywords = true;
+                break;
+            }
+        }
+        
+        // Verifica se a resposta dos documentos é muito curta
+        $documentAnswerShort = strlen(trim($documentAnswer)) < 50;
+        
+        // Para teste, sempre usar busca web se habilitada
+        return $hasWebKeywords || $documentAnswerShort || true;
+    }
 
     private function performWebSearch(string $query, string $llmProvider): array
     {

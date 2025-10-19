@@ -29,7 +29,7 @@ class FTSSearchEngine:
         document_id: Optional[int] = None,
         top_k: int = 5,
         threshold: float = 0.1
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Busca textual usando Full-Text Search
         
@@ -47,7 +47,7 @@ class FTSSearchEngine:
             tokens = self._tokenize_query(query)
             if not tokens:
                 logger.warning("Query vazia após tokenização")
-                return []
+                return {'chunks': [], 'execution_time': 0}
             
             # Construir query SQL para FTS
             if self.db_manager.is_pgsql():
@@ -59,7 +59,7 @@ class FTSSearchEngine:
                 
         except Exception as e:
             logger.error(f"Erro na busca FTS: {str(e)}")
-            return []
+            return {'chunks': [], 'execution_time': 0}
     
     def _tokenize_query(self, query: str) -> List[str]:
         """
@@ -175,10 +175,10 @@ class FTSSearchEngine:
                             'ord': row['ord'],
                             'similarity': float(row['rank'])
                         })
-                    return chunks
+                    return {'chunks': chunks, 'execution_time': 0}
             
             # Se nenhuma estratégia funcionou, retornar vazio
-            return []
+            return {'chunks': [], 'execution_time': 0}
             
         except Exception as e:
             logger.warning(f"FTS PostgreSQL falhou: {str(e)}, tentando LIKE")
@@ -250,11 +250,11 @@ class FTSSearchEngine:
                     'similarity': score
                 })
             
-            return chunks
+            return {'chunks': chunks, 'execution_time': 0}
             
         except Exception as e:
             logger.error(f"Erro na busca LIKE: {str(e)}")
-            return []
+            return {'chunks': [], 'execution_time': 0}
     
     def is_available(self) -> bool:
         """

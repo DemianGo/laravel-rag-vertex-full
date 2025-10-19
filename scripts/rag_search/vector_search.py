@@ -33,7 +33,7 @@ class VectorSearchEngine:
             logger.error("Conexão com banco de dados falhou")
 
     def search(self, query: str, document_id: Optional[int] = None,
-               top_k: int = None, threshold: float = None) -> List[Dict]:
+               top_k: int = None, threshold: float = None) -> Dict:
         """
         Busca chunks similares à query
 
@@ -128,13 +128,13 @@ class VectorSearchEngine:
                     print(f"[DEBUG][VectorSearch] Fallback Postgres error: {str(e)}", file=sys.stderr)
                     results_global = []
                 print(f"[DEBUG][VectorSearch] fallback_results_count: {len(results_global)}", file=sys.stderr)
-                return results_global
+                return {'chunks': results_global, 'execution_time': 0}
 
-            return results
+            return {'chunks': results, 'execution_time': 0}
 
         except Exception as e:
             logger.error(f"Erro na busca vetorial: {e}")
-            return []
+            return {'chunks': [], 'execution_time': 0}
 
     def search_all_documents(self, query: str, top_k: int = None,
                            threshold: float = None) -> List[Dict]:

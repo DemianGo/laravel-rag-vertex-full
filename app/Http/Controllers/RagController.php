@@ -168,8 +168,8 @@ class RagController extends Controller
     public function ingest(Request $req)
     {
         // Optimize PHP settings for large file processing (up to 5000 pages)
-        ini_set('max_execution_time', 300); // 5 minutes for large files
-        ini_set('memory_limit', '2G'); // 2GB for large files and embeddings
+        ini_set('max_execution_time', 0); // Sem limite de tempo para arquivos de até 5000 páginas
+        ini_set('memory_limit', '4G'); // 4GB para arquivos de até 5000 páginas
         set_time_limit(300);
 
         $startTime = microtime(true);
@@ -1410,7 +1410,7 @@ class RagController extends Controller
             try {
                 $ocrScriptPath = base_path('scripts/document_extraction/pdf_ocr_processor.py');
                 if (file_exists($ocrScriptPath)) {
-                    $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), 120);
+                    $adaptiveTimeout = $this->calculateOCRTimeout(filesize($path));
                     $ocrCmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($ocrScriptPath) . " " . escapeshellarg($path) . " por+eng 2>/dev/null";
                     $ocrOutput = shell_exec($ocrCmd);
                     
@@ -1445,7 +1445,7 @@ class RagController extends Controller
         try {
             $tablesScriptPath = base_path('scripts/document_extraction/pdf_tables_extractor.py');
             if (file_exists($tablesScriptPath)) {
-                $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), 30);
+                $adaptiveTimeout = $this->calculateTableExtractionTimeout(filesize($path));
                 $tablesCmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($tablesScriptPath) . " " . escapeshellarg($path) . " 2>/dev/null";
                 $tablesOutput = shell_exec($tablesCmd);
                 
@@ -1504,7 +1504,7 @@ class RagController extends Controller
                             ]);
                             
                             // Run OCR processor (timeout adaptativo para arquivos grandes)
-                            $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), 120);
+                            $adaptiveTimeout = $this->calculateOCRTimeout(filesize($path));
                             $ocrCmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($ocrScriptPath) . " " . escapeshellarg($path) . " por+eng 2>/dev/null";
                             $ocrOutput = shell_exec($ocrCmd);
                             
@@ -1581,7 +1581,7 @@ class RagController extends Controller
             try {
                 $tablesScript = base_path('scripts/document_extraction/docx_tables_extractor.py');
                 if (file_exists($tablesScript)) {
-                    $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), 30);
+                    $adaptiveTimeout = $this->calculateTableExtractionTimeout(filesize($path));
                     $tablesCmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($tablesScript) . " " . escapeshellarg($path) . " 2>/dev/null";
                     $tablesOutput = shell_exec($tablesCmd);
                     
@@ -1834,7 +1834,7 @@ class RagController extends Controller
         try {
             $tablesScript = base_path('scripts/document_extraction/html_tables_extractor.py');
             if (file_exists($tablesScript)) {
-                $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), 30);
+                $adaptiveTimeout = $this->calculateTableExtractionTimeout(filesize($path));
                 $tablesCmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($tablesScript) . " " . escapeshellarg($path) . " 2>/dev/null";
                 $tablesOutput = shell_exec($tablesCmd);
                 
@@ -1972,8 +1972,8 @@ class RagController extends Controller
         ]);
 
         try {
-            // Calcula timeout adaptativo baseado no tamanho da imagem
-            $adaptiveTimeout = $this->calculateAdaptiveTimeout(filesize($path), $timeoutSeconds);
+            // Calcula timeout adaptativo baseado no tamanho da imagem (OCR)
+            $adaptiveTimeout = $this->calculateOCRTimeout(filesize($path));
             $cmd = "timeout {$adaptiveTimeout}s python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($path) . " 2>/dev/null";
             $output = shell_exec($cmd);
             
@@ -2464,20 +2464,157 @@ class RagController extends Controller
     }
 
     /**
-     * Calcula timeout adaptativo baseado no tamanho do arquivo
+     * Calcula timeout adaptativo baseado no tamanho do arquivo e tipo de processamento
+     * Suporta arquivos de até 5000 páginas com timeouts otimizados
      */
     private function calculateAdaptiveTimeout(int $fileSizeBytes, int $defaultTimeout): int
     {
         $fileSizeMB = $fileSizeBytes / (1024 * 1024);
         
+        // Timeout baseado no tamanho do arquivo
         if ($fileSizeMB < 1) {
-            return 15; // 15s para arquivos pequenos
+            return 15; // 15s para arquivos pequenos (< 1MB)
+        } elseif ($fileSizeMB < 5) {
+            return 30; // 30s para arquivos pequenos-médios (1-5MB)
         } elseif ($fileSizeMB < 10) {
-            return 60; // 1min para arquivos médios
+            return 60; // 1min para arquivos médios (5-10MB)
+        } elseif ($fileSizeMB < 25) {
+            return 120; // 2min para arquivos médios-grandes (10-25MB)
+        } elseif ($fileSizeMB < 50) {
+            return 180; // 3min para arquivos grandes (25-50MB)
         } elseif ($fileSizeMB < 100) {
-            return 180; // 3min para arquivos grandes
+            return 300; // 5min para arquivos grandes (50-100MB)
+        } elseif ($fileSizeMB < 200) {
+            return 450; // 7.5min para arquivos muito grandes (100-200MB)
+        } elseif ($fileSizeMB < 300) {
+            return 600; // 10min para arquivos gigantes (200-300MB)
+        } elseif ($fileSizeMB < 400) {
+            return 750; // 12.5min para arquivos gigantes (300-400MB)
         } else {
-            return 300; // 5min para arquivos muito grandes
+            return 900; // 15min para arquivos mega (400MB+ até 5000 páginas)
+        }
+    }
+
+    /**
+     * Calcula timeout específico para OCR baseado no tamanho do arquivo
+     * OCR é mais lento que extração normal
+     */
+    private function calculateOCRTimeout(int $fileSizeBytes): int
+    {
+        $fileSizeMB = $fileSizeBytes / (1024 * 1024);
+        
+        // OCR é mais lento, timeouts maiores
+        if ($fileSizeMB < 1) {
+            return 30; // 30s para OCR em arquivos pequenos
+        } elseif ($fileSizeMB < 5) {
+            return 60; // 1min para OCR em arquivos pequenos-médios
+        } elseif ($fileSizeMB < 10) {
+            return 120; // 2min para OCR em arquivos médios
+        } elseif ($fileSizeMB < 25) {
+            return 240; // 4min para OCR em arquivos médios-grandes
+        } elseif ($fileSizeMB < 50) {
+            return 360; // 6min para OCR em arquivos grandes
+        } elseif ($fileSizeMB < 100) {
+            return 600; // 10min para OCR em arquivos grandes
+        } elseif ($fileSizeMB < 200) {
+            return 900; // 15min para OCR em arquivos muito grandes
+        } elseif ($fileSizeMB < 300) {
+            return 1200; // 20min para OCR em arquivos gigantes
+        } elseif ($fileSizeMB < 400) {
+            return 1500; // 25min para OCR em arquivos gigantes
+        } else {
+            return 1800; // 30min para OCR em arquivos mega (até 5000 páginas)
+        }
+    }
+
+    /**
+     * Calcula timeout para extração de tabelas baseado no tamanho do arquivo
+     */
+    private function calculateTableExtractionTimeout(int $fileSizeBytes): int
+    {
+        $fileSizeMB = $fileSizeBytes / (1024 * 1024);
+        
+        // Extração de tabelas é moderadamente lenta
+        if ($fileSizeMB < 1) {
+            return 20; // 20s para tabelas em arquivos pequenos
+        } elseif ($fileSizeMB < 5) {
+            return 40; // 40s para tabelas em arquivos pequenos-médios
+        } elseif ($fileSizeMB < 10) {
+            return 80; // 1.3min para tabelas em arquivos médios
+        } elseif ($fileSizeMB < 25) {
+            return 150; // 2.5min para tabelas em arquivos médios-grandes
+        } elseif ($fileSizeMB < 50) {
+            return 240; // 4min para tabelas em arquivos grandes
+        } elseif ($fileSizeMB < 100) {
+            return 360; // 6min para tabelas em arquivos grandes
+        } elseif ($fileSizeMB < 200) {
+            return 540; // 9min para tabelas em arquivos muito grandes
+        } elseif ($fileSizeMB < 300) {
+            return 720; // 12min para tabelas em arquivos gigantes
+        } elseif ($fileSizeMB < 400) {
+            return 900; // 15min para tabelas em arquivos gigantes
+        } else {
+            return 1080; // 18min para tabelas em arquivos mega (até 5000 páginas)
+        }
+    }
+
+    /**
+     * Verifica se o arquivo é muito grande e precisa de processamento especial
+     */
+    private function isVeryLargeFile(int $fileSizeBytes): bool
+    {
+        $fileSizeMB = $fileSizeBytes / (1024 * 1024);
+        return $fileSizeMB > 100; // Arquivos > 100MB precisam de processamento especial
+    }
+
+    /**
+     * Processa arquivo em background para arquivos muito grandes
+     */
+    private function processLargeFileInBackground(string $filePath, string $tenantSlug, string $title): array
+    {
+        $fileSizeMB = round(filesize($filePath) / (1024 * 1024), 2);
+        
+        Log::info("Iniciando processamento em background para arquivo grande", [
+            'file' => $filePath,
+            'size_mb' => $fileSizeMB,
+            'tenant' => $tenantSlug
+        ]);
+
+        // Executa processamento em background
+        $scriptPath = base_path('scripts/document_extraction/main_extractor.py');
+        $cmd = sprintf(
+            'nohup python3 %s %s > /dev/null 2>&1 &',
+            escapeshellarg($scriptPath),
+            escapeshellarg($filePath)
+        );
+
+        exec($cmd);
+
+        return [
+            'success' => true,
+            'message' => "Arquivo grande ({$fileSizeMB}MB) sendo processado em background",
+            'processing_mode' => 'background',
+            'estimated_time' => $this->estimateProcessingTime($fileSizeMB)
+        ];
+    }
+
+    /**
+     * Estima tempo de processamento baseado no tamanho do arquivo
+     */
+    private function estimateProcessingTime(float $fileSizeMB): string
+    {
+        if ($fileSizeMB < 50) {
+            return "2-5 minutos";
+        } elseif ($fileSizeMB < 100) {
+            return "5-10 minutos";
+        } elseif ($fileSizeMB < 200) {
+            return "10-20 minutos";
+        } elseif ($fileSizeMB < 300) {
+            return "20-30 minutos";
+        } elseif ($fileSizeMB < 400) {
+            return "30-45 minutos";
+        } else {
+            return "45-60 minutos";
         }
     }
 }
