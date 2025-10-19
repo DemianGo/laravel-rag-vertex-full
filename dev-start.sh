@@ -28,59 +28,56 @@ if command -v gcloud >/dev/null 2>&1; then
   echo "==> Verificando autenticação Google Cloud..."
   
   # Verificação rápida: checa apenas se há credenciais configuradas (sem chamada lenta)
-  if [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -f "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
-    echo "✅ Google Cloud credenciais configuradas (arquivo JSON)"
+  if [ -f ~/.config/gcloud/configurations/config_default ]; then
+    echo "✅ Google Cloud configurado (gcloud auth)"
   else
-    # Verifica apenas se há configuração gcloud (verificação rápida de arquivo)
-    if [ -f ~/.config/gcloud/configurations/config_default ]; then
-      echo "✅ Google Cloud configurado (gcloud auth)"
-    else
-      echo "⚠️  Google Cloud não autenticado ou token expirado."
-      echo ""
-      echo "🔐 Autenticação necessária para:"
-      echo "   • Cloud Vision API (OCR com 99%+ precisão)"
-      echo "   • Vertex AI (Embeddings e LLM)"
-      echo ""
-      echo "Iniciando autenticação automática..."
-      echo ""
+    echo "⚠️  Google Cloud não autenticado ou token expirado."
+    echo ""
+    echo "🔐 Autenticação necessária para:"
+    echo "   • Cloud Vision API (OCR com 99%+ precisão)"
+    echo "   • Vertex AI (Embeddings e LLM)"
+    echo ""
+    echo "Iniciando autenticação automática..."
+    echo ""
+    
+    # Lê projeto do .env
+    read_env() {
+      local key="$1"; local def="$2"; local v
+      v="$(sed -nE "s/^${key}=(.*)/\1/p" .env 2>/dev/null | tail -n1 | tr -d '"' | tr -d "'")" || true
+      [ -n "${v:-}" ] && echo "$v" || echo "$def"
+    }
+    PROJECT_ID="$(read_env GOOGLE_CLOUD_PROJECT liberai-ai)"
+    
+    echo "📋 Projeto: ${PROJECT_ID}"
+    echo "🌐 Abrindo navegador para autenticação..."
+    echo ""
+    
+    # Autenticação automática (abre navegador automaticamente)
+    if gcloud auth application-default login --scopes=https://www.googleapis.com/auth/cloud-platform; then
+      # Configura projeto
+      gcloud config set project "${PROJECT_ID}" -q 2>/dev/null || true
+      gcloud auth application-default set-quota-project "${PROJECT_ID}" -q 2>/dev/null || true
       
-      # Lê projeto do .env
-      read_env() {
-        local key="$1"; local def="$2"; local v
-        v="$(sed -nE "s/^${key}=(.*)/\1/p" .env 2>/dev/null | tail -n1 | tr -d '"' | tr -d "'")" || true
-        [ -n "${v:-}" ] && echo "$v" || echo "$def"
-      }
-      PROJECT_ID="$(read_env GOOGLE_CLOUD_PROJECT liberai-ai)"
-      
-      echo "📋 Projeto: ${PROJECT_ID}"
-      echo "🌐 Abrindo navegador para autenticação..."
-      echo ""
-      
-      # Autenticação automática (abre navegador automaticamente)
-      if gcloud auth application-default login --scopes=https://www.googleapis.com/auth/cloud-platform; then
-        # Configura projeto
-        gcloud config set project "${PROJECT_ID}" -q 2>/dev/null || true
-        gcloud auth application-default set-quota-project "${PROJECT_ID}" -q 2>/dev/null || true
-        
+      # Valida token
+      TOKEN="$(gcloud auth application-default print-access-token 2>/dev/null || true)"
+      if [ -n "$TOKEN" ]; then
         echo "✅ Google Cloud autenticado com sucesso!"
         echo ""
       else
-        echo "❌ Autenticação falhou ou foi cancelada."
-        echo "   Para tentar novamente: gcloud auth application-default login"
+        echo "❌ Autenticação falhou. Execute manualmente:"
+        echo "   bash gcp-auth-reset.sh"
         echo ""
       fi
+    else
+      echo "❌ Autenticação falhou ou foi cancelada."
+      echo "   Para tentar novamente: bash gcp-auth-reset.sh"
+      echo ""
     fi
   fi
 fi
 
 # 4) Migrations (cria extensão vector, tabelas e índice)
 php artisan migrate --force
-
-# 4.5) Preload de modelos para otimizar performance
-echo "==> Preload de modelos de embeddings..."
-cd scripts/rag_search
-python3 -c "import sys; sys.path.insert(0, '.'); import config, embeddings_service, vector_search, llm_service, database; print('✅ Modelos carregados com sucesso')" 2>/dev/null || echo "⚠️  Preload de modelos falhou (não crítico)"
-cd ../..
 
 # 5) Start server automaticamente (desative com START_SERVER=no)
 if [ "${START_SERVER:-yes}" = "yes" ]; then
