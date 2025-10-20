@@ -136,12 +136,21 @@ class VideoProcessingService
         @mkdir($tempDir, 0755, true);
         
         $audioOnlyFlag = $audioOnly ? '--audio-only' : '';
-        $cmd = "{$this->pythonPath} " . escapeshellarg($downloaderScript) . 
+        $cmd = "timeout 300 {$this->pythonPath} " . escapeshellarg($downloaderScript) . 
                " " . escapeshellarg($url) . 
                " " . escapeshellarg($tempDir) . 
                " {$audioOnlyFlag} 2>/dev/null";
         
+        Log::info("Executing video download command", ['cmd' => $cmd]);
         $output = shell_exec($cmd);
+        
+        if (!$output) {
+            Log::error("Video download command returned empty output", ['cmd' => $cmd]);
+            return [
+                'success' => false,
+                'error' => 'Download command failed or timed out'
+            ];
+        }
         
         // Extract JSON from output (yt-dlp prints progress before JSON)
         // Strategy: Find the position of the first { and extract from there to the end
@@ -271,7 +280,29 @@ class VideoProcessingService
      */
     public function isVideoUrl(string $input): bool
     {
-        return filter_var($input, FILTER_VALIDATE_URL) !== false;
+        if (filter_var($input, FILTER_VALIDATE_URL) === false) {
+            return false;
+        }
+        
+        // Check for common video hosting platforms
+        $videoDomains = [
+            'youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com',
+            'facebook.com', 'instagram.com', 'tiktok.com', 'twitter.com',
+            'twitch.tv', 'bilibili.com', 'rutube.ru', 'ok.ru'
+        ];
+        
+        $host = parse_url($input, PHP_URL_HOST);
+        if (!$host) {
+            return false;
+        }
+        
+        foreach ($videoDomains as $domain) {
+            if (strpos($host, $domain) !== false) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /**
@@ -299,10 +330,16 @@ class VideoProcessingService
             return null;
         }
         
-        $cmd = "{$this->pythonPath} " . escapeshellarg($downloaderScript) . 
+        $cmd = "timeout 60 {$this->pythonPath} " . escapeshellarg($downloaderScript) . 
                " --info-only " . escapeshellarg($url) . " 2>/dev/null";
         
+        Log::info("Executing video info command", ['cmd' => $cmd]);
         $output = shell_exec($cmd);
+        
+        if (!$output) {
+            Log::error("Video info command returned empty output", ['cmd' => $cmd]);
+            return null;
+        }
         
         // Extract JSON from output
         $jsonStart = strpos($output, '{');

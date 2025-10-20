@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use App\Services\VideoProcessingService;
 use App\Models\Document;
 use App\Models\Chunk;
@@ -277,9 +278,19 @@ class VideoController extends Controller
             }
             
             $infoScript = base_path('scripts/video_processing/video_downloader.py');
-            $cmd = "python3 " . escapeshellarg($infoScript) . " info " . escapeshellarg($url) . " 2>/dev/null";
+            $cmd = "python3 " . escapeshellarg($infoScript) . " --info-only " . escapeshellarg($url) . " 2>/dev/null";
             
+            Log::info("Executing video info command", ['cmd' => $cmd]);
             $output = shell_exec($cmd);
+            
+            if (!$output) {
+                Log::error("Video info command returned empty output", ['cmd' => $cmd]);
+                return response()->json([
+                    'ok' => false,
+                    'error' => 'Command execution failed or timed out'
+                ], 500);
+            }
+            
             $result = json_decode($output, true);
             
             if (!$result || !$result['success']) {
