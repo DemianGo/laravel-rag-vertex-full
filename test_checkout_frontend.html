@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Checkout</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input, select { padding: 8px; width: 300px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin-top: 20px; padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; }
+    </style>
+</head>
+<body>
+    <h1>Teste de Checkout - Mercado Pago</h1>
+    
+    <form id="checkoutForm">
+        <div class="form-group">
+            <label for="plan">Plano:</label>
+            <select id="plan" name="plan" required>
+                <option value="">Selecione um plano</option>
+                <option value="Free">Free</option>
+                <option value="Pro">Pro</option>
+                <option value="Enterprise">Enterprise</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="payment_method">Método de Pagamento:</label>
+            <select id="payment_method" name="payment_method" required>
+                <option value="">Selecione um método</option>
+                <option value="pix">PIX</option>
+                <option value="credit_card">Cartão de Crédito</option>
+                <option value="debit_card">Débito</option>
+                <option value="boleto">Boleto</option>
+                <option value="transfer">Transferência</option>
+            </select>
+        </div>
+        
+        <button type="submit">Continuar para Pagamento</button>
+    </form>
+    
+    <div id="result" class="result" style="display: none;"></div>
+
+    <script>
+        document.getElementById('checkoutForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = 'Processando...';
+                
+                const response = await fetch('/checkout', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams(formData)
+                });
+                
+                if (response.redirected) {
+                    resultDiv.innerHTML = `
+                        <strong>✅ Redirecionamento detectado!</strong><br>
+                        <a href="${response.url}" target="_blank">Clique aqui para ir ao Mercado Pago</a>
+                    `;
+                } else if (response.ok) {
+                    const data = await response.text();
+                    resultDiv.innerHTML = `<strong>Resposta:</strong><br><pre>${data}</pre>`;
+                } else {
+                    const error = await response.text();
+                    resultDiv.innerHTML = `<strong>Erro ${response.status}:</strong><br><pre>${error}</pre>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<strong>Erro:</strong> ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>

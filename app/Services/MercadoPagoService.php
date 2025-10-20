@@ -63,7 +63,7 @@ class MercadoPagoService
                 'installments' => 12
             ],
             'metadata' => [
-                'user_id' => $data['user_id'],
+                'user_id' => $data['user_id'] ?? null,
                 'plan_id' => $data['plan_id'] ?? null,
                 'subscription_id' => $data['subscription_id'] ?? null,
             ]

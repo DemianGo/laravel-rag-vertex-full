@@ -26,6 +26,9 @@ Route::get('/pricing/success', [\App\Http\Controllers\PricingController::class, 
 Route::get('/pricing/failure', [\App\Http\Controllers\PricingController::class, 'failure'])->name('pricing.failure');
 Route::get('/pricing/pending', [\App\Http\Controllers\PricingController::class, 'pending'])->name('pricing.pending');
 
+// Mercado Pago Webhook
+Route::post('/webhook/mercadopago', [\App\Http\Controllers\Payment\WebhookController::class, 'handle'])->name('webhook.mercadopago');
+
 
 
 Route::middleware(['auth'])->group(function () {
