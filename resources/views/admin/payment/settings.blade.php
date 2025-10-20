@@ -123,7 +123,15 @@
                                     <ul class="list-unstyled">
                                         <li><i class="fas fa-check text-success"></i> {{ number_format($plan->tokens_limit) }} tokens</li>
                                         <li><i class="fas fa-check text-success"></i> {{ $plan->documents_limit }} documentos</li>
-                                        <li><i class="fas fa-check text-success"></i> {{ is_string($plan->features) ? $plan->features : implode(', ', (array)$plan->features) }}</li>
+                                        <li><i class="fas fa-check text-success"></i> 
+                                            @if(is_array($plan->features))
+                                                @foreach($plan->features as $feature)
+                                                    <span class="badge badge-primary mr-1">{{ $feature }}</span>
+                                                @endforeach
+                                            @else
+                                                {{ $plan->features }}
+                                            @endif
+                                        </li>
                                     </ul>
                                     <div class="mt-3">
                                         <span class="badge badge-{{ $plan->is_active ? 'success' : 'danger' }}">

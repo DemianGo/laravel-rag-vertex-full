@@ -1001,7 +1001,7 @@ class AdminController extends Controller
 
         // Gráfico de receita dos últimos 12 meses
         $revenueChart = Payment::approved()
-            ->selectRaw('strftime("%Y-%m", created_at) as month, SUM(amount) as total')
+            ->selectRaw('DATE_TRUNC(\'month\', created_at) as month, SUM(amount) as total')
             ->where('created_at', '>=', now()->subMonths(12))
             ->groupBy('month')
             ->orderBy('month')

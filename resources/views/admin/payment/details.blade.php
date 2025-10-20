@@ -213,7 +213,14 @@
                                             </div>
                                         </div>
                                         <div class="mt-2">
-                                            <strong>Recursos:</strong> {{ $payment->subscription->planConfig->features }}
+                                            <strong>Recursos:</strong> 
+                                            @if(is_array($payment->subscription->planConfig->features))
+                                                @foreach($payment->subscription->planConfig->features as $feature)
+                                                    <span class="badge badge-primary mr-1">{{ $feature }}</span>
+                                                @endforeach
+                                            @else
+                                                {{ $payment->subscription->planConfig->features }}
+                                            @endif
                                         </div>
                                     </div>
                                     @endif
