@@ -54,7 +54,7 @@ class FTSSearchEngine:
                 # PostgreSQL com FTS
                 return self._search_pgsql_fts(query, tokens, document_id, top_k)
             else:
-                # MySQL/SQLite com LIKE
+                # MySQL com LIKE
                 return self._search_like(query, tokens, document_id, top_k)
                 
         except Exception as e:
@@ -186,7 +186,7 @@ class FTSSearchEngine:
     
     def _search_like(self, query: str, tokens: List[str], document_id: Optional[int], top_k: int) -> List[Dict[str, Any]]:
         """
-        Busca com LIKE para MySQL/SQLite (fallback)
+        Busca com LIKE para MySQL (fallback)
         
         Args:
             query: Query original

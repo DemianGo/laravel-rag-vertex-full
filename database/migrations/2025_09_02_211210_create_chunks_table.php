@@ -14,7 +14,7 @@ return new class extends Migration
             return;
         }
 
-        // Cria a tabela (portável para SQLite/MySQL/Postgres)
+        // Cria a tabela (portável para MySQL/Postgres)
         Schema::create('chunks', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->unsignedBigInteger('document_id')->index();

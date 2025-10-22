@@ -511,5 +511,215 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
+  // === FUNCIONALIDADE DE VÍDEO ===
+  let currentVideoJobId = null;
+  let videoStatusInterval = null;
+
+  // Processar vídeo
+  document.getElementById('processVideoBtn').addEventListener('click', async () => {
+    const videoUrl = document.getElementById('videoUrl').value.trim();
+    
+    if (!videoUrl) {
+      alert('Por favor, insira a URL do vídeo YouTube');
+      return;
+    }
+    
+    try {
+      document.getElementById('processVideoBtn').disabled = true;
+      document.getElementById('processVideoBtn').textContent = '⏳ Processando...';
+      
+      // Use Python video server directly
+      const response = await fetch('http://localhost:8001/video/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: videoUrl,
+          tenant_slug: window.userTenant || 'user_1'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Video processing failed');
+      }
+      
+      if (data.success) {
+        currentVideoJobId = data.document_id;
+        
+        document.getElementById('videoStatus').innerHTML = `
+          <div class="alert alert-success">
+            ✅ Vídeo processado com sucesso!<br>
+            <small>Documento ID: ${data.document_id} | Transcrição: ${data.transcript_length} caracteres</small>
+          </div>
+        `;
+        
+        document.getElementById('videoStatusBtn').style.display = 'inline-block';
+        document.getElementById('videoProgress').style.display = 'block';
+        
+        // Show transcription modal with real transcription
+        document.getElementById('videoTitle').textContent = `YouTube Video: ${data.video_id}`;
+        document.getElementById('videoInfo').textContent = `Documento ID: ${data.document_id} | Transcrição: ${data.transcript_length} caracteres`;
+        document.getElementById('videoTranscription').textContent = data.transcript || 'Transcrição não disponível';
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('videoTranscriptionModal'));
+        modal.show();
+        
+      } else {
+        const error = await response.json();
+        document.getElementById('videoStatus').innerHTML = `
+          <div class="alert alert-danger">
+            ❌ Erro: ${error.message || 'Erro desconhecido'}
+          </div>
+        `;
+      }
+    } catch (e) {
+      document.getElementById('videoStatus').innerHTML = `
+        <div class="alert alert-danger">
+          ❌ Erro: ${e.message}
+        </div>
+      `;
+      log(`Erro processamento vídeo: ${e.message}`, 'error');
+    } finally {
+      document.getElementById('processVideoBtn').disabled = false;
+      document.getElementById('processVideoBtn').textContent = '🎬 Processar Vídeo';
+    }
+  });
+
+  // Verificar status do vídeo
+  document.getElementById('videoStatusBtn').addEventListener('click', async () => {
+    if (currentVideoJobId) {
+      await checkVideoStatus();
+    }
+  });
+
+  function startVideoStatusPolling() {
+    if (videoStatusInterval) {
+      clearInterval(videoStatusInterval);
+    }
+    
+    videoStatusInterval = setInterval(async () => {
+      await checkVideoStatus();
+    }, 3000); // Poll a cada 3 segundos
+  }
+
+  async function checkVideoStatus() {
+    if (!currentVideoJobId) return;
+    
+    try {
+      const response = await apiRequest(`/api/video/status/${currentVideoJobId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.status === 'completed') {
+          // Parar polling
+          if (videoStatusInterval) {
+            clearInterval(videoStatusInterval);
+            videoStatusInterval = null;
+          }
+          
+          // Mostrar resultado
+          showVideoResult(data);
+          
+        } else if (data.status === 'failed') {
+          // Parar polling
+          if (videoStatusInterval) {
+            clearInterval(videoStatusInterval);
+            videoStatusInterval = null;
+          }
+          
+          document.getElementById('videoStatus').innerHTML = `
+            <div class="alert alert-danger">
+              ❌ Processamento falhou: ${data.error_message || 'Erro desconhecido'}
+            </div>
+          `;
+          
+        } else if (data.status === 'processing') {
+          // Atualizar progresso
+          const progress = data.progress || {};
+          const percentage = progress.percentage || 0;
+          
+          document.getElementById('videoStatus').innerHTML = `
+            <div class="alert alert-warning">
+              ⏳ Processando...<br>
+              <small>Etapa: ${progress.current_step || 'processando'}</small>
+            </div>
+          `;
+          
+          const progressBar = document.querySelector('#videoProgress .progress-bar');
+          progressBar.style.width = `${percentage}%`;
+          progressBar.textContent = `${percentage}%`;
+        }
+      }
+    } catch (e) {
+      log(`Erro verificação status: ${e.message}`, 'error');
+    }
+  }
+
+  function showVideoResult(data) {
+    document.getElementById('videoStatus').innerHTML = `
+      <div class="alert alert-success">
+        ✅ Processamento concluído!<br>
+        <small>Concluído em: ${data.completed_at}</small>
+      </div>
+    `;
+    
+    // Mostrar modal com transcrição
+    document.getElementById('videoTitle').textContent = data.video_info.title || 'Vídeo Processado';
+    document.getElementById('videoInfo').textContent = `
+      Duração: ${data.video_info.duration_seconds}s | Canal: ${data.video_info.channel || 'N/A'}
+    `;
+    
+    // Carregar transcrição (simulada por enquanto)
+    document.getElementById('videoTranscription').innerHTML = `
+      <p class="text-muted">Transcrição disponível para download</p>
+      <p><strong>RAG Document ID:</strong> ${data.rag_document_id || 'N/A'}</p>
+    `;
+    
+    // Botões de download
+    const downloadsDiv = document.getElementById('videoDownloads');
+    downloadsDiv.innerHTML = '';
+    
+    if (data.downloads) {
+      if (data.downloads.audio_url) {
+        downloadsDiv.innerHTML += `
+          <a href="${data.downloads.audio_url}" class="btn btn-outline-primary btn-sm" target="_blank">
+            🎵 Download Áudio
+          </a>
+        `;
+      }
+      
+      if (data.downloads.transcription_url) {
+        downloadsDiv.innerHTML += `
+          <a href="${data.downloads.transcription_url}" class="btn btn-outline-secondary btn-sm" target="_blank">
+            📄 Download Transcrição
+          </a>
+        `;
+      }
+    }
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('videoTranscriptionModal'));
+    modal.show();
+  }
+
+  // Usar no RAG
+  document.getElementById('btnUseInRAG').addEventListener('click', () => {
+    // Fechar modal e focar na query
+    const modal = bootstrap.Modal.getInstance(document.getElementById('videoTranscriptionModal'));
+    modal.hide();
+    
+    // Ativar aba de busca e preencher query
+    const pythonQuery = document.getElementById('pythonQuery');
+    pythonQuery.value = 'Conteúdo do vídeo processado';
+    pythonQuery.focus();
+    
+    log('Vídeo integrado ao RAG - pronto para consultas!', 'success');
+  });
+
   log('Frontend RAG inicializado', 'success');
 });

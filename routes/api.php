@@ -5,6 +5,14 @@ use App\Http\Controllers\RagController;
 use App\Http\Controllers\RagAnswerController;
 use App\Http\Controllers\VertexRagController;
 use App\Http\Middleware\ForceJsonForRag;
+use App\Modules\VideoProcessing\Controllers\VideoProcessingController;
+
+// Video Processing Module - Completely public
+Route::get('/video/test', [VideoProcessingController::class, 'test']);
+Route::post('/video/process', [VideoProcessingController::class, 'process']);
+Route::get('/video/status/{job_id}', [VideoProcessingController::class, 'status']);
+Route::get('/video/list', [VideoProcessingController::class, 'list']);
+Route::get('/video/quota', [VideoProcessingController::class, 'quota']);
 
 // Public routes (no auth required) - RAG Console standalone
 Route::middleware([ForceJsonForRag::class])->group(function () {
@@ -92,6 +100,7 @@ Route::middleware(['web', 'auth.set'])->group(function () {
     Route::post('/rag/python-search', [\App\Http\Controllers\RagPythonController::class, 'pythonSearch']);
     Route::get('/rag/python-health', [\App\Http\Controllers\RagPythonController::class, 'pythonHealth']);
     Route::post('/rag/compare-search', [\App\Http\Controllers\RagPythonController::class, 'compareSearch']);
+    
 });
 
 // API Key Authentication Test Route (protected by API key)

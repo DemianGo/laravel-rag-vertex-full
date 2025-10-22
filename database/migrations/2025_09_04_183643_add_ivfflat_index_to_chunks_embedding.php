@@ -16,7 +16,7 @@ return new class extends Migration
 
         // Só aplica em PostgreSQL (pgvector)
         if ($driver !== 'pgsql') {
-            // Em SQLite/MySQL não há pgvector/ivfflat: nada a fazer aqui.
+            // Em MySQL não há pgvector/ivfflat: nada a fazer aqui.
             return;
         }
 

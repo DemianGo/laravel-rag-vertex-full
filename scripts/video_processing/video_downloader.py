@@ -59,31 +59,41 @@ class VideoDownloader:
             
             output_dir.mkdir(parents=True, exist_ok=True)
             
-            # Configure yt-dlp options with timeout and robust settings
+            # Configure yt-dlp options with robust settings for real downloads
             ydl_opts = {
-                'format': 'bestaudio/best' if audio_only else 'best',
+                'format': 'bestaudio/best' if audio_only else 'best[height<=720]',
                 'outtmpl': str(output_dir / '%(title)s.%(ext)s'),
                 'quiet': True,
                 'no_warnings': True,
                 'extract_flat': False,
-                # Timeout and connection settings
+                # Network settings
                 'socket_timeout': 30,
                 'retries': 3,
                 'fragment_retries': 3,
                 'http_chunk_size': 10485760,  # 10MB chunks
                 'concurrent_fragment_downloads': 4,
-                # User agent to avoid blocking
+                # User agent and headers
                 'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                 },
-                # Additional robust settings
+                # Bypass settings
                 'geo_bypass': True,
                 'geo_bypass_country': 'US',
                 'prefer_insecure': False,
                 'nocheckcertificate': True,
                 'ignoreerrors': False,
                 'logtostderr': False,
-                'no_color': True
+                'no_color': True,
+                # Performance settings
+                'sleep_interval': 0.5,
+                'max_sleep_interval': 3,
+                # Disable unnecessary features for speed
+                'writethumbnail': False,
+                'writeinfojson': False,
+                'writesubtitles': False,
+                'writeautomaticsub': False,
+                'embedsubtitles': False,
+                'allsubtitles': False
             }
             
             # Add audio conversion if audio_only
@@ -174,27 +184,30 @@ class VideoDownloader:
         Returns:
             Dict with video metadata
         """
-        # Strategy 1: Try with full robust settings
+        # Strategy 1: Try with aggressive settings
         try:
             ydl_opts = {
                 'quiet': True,
                 'no_warnings': True,
-                # Timeout and connection settings
-                'socket_timeout': 30,
-                'retries': 3,
-                'fragment_retries': 3,
+                # Ultra-aggressive timeout settings
+                'socket_timeout': 5,  # Ultra-aggressive timeout
+                'retries': 2,
+                'fragment_retries': 2,
                 # User agent to avoid blocking
                 'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                 },
-                # Additional robust settings
+                # Aggressive bypass settings
                 'geo_bypass': True,
                 'geo_bypass_country': 'US',
-                'prefer_insecure': False,
+                'prefer_insecure': True,
                 'nocheckcertificate': True,
-                'ignoreerrors': False,
+                'ignoreerrors': True,
                 'logtostderr': False,
-                'no_color': True
+                'no_color': True,
+                # Speed up extraction
+                'sleep_interval': 0.5,
+                'max_sleep_interval': 2
             }
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -217,9 +230,12 @@ class VideoDownloader:
                 ydl_opts = {
                     'quiet': True,
                     'no_warnings': True,
-                    'socket_timeout': 15,
+                    'socket_timeout': 5,  # Very fast timeout
                     'retries': 1,
-                    'extract_flat': True
+                    'extract_flat': True,
+                    'ignoreerrors': True,
+                    'nocheckcertificate': True,
+                    'prefer_insecure': True
                 }
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -237,32 +253,16 @@ class VideoDownloader:
                         "webpage_url": info.get('webpage_url', url)
                     }
             except Exception as e2:
-                # Strategy 3: Return basic info with URL parsing
+                # Strategy 3: Return error with connection issue details
                 return {
-                    "success": True,
-                    "title": "Video from URL",
-                    "duration": 0,
-                    "format": 'mp4',
-                    "thumbnail": '',
-                    "description": '',
-                    "uploader": 'Unknown',
-                    "view_count": 0,
-                    "webpage_url": url,
-                    "note": "Limited info due to connection issues"
+                    "success": False,
+                    "error": f"Connection issues prevented video extraction: {str(e2)}"
                 }
         except Exception as e:
-            # Strategy 4: Always return success with basic info
+            # Strategy 4: Return error with exception details
             return {
-                "success": True,
-                "title": "Video from URL",
-                "duration": 0,
-                "format": 'mp4',
-                "thumbnail": '',
-                "description": '',
-                "uploader": 'Unknown',
-                "view_count": 0,
-                "webpage_url": url,
-                "note": "Basic info - connection issues prevented detailed extraction"
+                "success": False,
+                "error": f"Video extraction failed: {str(e)}"
             }
     
     def is_supported_url(self, url: str) -> bool:
@@ -297,22 +297,14 @@ def main():
     
     def timeout_handler(signum, frame):
         print(json.dumps({
-            "success": True,
-            "title": "Video from URL",
-            "duration": 0,
-            "format": 'mp4',
-            "thumbnail": '',
-            "description": '',
-            "uploader": 'Unknown',
-            "view_count": 0,
-            "webpage_url": sys.argv[-1] if len(sys.argv) > 1 else '',
-            "note": "Timeout - returning basic info"
+            "success": False,
+            "error": "Video download timeout - please try again"
         }))
-        sys.exit(0)
+        sys.exit(1)
     
-    # Set timeout handler (60 seconds)
+    # Set timeout handler (30 seconds - more aggressive)
     signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(60)
+    signal.alarm(30)
     
     try:
         if len(sys.argv) < 2:

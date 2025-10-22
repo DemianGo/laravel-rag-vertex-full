@@ -16,7 +16,7 @@ return new class extends Migration
         // Adiciona a coluna filename se não existir
         if (!Schema::hasColumn('documents', 'filename')) {
             Schema::table('documents', function (Blueprint $table) {
-                // string portável; evitar ->after('title') para compatibilidade com SQLite
+                // string portável; evitar ->after('title') para compatibilidade
                 $table->string('filename', 512)->nullable();
             });
 

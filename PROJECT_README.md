@@ -28,8 +28,7 @@
 - **FastAPI:** 28 arquivos (API enterprise)
 
 ### **Database**
-- **SQLite:** Dados básicos (usuários, documentos, planos)
-- **PostgreSQL:** Embeddings e busca vetorial (Python RAG)
+- **PostgreSQL:** Dados principais + embeddings e busca vetorial (Python RAG)
 - **Redis:** Cache (configurado mas não ativo)
 
 ---
@@ -155,8 +154,12 @@
 
 ```bash
 # Database
-DB_CONNECTION=sqlite
-DB_DATABASE=/var/www/html/laravel-rag-vertex-full/database/database.sqlite
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=laravel_rag
+DB_USERNAME=postgres
+DB_PASSWORD=postgres
 
 # AI Services
 GOOGLE_GENAI_API_KEY=xxx (Gemini - transcrição + LLM)
@@ -338,7 +341,7 @@ python3 scripts/rag_search/cache_layer.py --action clear
 
 ## 📝 **ÚLTIMA ATUALIZAÇÃO: 2025-10-17 15:30 UTC**
 
-**PRÓXIMA ETAPA:** Migração SQLite → PostgreSQL para unificar arquitetura de banco de dados.
+**PRÓXIMA ETAPA:** Otimização de performance e expansão de funcionalidades.
 
 ---
 

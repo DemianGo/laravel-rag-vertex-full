@@ -132,6 +132,9 @@
 <script src="{{ asset('rag-frontend/rag-client.js') }}"></script>
 
 <script>
+  // Set user tenant for video processing
+  window.userTenant = 'user_{{ Auth::user()->id }}';
+  
   // Remove duplicate HTML structure (keep only body content)
   document.addEventListener('DOMContentLoaded', function() {
     const content = document.getElementById('rag-console-content');

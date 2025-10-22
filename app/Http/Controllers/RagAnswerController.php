@@ -47,7 +47,7 @@ class RagAnswerController extends Controller
             $rows = $this->tryPgFts((int)$docId, $k, $tokensRaw);
         }
 
-        // Fallback textual (portável para MySQL/SQLite)
+        // Fallback textual (portável para MySQL)
         if (count($rows) === 0) {
             $terms = array_values(array_unique(array_merge($tokensRaw, $tokensNorm)));
             $terms = $this->expandQueryTerms($terms, $query, (int)$docId);
@@ -87,7 +87,7 @@ class RagAnswerController extends Controller
                         ORDER BY ord ASC
                         LIMIT $k
                     ";
-                } else { // SQLite
+                } else { // MySQL
                     $where = [];
                     foreach ($terms as $i => $t) {
                         $p = "t{$i}";

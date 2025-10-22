@@ -79,7 +79,13 @@ fi
 # 4) Migrations (cria extensão vector, tabelas e índice)
 php artisan migrate --force
 
-# 5) Start server automaticamente (desative com START_SERVER=no)
+# 5) Start Python video server
+echo "==> Subindo servidor Python para processamento de vídeos: http://127.0.0.1:8001"
+python3 scripts/video_processing/video_server.py 8001 &
+PYTHON_VIDEO_PID=$!
+echo "Python video server PID: $PYTHON_VIDEO_PID"
+
+# 6) Start server automaticamente (desative com START_SERVER=no)
 if [ "${START_SERVER:-yes}" = "yes" ]; then
   PORT="${PORT:-8000}"
   echo "==> Subindo servidor interno: http://127.0.0.1:${PORT}"

@@ -158,6 +158,28 @@
             <h5>🔍 Python RAG Avançado</h5>
             <p class="text-muted">Sistema Python com modos de resposta, formatos e busca híbrida</p>
             
+            <!-- Seção de Upload de Vídeo -->
+            <div class="card mb-4">
+              <div class="card-header">
+                <h6 class="mb-0">📹 Processamento de Vídeo YouTube</h6>
+              </div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <label class="form-label">URL do Vídeo YouTube</label>
+                  <input id="videoUrl" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
+                  <small class="form-text text-muted">Cole a URL completa do vídeo do YouTube</small>
+                </div>
+                <button id="processVideoBtn" class="btn btn-success">🎬 Processar Vídeo</button>
+                <button id="videoStatusBtn" class="btn btn-outline-info ms-2" style="display: none;">📊 Status</button>
+              </div>
+              <div class="card-footer">
+                <div id="videoStatus" class="mb-2"></div>
+                <div id="videoProgress" class="progress mb-2" style="display: none;">
+                  <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
+            
             <div class="mb-3">
               <label class="form-label">Query/Pergunta</label>
               <input id="pythonQuery" class="form-control" placeholder="Digite sua pergunta aqui...">
@@ -293,6 +315,36 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
           <button type="button" class="btn btn-primary" id="btnSaveConfig">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Transcrição de Vídeo -->
+  <div class="modal fade" id="videoTranscriptionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">📹 Transcrição do Vídeo</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <h6 id="videoTitle" class="text-primary"></h6>
+            <small id="videoInfo" class="text-muted"></small>
+          </div>
+          <div class="mb-3">
+            <h6>Transcrição:</h6>
+            <div id="videoTranscription" class="border p-3 rounded" style="max-height: 400px; overflow-y: auto; background-color: #f8f9fa;"></div>
+          </div>
+          <div class="mb-3">
+            <h6>Downloads:</h6>
+            <div id="videoDownloads" class="d-flex gap-2"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+          <button type="button" class="btn btn-primary" id="btnUseInRAG">Usar no RAG</button>
         </div>
       </div>
     </div>

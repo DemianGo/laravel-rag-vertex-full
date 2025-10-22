@@ -3,7 +3,7 @@
 ## ✅ **PROBLEMA IDENTIFICADO:**
 
 ### **📁 Inconsistência de Dados:**
-- ❌ **Banco SQLite direto** - Mostra títulos corretos
+- ❌ **Banco direto** - Mostra títulos corretos
 - ❌ **Laravel Query Builder** - Retorna dados inconsistentes
 - ❌ **Cache/ORM** - Problema com cache do Laravel
 

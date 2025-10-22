@@ -8,7 +8,7 @@ return new class extends Migration
     public function up(): void
     {
         $driver = $this->driver();
-        // Só executa em PostgreSQL. Em SQLite/MySQL, não faz nada.
+        // Só executa em PostgreSQL. Em MySQL, não faz nada.
         if ($driver !== 'pgsql') {
             return;
         }

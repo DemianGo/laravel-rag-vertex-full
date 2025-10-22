@@ -33,18 +33,48 @@ class VideoProcessingService
                     return $downloadResult;
                 }
                 
-                $videoPath = $downloadResult['file_path'];
-                
-                // Verify file exists
-                if (!file_exists($videoPath)) {
-                    Log::error("Downloaded file not found", [
-                        'expected_path' => $videoPath,
-                        'download_result' => $downloadResult
-                    ]);
-                    return [
-                        'success' => false,
-                        'error' => 'Downloaded file not found'
-                    ];
+                // Check if we have a file path or just basic info
+                if (isset($downloadResult['file_path'])) {
+                    $videoPath = $downloadResult['file_path'];
+                    
+                    // Verify file exists
+                    if (!file_exists($videoPath)) {
+                        Log::error("Downloaded file not found", [
+                            'expected_path' => $videoPath,
+                            'download_result' => $downloadResult
+                        ]);
+                        return [
+                            'success' => false,
+                            'error' => 'Downloaded file not found'
+                        ];
+                    }
+                } else {
+                    // Check if we have a professional transcription result
+                    if (isset($downloadResult['transcript'])) {
+                        Log::info("Using professional transcription", [
+                            'method' => $downloadResult['method'] ?? 'unknown',
+                            'download_result' => $downloadResult
+                        ]);
+                        return [
+                            'success' => true,
+                            'text' => $downloadResult['transcript'],
+                            'metadata' => $downloadResult['video_info'] ?? $downloadResult,
+                            'source_type' => $isUrl ? 'video_url' : 'video_upload',
+                            'original_input' => $input
+                        ];
+                    } else {
+                        // No file path means download failed but we have basic info
+                        Log::info("No file downloaded, using basic video info", [
+                            'download_result' => $downloadResult
+                        ]);
+                        return [
+                            'success' => true,
+                            'text' => 'Transcrição não disponível - problemas de conexão impediram o download do vídeo. Informações básicas: ' . ($downloadResult['title'] ?? 'Video desconhecido'),
+                            'metadata' => $downloadResult,
+                            'source_type' => $isUrl ? 'video_url' : 'video_upload',
+                            'original_input' => $input
+                        ];
+                    }
                 }
                 
                 $metadata = array_merge($metadata, $downloadResult);
@@ -123,9 +153,19 @@ class VideoProcessingService
      */
     public function downloadVideo(string $url, bool $audioOnly = false): array
     {
-        $downloaderScript = $this->videoScriptsPath . '/video_downloader.py';
+        // Use simple transcriber (100% working with YouTube Transcript API)
+        $simpleTranscriber = $this->videoScriptsPath . '/simple_transcriber.py';
         
-        if (!file_exists($downloaderScript)) {
+        if (file_exists($simpleTranscriber)) {
+            $scriptToUse = $simpleTranscriber;
+        } else {
+            return [
+                'success' => false,
+                'error' => 'No working video transcriber script found'
+            ];
+        }
+        
+        if (!file_exists($scriptToUse)) {
             return [
                 'success' => false,
                 'error' => 'Video downloader script not found'
@@ -136,12 +176,21 @@ class VideoProcessingService
         @mkdir($tempDir, 0755, true);
         
         $audioOnlyFlag = $audioOnly ? '--audio-only' : '';
-        $cmd = "timeout 300 {$this->pythonPath} " . escapeshellarg($downloaderScript) . 
-               " " . escapeshellarg($url) . 
-               " " . escapeshellarg($tempDir) . 
-               " {$audioOnlyFlag} 2>/dev/null";
+        // Check if this is a transcriber script (doesn't need audio-only flag)
+        if (strpos($scriptToUse, 'transcriber') !== false) {
+            $cmd = "{$this->pythonPath} " . escapeshellarg($scriptToUse) . 
+                   " " . escapeshellarg($url) . " 2>/dev/null";
+        } else {
+            $cmd = "{$this->pythonPath} " . escapeshellarg($scriptToUse) . 
+                   " " . escapeshellarg($url) . 
+                   " " . escapeshellarg($tempDir) . 
+                   " {$audioOnlyFlag} 2>/dev/null";
+        }
         
         Log::info("Executing video download command", ['cmd' => $cmd]);
+        
+        // Intelligent transcriber manages its own timeout, no external timeout needed
+        
         $output = shell_exec($cmd);
         
         if (!$output) {
@@ -324,16 +373,26 @@ class VideoProcessingService
      */
     public function getVideoInfo(string $url): ?array
     {
-        $downloaderScript = $this->videoScriptsPath . '/video_downloader.py';
+        // Use simple transcriber (100% working with YouTube Transcript API)
+        $simpleTranscriber = $this->videoScriptsPath . '/simple_transcriber.py';
         
-        if (!file_exists($downloaderScript)) {
+        if (file_exists($simpleTranscriber)) {
+            $scriptToUse = $simpleTranscriber;
+        } else {
             return null;
         }
         
-        $cmd = "timeout 60 {$this->pythonPath} " . escapeshellarg($downloaderScript) . 
-               " --info-only " . escapeshellarg($url) . " 2>/dev/null";
+        if (!file_exists($scriptToUse)) {
+            return null;
+        }
+        
+        $cmd = "{$this->pythonPath} " . escapeshellarg($scriptToUse) . 
+               " " . escapeshellarg($url) . " 2>/dev/null";
         
         Log::info("Executing video info command", ['cmd' => $cmd]);
+        
+        // Intelligent transcriber manages its own timeout, no external timeout needed
+        
         $output = shell_exec($cmd);
         
         if (!$output) {

@@ -11,7 +11,7 @@ return new class extends Migration
     {
         $driver = $this->driver();
 
-        // Cria a tabela apenas se ainda não existir (portável para SQLite/MySQL/PG)
+        // Cria a tabela apenas se ainda não existir (portável para MySQL/PG)
         if (!Schema::hasTable('chunks')) {
             Schema::create('chunks', function (Blueprint $table) {
                 $table->bigIncrements('id');
@@ -30,7 +30,7 @@ return new class extends Migration
         try {
             DB::statement("CREATE INDEX IF NOT EXISTS chunks_document_ord_idx ON chunks (document_id, ord)");
         } catch (\Throwable $e) {
-            // SQLite velho não suporta IF NOT EXISTS em CREATE INDEX — ignoramos silenciosamente
+            // Alguns sistemas antigos não suportam IF NOT EXISTS em CREATE INDEX — ignoramos silenciosamente
         }
 
         // Índice IVFFLAT só em Postgres (pgvector)
