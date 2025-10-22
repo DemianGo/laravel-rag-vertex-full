@@ -14,6 +14,7 @@ Route::get('/video/status/{job_id}', [VideoProcessingController::class, 'status'
 Route::get('/video/list', [VideoProcessingController::class, 'list']);
 Route::get('/video/quota', [VideoProcessingController::class, 'quota']);
 
+
 // Public routes (no auth required) - RAG Console standalone
 Route::middleware([ForceJsonForRag::class])->group(function () {
     Route::get('/health', function() { return response()->json(['ok'=>true,'ts'=>now()->toIso8601String()]); });
@@ -33,6 +34,7 @@ Route::middleware([ForceJsonForRag::class])->group(function () {
     Route::post('/rag/batch-ingest', [RagController::class, 'batchIngest']);
     Route::post('/rag/reprocess-document', [RagController::class, 'reprocessDocument']);
 
+
     // Management & Monitoring
     Route::get('/rag/metrics', [RagController::class, 'metrics']);
     Route::get('/rag/cache/stats', [RagController::class, 'cacheStats']);
@@ -44,7 +46,9 @@ Route::middleware([ForceJsonForRag::class])->group(function () {
     Route::get('/rag/preview', [RagController::class, 'preview']);
     Route::post('/rag/ingest-quality', [RagController::class, 'ingestWithQuality']);
     
-    // Python RAG Integration - moved to protected group
+    // Python RAG Integration - public for RAG Console
+    Route::post('/rag/python-search', [\App\Http\Controllers\RagPythonController::class, 'pythonSearch']);
+    Route::get('/rag/python-health', [\App\Http\Controllers\RagPythonController::class, 'pythonHealth']);
     
     // Feedback System (public for /rag-frontend/ compatibility)
     Route::post('/rag/feedback', [\App\Http\Controllers\RagFeedbackController::class, 'store']);
@@ -97,8 +101,6 @@ Route::middleware(['web', 'auth.set'])->group(function () {
     Route::post('/rag/bulk-ingest', [\App\Http\Controllers\BulkIngestController::class, 'bulkIngest']);
     
     // Python RAG Integration (now protected)
-    Route::post('/rag/python-search', [\App\Http\Controllers\RagPythonController::class, 'pythonSearch']);
-    Route::get('/rag/python-health', [\App\Http\Controllers\RagPythonController::class, 'pythonHealth']);
     Route::post('/rag/compare-search', [\App\Http\Controllers\RagPythonController::class, 'compareSearch']);
     
 });

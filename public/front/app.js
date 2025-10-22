@@ -20,9 +20,16 @@ function saveConfig() {
 
 // Utilitários
 function buildUrl(path) {
-  // Se apiUrl estiver configurado, usa ele, senão usa Laravel na porta 8000
+  // Se apiUrl estiver configurado, usa ele
   const base = apiUrl.replace(/\/$/, '');
-  return base ? base + path : `http://localhost:8000${path}`;
+  if (base) return base + path;
+  
+  // URLs híbridas: FastAPI para ingest, Laravel para busca
+  if (path.includes('/api/rag/ingest')) {
+    return `http://localhost:8002${path}`;  // FastAPI
+  } else {
+    return `http://localhost:8000${path}`;  // Laravel
+  }
 }
 
 function log(message, type = 'info') {

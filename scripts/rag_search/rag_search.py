@@ -202,16 +202,16 @@ class RAGSearchSystem:
                     search_method = "fts_direct"
                 else:
                     # Buscar chunks similares com embeddings
-            chunks = self.vector_search.search(
-                query=query,
-                document_id=document_id,
-                top_k=top_k,
-                threshold=float(similarity_threshold)
-            )
+                    chunks = self.vector_search.search(
+                        query=query,
+                        document_id=document_id,
+                        top_k=top_k,
+                        threshold=float(similarity_threshold)
+                    )
                     search_method = "vector_search"
             
                     # Se não encontrou nada com busca vetorial, tentar FTS como fallback
-            if not chunks:
+                    if not chunks:
                         print(f"[DEBUG] Busca vetorial não encontrou resultados, tentando FTS fallback", file=sys.stderr)
                         try:
                             chunks = self.fts_search.search(

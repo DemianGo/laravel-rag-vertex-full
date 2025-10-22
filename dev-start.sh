@@ -79,10 +79,15 @@ fi
 # 4) Migrations (cria extensão vector, tabelas e índice)
 php artisan migrate --force
 
-# 5) Start Python video server
+# 4.5) Install Python dependencies for FastAPI
+echo "==> Instalando dependências Python para FastAPI..."
+pip3 install PyJWT==2.8.0 || echo "⚠️  Erro ao instalar PyJWT (pode estar já instalado)"
+
+# 5) Start Python servers
 echo "==> Verificando e limpando processos conflitantes..."
 # Matar processos que possam estar usando as portas
 pkill -f "video_server.py" 2>/dev/null || true
+pkill -f "fastapi_main.py" 2>/dev/null || true
 pkill -f "php artisan serve" 2>/dev/null || true
 
 # Aguardar um momento para liberar as portas
@@ -101,6 +106,19 @@ else
   echo "⚠️  Servidor de vídeos pode não ter iniciado corretamente"
 fi
 
+echo "==> Subindo servidor FastAPI para RAG: http://127.0.0.1:8002"
+python3 simple_rag_ingest.py &
+FASTAPI_PID=$!
+echo "FastAPI server PID: $FASTAPI_PID"
+
+# Verificar se o FastAPI iniciou corretamente
+sleep 3
+if curl -s http://localhost:8002/api/rag/health >/dev/null 2>&1; then
+  echo "✅ Servidor FastAPI iniciado com sucesso"
+else
+  echo "⚠️  Servidor FastAPI pode não ter iniciado corretamente"
+fi
+
 # 6) Start server automaticamente (desative com START_SERVER=no)
 if [ "${START_SERVER:-yes}" = "yes" ]; then
   PORT="${PORT:-8000}"
@@ -109,20 +127,26 @@ if [ "${START_SERVER:-yes}" = "yes" ]; then
 else
   cat <<'TIP'
 
-Rotas Laravel:
-  GET  /api/health
-  POST /api/rag/ping
-  POST /api/rag/ingest   { "title": "doc", "text": "..." }
-  POST /api/rag/query    { "q": "pergunta", "top_k": 5 }
-  GET  /api/vertex/generate?q=...
-  POST /api/vertex/generate { "prompt":"...", "contextParts":["..."] }
-  POST /api/rag/answer   { "q":"...", "top_k":5 }
+Servidores:
+  Laravel (Frontend): http://127.0.0.1:8000
+  FastAPI (Backend):  http://127.0.0.1:8002
+  Video Server:       http://127.0.0.1:8001
+
+Rotas Laravel (Frontend):
   GET  /rag-frontend (console RAG original)
   GET  /admin/login (painel admin original)
   GET  /precos (página de preços original)
 
+Rotas FastAPI (Backend):
+  POST /api/rag/ingest   { "title": "doc", "content": "..." }
+  POST /api/rag/query    { "query": "pergunta", "top_k": 5 }
+  GET  /api/rag/health
+  GET  /api/rag/documents
+  GET  /docs (documentação FastAPI)
+
 Para subir manualmente:
   php artisan serve --host 0.0.0.0 --port 8000
+  python3 fastapi_main.py --port 8002
 
 TIP
 fi

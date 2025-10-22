@@ -85,16 +85,31 @@ class RagPythonController extends Controller
             
             // Verificar se documento existe e pertence ao usuário (se especificado)
             if ($documentId) {
-                $document = DB::table('documents')
-                    ->where('id', $documentId)
-                    ->where('tenant_slug', $tenantSlug)
-                    ->exists();
-                
-                if (!$document) {
-                    return response()->json([
-                        'success' => false,
-                        'error' => "Documento ID {$documentId} não encontrado ou não pertence ao usuário"
-                    ], 404);
+                // Se há usuário autenticado, verifica tenant
+                if ($user) {
+                    $document = DB::table('documents')
+                        ->where('id', $documentId)
+                        ->where('tenant_slug', $tenantSlug)
+                        ->exists();
+                    
+                    if (!$document) {
+                        return response()->json([
+                            'success' => false,
+                            'error' => "Documento ID {$documentId} não encontrado ou não pertence ao usuário"
+                        ], 404);
+                    }
+                } else {
+                    // Se não há usuário autenticado, apenas verifica se documento existe
+                    $document = DB::table('documents')
+                        ->where('id', $documentId)
+                        ->exists();
+                    
+                    if (!$document) {
+                        return response()->json([
+                            'success' => false,
+                            'error' => "Documento ID {$documentId} não encontrado"
+                        ], 404);
+                    }
                 }
             }
             

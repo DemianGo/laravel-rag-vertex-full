@@ -311,6 +311,14 @@ class SmartRouter:
                 'confidence': 0.9
             }
         
+        # REGRA 1B: SEMPRE permitir busca básica se há chunks
+        if context.get('chunk_count', 0) > 0:
+            return {
+                'name': 'RAG_STANDARD',
+                'reason': f"Documento com chunks disponíveis ({context.get('chunk_count', 0)} chunks) - busca padrão",
+                'confidence': 0.8
+            }
+        
         # REGRA 2: Query muito específica = RAG PADRÃO
         if context['query_specificity'] > 0.7:
             return {
@@ -378,10 +386,10 @@ class SmartRouter:
                 'confidence': 0.75
             }
         
-        # Default: HÍBRIDO (mais seguro)
+        # Default: RAG_STANDARD (mais permissivo)
         return {
-            'name': 'HYBRID',
-            'reason': 'Estratégia padrão com fallback automático',
+            'name': 'RAG_STANDARD',
+            'reason': 'Estratégia padrão - busca RAG padrão',
             'confidence': 0.6
         }
     

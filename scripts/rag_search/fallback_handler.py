@@ -125,14 +125,25 @@ class FallbackHandler:
             result['metadata']['fallback_note'] = 'Query original não encontrou resultados, retornando resumo geral'
             return result
         
+        # Tentativa 6: SEMPRE retornar algo - usar primeiros chunks do documento
+        print("[FALLBACK] Tentativa 6: Retornando primeiros chunks do documento", file=sys.stderr)
+        result = self._try_first_chunks_summary(query, document_id, chunk_count)
+        
+        if result and result.get('success'):
+            print("[FALLBACK] ✓ Sucesso na tentativa 6", file=sys.stderr)
+            result['metadata']['fallback_level'] = 6
+            result['metadata']['fallback_used'] = True
+            result['metadata']['fallback_strategy'] = 'first_chunks_guaranteed'
+            return result
+        
         # Todas as tentativas falharam
-        print("[FALLBACK] ✗ Todas as 5 tentativas falharam", file=sys.stderr)
+        print("[FALLBACK] ✗ Todas as 6 tentativas falharam", file=sys.stderr)
         
         return {
             "success": False,
-            "error": "Não foi possível encontrar informação relevante após 5 tentativas",
+            "error": "Não foi possível encontrar informação relevante após 6 tentativas",
             "metadata": {
-                "fallback_level": 5,
+                "fallback_level": 6,
                 "fallback_used": True,
                 "all_attempts_failed": True,
                 "suggestions": [
@@ -324,13 +335,13 @@ class FallbackHandler:
         chunks = result.get('chunks', [])
         answer = result.get('answer', '')
         
-        # Considera bom se:
-        # - Tem 3+ chunks relevantes, OU
-        # - Tem resposta com 50+ caracteres
-        if len(chunks) >= 3:
+        # MAIS PERMISSIVO: Considera bom se:
+        # - Tem 1+ chunks (qualquer chunk), OU
+        # - Tem resposta com 20+ caracteres
+        if len(chunks) >= 1:
             return True
         
-        if answer and len(answer.strip()) >= 50:
+        if answer and len(answer.strip()) >= 20:
             return True
         
         return False

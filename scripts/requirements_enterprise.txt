@@ -9,6 +9,7 @@ gunicorn==21.2.0
 # Authentication and rate limiting
 slowapi==0.1.9
 python-multipart==0.0.6
+PyJWT==2.8.0
 
 # Caching and data
 redis==5.0.1

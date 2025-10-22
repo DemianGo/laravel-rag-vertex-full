@@ -4,13 +4,13 @@
 
 (() => {
   const BASE = window.location.origin;
-  // rotas ponte sem /api (mantém compatibilidade com seu front)
+  // URLs híbridas: FastAPI para ingest, Laravel para busca
   const URLS = {
-    ingest:  BASE + '/rag/ingest',
-    query:   BASE + '/rag/query',
-    answer:  BASE + '/rag/answer',
-    docs:    BASE + '/docs/list',
-    ping:    BASE + '/rag/ping',
+    ingest:  'http://localhost:8002/api/rag/ingest',  // FastAPI
+    query:   BASE + '/api/rag/python-search',        // Laravel
+    answer:  BASE + '/api/rag/answer',               // Laravel
+    docs:    BASE + '/api/docs/list',                // Laravel
+    ping:    BASE + '/api/rag/ping',                 // Laravel
   };
 
   const KEY_LAST_DOC = 'rag:lastDocumentId';
