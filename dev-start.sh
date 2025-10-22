@@ -8,21 +8,20 @@ set +a
 
 echo "==> Projeto: ${GOOGLE_CLOUD_PROJECT:-desconhecido} | Região: ${VERTEX_LOCATION:-us-central1} | Emb: ${VERTEX_EMBEDDING_MODEL:-text-embedding-004}"
 # 1) Sanity
-[ -f simple_fastapi_fixed.py ] || { echo "ERRO: rode no diretório do projeto (onde existe simple_fastapi_fixed.py)"; exit 1; }
+[ -f artisan ] || { echo "ERRO: rode no diretório do Laravel (onde existe artisan)"; exit 1; }
 
-# 2) Python dependencies
-echo "==> Verificando dependências Python..."
-if command -v pip3 >/dev/null 2>&1; then
-  pip3 install -r requirements_enterprise.txt --quiet
+# 2) Composer deps
+if command -v composer >/dev/null 2>&1; then
+  composer install --no-interaction --prefer-dist --optimize-autoloader
 else
-  echo "AVISO: pip3 não encontrado. Instale as dependências Python manualmente."
+  echo "AVISO: composer não encontrado. Instale pelo site oficial (https://getcomposer.org)."
 fi
 
-# 3) Verificar .env
-if [ ! -f .env ]; then
-  echo "AVISO: arquivo .env não encontrado. Criando a partir do exemplo..."
+# 3) APP_KEY e .env
+if ! grep -q '^APP_KEY=' .env 2>/dev/null; then
   cp -n .env.example .env || true
 fi
+php artisan key:generate --force || true
 
 # 3.5) Verificar e autenticar Google Cloud (para Cloud Vision API + Vertex AI)
 if command -v gcloud >/dev/null 2>&1; then
@@ -77,31 +76,53 @@ if command -v gcloud >/dev/null 2>&1; then
   fi
 fi
 
-# 4) Start Python video server
+# 4) Migrations (cria extensão vector, tabelas e índice)
+php artisan migrate --force
+
+# 5) Start Python video server
+echo "==> Verificando e limpando processos conflitantes..."
+# Matar processos que possam estar usando as portas
+pkill -f "video_server.py" 2>/dev/null || true
+pkill -f "php artisan serve" 2>/dev/null || true
+
+# Aguardar um momento para liberar as portas
+sleep 2
+
 echo "==> Subindo servidor Python para processamento de vídeos: http://127.0.0.1:8001"
-python3 scripts/video_processing/fastapi_video_server.py 8001 &
+python3 scripts/video_processing/video_server.py 8001 &
 PYTHON_VIDEO_PID=$!
 echo "Python video server PID: $PYTHON_VIDEO_PID"
 
-# 5) Start FastAPI server automaticamente (desative com START_SERVER=no)
+# Verificar se o servidor de vídeos iniciou corretamente
+sleep 2
+if curl -s http://localhost:8001/health >/dev/null 2>&1; then
+  echo "✅ Servidor de vídeos iniciado com sucesso"
+else
+  echo "⚠️  Servidor de vídeos pode não ter iniciado corretamente"
+fi
+
+# 6) Start server automaticamente (desative com START_SERVER=no)
 if [ "${START_SERVER:-yes}" = "yes" ]; then
   PORT="${PORT:-8000}"
-  echo "==> Subindo servidor FastAPI: http://127.0.0.1:${PORT}"
-  python3 simple_fastapi_fixed.py
+  echo "==> Subindo servidor Laravel: http://127.0.0.1:${PORT}"
+  php artisan serve --host 0.0.0.0 --port "${PORT}"
 else
   cat <<'TIP'
 
-Rotas FastAPI:
-  GET  /health
-  GET  /docs (documentação Swagger)
-  GET  /rag-frontend (console RAG)
-  GET  /admin (painel admin)
-  GET  /precos (página de preços)
-  POST /api/video/process (processamento de vídeos)
-  POST /api/rag/search (busca RAG)
+Rotas Laravel:
+  GET  /api/health
+  POST /api/rag/ping
+  POST /api/rag/ingest   { "title": "doc", "text": "..." }
+  POST /api/rag/query    { "q": "pergunta", "top_k": 5 }
+  GET  /api/vertex/generate?q=...
+  POST /api/vertex/generate { "prompt":"...", "contextParts":["..."] }
+  POST /api/rag/answer   { "q":"...", "top_k":5 }
+  GET  /rag-frontend (console RAG original)
+  GET  /admin/login (painel admin original)
+  GET  /precos (página de preços original)
 
 Para subir manualmente:
-  python3 simple_fastapi_fixed.py
+  php artisan serve --host 0.0.0.0 --port 8000
 
 TIP
 fi
