@@ -2209,7 +2209,7 @@ class RagController extends Controller
             // Store chunks without embeddings for now (fast mode)
             $chunksStored = 0;
             foreach ($chunks as $index => $chunkContent) {
-                if (strlen(trim($chunkContent)) > 50) { // Skip very small chunks
+                if (strlen(trim($chunkContent)) > 10) { // Skip very small chunks
                     DB::table('chunks')->insert([
                         'document_id' => $docId,
                         'ord' => $index,

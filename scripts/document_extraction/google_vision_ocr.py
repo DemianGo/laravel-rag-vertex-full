@@ -36,9 +36,14 @@ class GoogleVisionOCR:
         creds_path = credentials_path or os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
         
         if creds_path and os.path.exists(creds_path):
-            # Use explicit credentials file
-            credentials = service_account.Credentials.from_service_account_file(creds_path)
-            self.client = vision.ImageAnnotatorClient(credentials=credentials)
+            # Try to use explicit credentials file
+            try:
+                credentials = service_account.Credentials.from_service_account_file(creds_path)
+                self.client = vision.ImageAnnotatorClient(credentials=credentials)
+            except Exception as e:
+                # If service account fails, try authorized user credentials
+                print(f"Service account failed, trying authorized user: {e}")
+                self.client = vision.ImageAnnotatorClient()
         else:
             # Use default credentials (gcloud auth)
             self.client = vision.ImageAnnotatorClient()

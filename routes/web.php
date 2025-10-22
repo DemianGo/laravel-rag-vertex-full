@@ -19,6 +19,7 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+
 // Pricing Routes
 Route::get('/precos', [\App\Http\Controllers\PricingController::class, 'index'])->name('pricing.index');
 Route::post('/checkout', [\App\Http\Controllers\PricingController::class, 'checkout'])->name('pricing.checkout');

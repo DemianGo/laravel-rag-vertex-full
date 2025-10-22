@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Home - RAG System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Hero Section -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8 text-center">
+            <h1 class="display-4 fw-bold text-primary mb-4">
+                <i class="fas fa-brain me-3"></i>RAG System
+            </h1>
+            <p class="lead text-muted mb-5">
+                Sistema inteligente de processamento de documentos com IA. 
+                Faça upload de documentos e faça perguntas usando inteligência artificial.
+            </p>
+            
+            <div class="d-flex justify-content-center gap-3">
+                <a href="/rag-frontend" class="btn btn-primary btn-lg">
+                    <i class="fas fa-play me-2"></i>Começar Agora
+                </a>
+                <a href="/precos" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-tag me-2"></i>Ver Preços
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="row mt-5">
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-file-upload fa-3x text-primary"></i>
+                    </div>
+                    <h5 class="card-title">Upload de Documentos</h5>
+                    <p class="card-text text-muted">
+                        Suporte a PDF, DOCX, TXT, CSV e mais de 15 formatos diferentes.
+                        Processamento automático com OCR para imagens.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-robot fa-3x text-success"></i>
+                    </div>
+                    <h5 class="card-title">IA Avançada</h5>
+                    <p class="card-text text-muted">
+                        Sistema RAG com busca vetorial, LLM Gemini e processamento inteligente.
+                        Respostas precisas baseadas em seus documentos.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-video fa-3x text-info"></i>
+                    </div>
+                    <h5 class="card-title">Processamento de Vídeos</h5>
+                    <p class="card-text text-muted">
+                        Transcrição automática de vídeos do YouTube e outras plataformas.
+                        Integração completa com o sistema RAG.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Section -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h4 class="card-title text-center mb-4">Estatísticas do Sistema</h4>
+                    <div class="row text-center">
+                        <div class="col-md-3 mb-3">
+                            <div class="p-3">
+                                <h3 class="text-primary mb-1" id="totalDocs">-</h3>
+                                <p class="text-muted mb-0">Documentos Processados</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="p-3">
+                                <h3 class="text-success mb-1" id="totalChunks">-</h3>
+                                <p class="text-muted mb-0">Chunks Criados</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="p-3">
+                                <h3 class="text-info mb-1" id="totalUsers">-</h3>
+                                <p class="text-muted mb-0">Usuários Ativos</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="p-3">
+                                <h3 class="text-warning mb-1" id="totalQueries">-</h3>
+                                <p class="text-muted mb-0">Consultas Realizadas</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- How it Works Section -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <h3 class="text-center mb-4">Como Funciona</h3>
+            <div class="row">
+                <div class="col-md-4 text-center mb-4">
+                    <div class="mb-3">
+                        <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                            <span class="fw-bold">1</span>
+                        </div>
+                    </div>
+                    <h5>Upload</h5>
+                    <p class="text-muted">Faça upload dos seus documentos ou cole texto diretamente</p>
+                </div>
+                
+                <div class="col-md-4 text-center mb-4">
+                    <div class="mb-3">
+                        <div class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                            <span class="fw-bold">2</span>
+                        </div>
+                    </div>
+                    <h5>Processamento</h5>
+                    <p class="text-muted">IA processa e cria embeddings dos seus documentos</p>
+                </div>
+                
+                <div class="col-md-4 text-center mb-4">
+                    <div class="mb-3">
+                        <div class="bg-info text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                            <span class="fw-bold">3</span>
+                        </div>
+                    </div>
+                    <h5>Consultas</h5>
+                    <p class="text-muted">Faça perguntas e receba respostas inteligentes</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Carregar estatísticas
+    loadStats();
+});
+
+function loadStats() {
+    // Em produção, fazer chamadas reais para a API
+    // Por enquanto, usar dados mockados
+    $('#totalDocs').text('1,247');
+    $('#totalChunks').text('15,892');
+    $('#totalUsers').text('156');
+    $('#totalQueries').text('3,421');
+}
+</script>
+{% endblock %}

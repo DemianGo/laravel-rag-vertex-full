@@ -8,20 +8,21 @@ set +a
 
 echo "==> Projeto: ${GOOGLE_CLOUD_PROJECT:-desconhecido} | Região: ${VERTEX_LOCATION:-us-central1} | Emb: ${VERTEX_EMBEDDING_MODEL:-text-embedding-004}"
 # 1) Sanity
-[ -f artisan ] || { echo "ERRO: rode no diretório do Laravel (onde existe artisan)"; exit 1; }
+[ -f simple_fastapi_fixed.py ] || { echo "ERRO: rode no diretório do projeto (onde existe simple_fastapi_fixed.py)"; exit 1; }
 
-# 2) Composer deps
-if command -v composer >/dev/null 2>&1; then
-  composer install --no-interaction --prefer-dist --optimize-autoloader
+# 2) Python dependencies
+echo "==> Verificando dependências Python..."
+if command -v pip3 >/dev/null 2>&1; then
+  pip3 install -r requirements_enterprise.txt --quiet
 else
-  echo "AVISO: composer não encontrado. Instale pelo site oficial (https://getcomposer.org)."
+  echo "AVISO: pip3 não encontrado. Instale as dependências Python manualmente."
 fi
 
-# 3) APP_KEY e .env
-if ! grep -q '^APP_KEY=' .env 2>/dev/null; then
+# 3) Verificar .env
+if [ ! -f .env ]; then
+  echo "AVISO: arquivo .env não encontrado. Criando a partir do exemplo..."
   cp -n .env.example .env || true
 fi
-php artisan key:generate --force || true
 
 # 3.5) Verificar e autenticar Google Cloud (para Cloud Vision API + Vertex AI)
 if command -v gcloud >/dev/null 2>&1; then
@@ -76,34 +77,31 @@ if command -v gcloud >/dev/null 2>&1; then
   fi
 fi
 
-# 4) Migrations (cria extensão vector, tabelas e índice)
-php artisan migrate --force
-
-# 5) Start Python video server
+# 4) Start Python video server
 echo "==> Subindo servidor Python para processamento de vídeos: http://127.0.0.1:8001"
-python3 scripts/video_processing/video_server.py 8001 &
+python3 scripts/video_processing/fastapi_video_server.py 8001 &
 PYTHON_VIDEO_PID=$!
 echo "Python video server PID: $PYTHON_VIDEO_PID"
 
-# 6) Start server automaticamente (desative com START_SERVER=no)
+# 5) Start FastAPI server automaticamente (desative com START_SERVER=no)
 if [ "${START_SERVER:-yes}" = "yes" ]; then
   PORT="${PORT:-8000}"
-  echo "==> Subindo servidor interno: http://127.0.0.1:${PORT}"
-  php artisan serve --host 0.0.0.0 --port "${PORT}"
+  echo "==> Subindo servidor FastAPI: http://127.0.0.1:${PORT}"
+  python3 simple_fastapi_fixed.py
 else
   cat <<'TIP'
 
-Rotas:
-  GET  /api/health
-  POST /api/rag/ping
-  POST /api/rag/ingest   { "title": "doc", "text": "..." }
-  POST /api/rag/query    { "q": "pergunta", "top_k": 5 }
-  GET  /api/vertex/generate?q=...
-  POST /api/vertex/generate { "prompt":"...", "contextParts":["..."] }
-  POST /api/rag/answer   { "q":"...", "top_k":5 }
+Rotas FastAPI:
+  GET  /health
+  GET  /docs (documentação Swagger)
+  GET  /rag-frontend (console RAG)
+  GET  /admin (painel admin)
+  GET  /precos (página de preços)
+  POST /api/video/process (processamento de vídeos)
+  POST /api/rag/search (busca RAG)
 
 Para subir manualmente:
-  php artisan serve --host 0.0.0.0 --port 8000
+  python3 simple_fastapi_fixed.py
 
 TIP
 fi

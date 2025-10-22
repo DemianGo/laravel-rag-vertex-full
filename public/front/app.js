@@ -20,8 +20,9 @@ function saveConfig() {
 
 // Utilitários
 function buildUrl(path) {
+  // Se apiUrl estiver configurado, usa ele, senão usa Laravel na porta 8000
   const base = apiUrl.replace(/\/$/, '');
-  return base ? base + path : path;
+  return base ? base + path : `http://localhost:8000${path}`;
 }
 
 function log(message, type = 'info') {
@@ -145,7 +146,7 @@ async function uploadDocument() {
       progressText.textContent = 'Processando texto...';
       progressBar.style.width = '50%';
       
-      response = await apiRequest('/rag/ingest', {
+      response = await apiRequest('/api/documents/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -209,7 +210,7 @@ async function sendQuery() {
   try {
     resultEl.textContent = 'Processando pergunta...';
     
-    const response = await apiRequest('/rag/answer', {
+    const response = await apiRequest('/api/rag/query', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -290,20 +291,11 @@ async function testConnection() {
     log('Testando conexão...');
     
     // Tenta fazer uma requisição simples para testar
-    const response = await fetch(buildUrl('/rag/answer'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        query: 'teste',
-        document_id: 1,
-        mode: 'direct'
-      })
+    const response = await fetch(buildUrl('/api/health'), {
+      method: 'GET'
     });
     
-    if (response.status === 200 || response.status === 422) {
-      // 422 é OK - significa que o endpoint existe mas faltam dados
+    if (response.status === 200) {
       log('Conexão OK - API funcionando', 'success');
       alert('Conexão com a API funcionando!');
     } else {

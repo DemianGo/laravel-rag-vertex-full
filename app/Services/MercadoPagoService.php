@@ -36,6 +36,16 @@ class MercadoPagoService
      */
     public function createPreference(array $data): array
     {
+        $successUrl = $data['success_url'] ?? config('services.mercadopago.success_url');
+        $failureUrl = $data['failure_url'] ?? config('services.mercadopago.failure_url');
+        $pendingUrl = $data['pending_url'] ?? config('services.mercadopago.pending_url');
+
+        Log::info('Mercado Pago URLs', [
+            'success_url' => $successUrl,
+            'failure_url' => $failureUrl,
+            'pending_url' => $pendingUrl
+        ]);
+
         $preference = [
             'items' => [
                 [
@@ -50,11 +60,10 @@ class MercadoPagoService
                 'name' => $data['user_name'] ?? '',
             ],
             'back_urls' => [
-                'success' => $data['success_url'] ?? url('/billing/success'),
-                'failure' => $data['failure_url'] ?? url('/billing/failure'),
-                'pending' => $data['pending_url'] ?? url('/billing/pending')
+                'success' => $successUrl,
+                'failure' => $failureUrl,
+                'pending' => $pendingUrl
             ],
-            'auto_return' => 'approved',
             'external_reference' => $data['external_reference'],
             'notification_url' => $data['notification_url'],
             'payment_methods' => [

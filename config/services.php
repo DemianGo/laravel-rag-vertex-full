@@ -33,6 +33,10 @@ return [
         'public_key' => env('MERCADOPAGO_PUBLIC_KEY'),
         'sandbox' => env('MERCADOPAGO_SANDBOX', true),
         'webhook_secret' => env('MERCADOPAGO_WEBHOOK_SECRET'),
+        'success_url' => env('MERCADOPAGO_SUCCESS_URL', 'http://localhost:8000/pricing/success'),
+        'failure_url' => env('MERCADOPAGO_FAILURE_URL', 'http://localhost:8000/pricing/failure'),
+        'pending_url' => env('MERCADOPAGO_PENDING_URL', 'http://localhost:8000/pricing/pending'),
+        'webhook_url' => env('MERCADOPAGO_WEBHOOK_URL', 'http://localhost:8000/webhook/mercadopago'),
     ],
 
 ];
