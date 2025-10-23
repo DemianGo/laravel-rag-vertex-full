@@ -203,7 +203,7 @@ class RAGSearchSystem:
                         top_k=top_k,
                         threshold=0.1
                     )
-                    chunks = fts_result.get('chunks', []) if isinstance(fts_result, dict) else fts_result
+                    chunks = fts_result.get('chunks', []) if isinstance(fts_result, dict) else (fts_result if isinstance(fts_result, list) else [])
                     search_method = "fts_direct"
                 else:
                     # Buscar chunks similares com embeddings
@@ -225,7 +225,7 @@ class RAGSearchSystem:
                                 top_k=top_k,
                                 threshold=0.1
                             )
-                            chunks = fts_result.get('chunks', []) if isinstance(fts_result, dict) else fts_result
+                            chunks = fts_result.get('chunks', []) if isinstance(fts_result, dict) else (fts_result if isinstance(fts_result, list) else [])
                             search_method = "fts_fallback"
                             print(f"[DEBUG] FTS fallback encontrou {len(chunks)} chunks", file=sys.stderr)
                         except Exception as e:
@@ -244,7 +244,7 @@ class RAGSearchSystem:
                                     top_k=top_k,
                                     threshold=0.1
                                 )
-                                chunks = fts_result.get('chunks', []) if isinstance(fts_result, dict) else fts_result
+                                chunks = fts_result.get('chunks', []) if isinstance(fts_result, dict) else (fts_result if isinstance(fts_result, list) else [])
                                 if chunks:
                                     search_method = "fts_fallback_intelligent"
                                     print(f"[DEBUG] Busca inteligente com '{fallback_query}' encontrou {len(chunks)} chunks", file=sys.stderr)
@@ -313,7 +313,7 @@ class RAGSearchSystem:
                     # Sem LLM: retornar conteúdo combinado
                     answer = f"Conteúdo completo do documento:\n\n{all_content}"
                 
-                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else str(chunk) for chunk in chunks]
                 
             elif mode == 'list' or (mode == 'auto' and ModeDetector.has_list_intent(query)):
                 # Modo LIST
@@ -338,7 +338,7 @@ class RAGSearchSystem:
                         print(f"[DEBUG] Erro ao refinar bullets: {str(e)}", file=sys.stderr)
                 
                 answer = ResponseFormatters.render_bullets_simple(bullets, format_type)
-                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else str(chunk) for chunk in chunks]
                 
             elif mode == 'table' or (mode == 'auto' and ModeDetector.has_table_intent(query)):
                 # Modo TABLE
@@ -361,7 +361,7 @@ class RAGSearchSystem:
                         print(f"[DEBUG] Erro ao refinar pares: {str(e)}", file=sys.stderr)
                 
                 answer = ResponseFormatters.render_table(pairs, format_type)
-                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else str(chunk) for chunk in chunks]
                 
             elif mode == 'quote' or (mode == 'auto' and ModeDetector.has_quote_intent(query)):
                 # Modo QUOTE
@@ -373,7 +373,7 @@ class RAGSearchSystem:
                 
                 quote = ResponseFormatters.ensure_double_quoted(quote)
                 answer = ResponseFormatters.render_quote(quote, format_type)
-                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else str(chunk) for chunk in chunks]
                 
             elif mode == 'summary' or (mode == 'auto' and ModeDetector.has_summary_intent(query)):
                 # Modo SUMMARY - Inteligente para queries genéricas
@@ -428,7 +428,7 @@ class RAGSearchSystem:
                 else:
                     answer = ResponseFormatters.render_bullets_simple(bullets, format_type)
                 
-                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else str(chunk) for chunk in chunks]
                 
             else:
                 # Modo DIRECT
@@ -443,7 +443,7 @@ class RAGSearchSystem:
                 else:
                     answer = combined
                 
-                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else str(chunk) for chunk in chunks]
             
             # Construir sources
             sources = [f"chunk#{chunk_id}" for chunk_id in used_chunks]
@@ -463,7 +463,7 @@ class RAGSearchSystem:
                     
                     grounding_result = self.llm.generate_with_grounding(grounding_prompt)
                     
-                    if grounding_result.get('success') and grounding_result.get('answer'):
+                    if isinstance(grounding_result, dict) and grounding_result.get('success') and grounding_result.get('answer'):
                         web_answer = grounding_result.get('answer', '')
                         if web_answer and web_answer.strip():
                             answer = f"{answer}\n\n--- Informações adicionais da web ---\n{web_answer}"
@@ -471,7 +471,8 @@ class RAGSearchSystem:
                         else:
                             print(f"[DEBUG] Grounding retornou resposta vazia", file=sys.stderr)
                     else:
-                        print(f"[DEBUG] Grounding falhou: {grounding_result.get('error', 'Erro desconhecido')}", file=sys.stderr)
+                        error_msg = grounding_result.get('error', 'Erro desconhecido') if isinstance(grounding_result, dict) else str(grounding_result)
+                        print(f"[DEBUG] Grounding falhou: {error_msg}", file=sys.stderr)
                         
                 except Exception as e:
                     print(f"[DEBUG] Erro no grounding: {str(e)}", file=sys.stderr)

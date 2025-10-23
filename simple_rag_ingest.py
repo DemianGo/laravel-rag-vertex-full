@@ -5,6 +5,7 @@ Compatível com o frontend atual
 """
 
 from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException
+from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import sys
@@ -12,6 +13,10 @@ import os
 import json
 import time
 from pathlib import Path
+
+# Importar sistema de timeout adaptativo
+sys.path.append(str(Path(__file__).parent / "scripts" / "rag_search"))
+from adaptive_timeout import AdaptiveTimeout
 
 # Adicionar scripts ao path
 sys.path.append(str(Path(__file__).parent / "scripts"))
@@ -31,6 +36,7 @@ app.add_middleware(
 async def rag_ingest(
     request: Request,
     file: UploadFile = File(None),
+    files: List[UploadFile] = File(None),
     title: str = Form(None),
     text: str = Form(None),
     url: str = Form(None),
@@ -45,28 +51,51 @@ async def rag_ingest(
     try:
         start_time = time.time()
         
+        # Debug: verificar o que foi recebido
+        print(f"[DEBUG] Request recebido:")
+        print(f"[DEBUG] file: {file}")
+        print(f"[DEBUG] files: {files}")
+        print(f"[DEBUG] title: {title}")
+        print(f"[DEBUG] text: {text}")
+        print(f"[DEBUG] url: {url}")
+        
         # Determinar conteúdo e título
         content = ""
         doc_title = title or "Documento"
         
-        if file:
-            # Upload de arquivo
-            content = await file.read()
-            doc_title = title or file.filename or "Documento"
+        if file or files:
+            # Upload de arquivo(s)
+            if file:
+                # Arquivo único
+                content = await file.read()
+                doc_title = title or file.filename or "Documento"
+            elif files:
+                # Múltiplos arquivos - usar o primeiro
+                file = files[0]
+                content = await file.read()
+                doc_title = title or file.filename or "Documento"
             
             # Processar arquivo com scripts Python existentes
             temp_path = f"/tmp/{file.filename}"
             with open(temp_path, "wb") as f:
                 f.write(content)
             
-            # Usar script de extração existente
+            # Usar script de extração existente com timeout adaptativo
             try:
                 import subprocess
+                
+                # Calcular timeout adaptativo baseado no tamanho do arquivo
+                timeout_seconds = AdaptiveTimeout.calculate_timeout(len(content))
+                timeout_info = AdaptiveTimeout.get_timeout_info(len(content))
+                
+                print(f"[FASTAPI] Arquivo: {file.filename}, Tamanho: {timeout_info['file_size_mb']}MB")
+                print(f"[FASTAPI] Timeout: {timeout_seconds}s, Tempo estimado: {timeout_info['estimated_processing_time']}")
+                
                 result = subprocess.run([
                     "python3", 
                     "scripts/document_extraction/main_extractor.py",
                     temp_path
-                ], capture_output=True, text=True, timeout=300)
+                ], capture_output=True, text=True, timeout=timeout_seconds)
                 
                 if result.returncode == 0:
                     # Parse JSON response
@@ -98,7 +127,28 @@ async def rag_ingest(
             doc_title = title or f"URL: {url}"
             
         else:
-            raise HTTPException(status_code=422, detail="Necessário: file, text ou url")
+            # Debug: verificar o que foi recebido
+            print(f"[DEBUG] Nenhum arquivo/texto/url recebido")
+            print(f"[DEBUG] file: {file}")
+            print(f"[DEBUG] files: {files}")
+            print(f"[DEBUG] text: {text}")
+            print(f"[DEBUG] url: {url}")
+            
+            # Para debug: retornar erro mais detalhado
+            return JSONResponse(
+                content={
+                    "ok": False,
+                    "error": "Necessário: file, text ou url",
+                    "debug": {
+                        "file": str(file) if file else None,
+                        "files": str(files) if files else None,
+                        "text": text,
+                        "url": url,
+                        "title": title
+                    }
+                },
+                status_code=422
+            )
         
         if len(content.strip()) < 10:
             raise HTTPException(status_code=422, detail="Conteúdo muito curto. Mínimo 10 caracteres.")
@@ -180,6 +230,20 @@ async def rag_ingest(
 async def health():
     """Health check"""
     return {"ok": True, "service": "Simple RAG Ingest API"}
+
+@app.get("/api/embeddings/file-info")
+async def file_info(filename: str):
+    """Endpoint para informações do arquivo"""
+    return {
+        "success": True,
+        "file_info": {
+            "filename": filename,
+            "estimated_pages": 50,  # Estimativa padrão
+            "supported": True,
+            "max_size_mb": 500,
+            "max_pages": 5000
+        }
+    }
 
 @app.get("/")
 async def root():

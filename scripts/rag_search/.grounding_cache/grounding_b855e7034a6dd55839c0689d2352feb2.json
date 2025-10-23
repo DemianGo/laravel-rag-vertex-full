@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "answer": "A capital do Brasil é **Brasília**.",
+  "grounding_metadata": {
+    "grounding_chunks": [
+      {
+        "title": "Resultado da busca web",
+        "content": "A capital do Brasil é **Brasília**....",
+        "url": "https://gemini.google.com"
+      }
+    ]
+  },
+  "execution_time": 0
+}
