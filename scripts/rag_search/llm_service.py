@@ -94,20 +94,56 @@ class LLMService:
                     'answer': '',
                     'grounding_metadata': {}
                 }
+            
+            # Cache simples para grounding (evitar chamadas repetidas)
+            import hashlib
+            prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
+            cache_key = f"grounding_{prompt_hash}"
+            
+            # Verificar cache (TTL de 1 hora)
+            try:
+                import json
+                import os
+                from pathlib import Path
+                cache_dir = Path(__file__).parent / '.grounding_cache'
+                cache_dir.mkdir(exist_ok=True)
+                cache_file = cache_dir / f"{cache_key}.json"
+                
+                if cache_file.exists():
+                    import time
+                    if time.time() - cache_file.stat().st_mtime < 3600:  # 1 hora
+                        with open(cache_file, 'r', encoding='utf-8') as f:
+                            cached_result = json.load(f)
+                            logger.info("Grounding cache hit")
+                            return cached_result
+            except Exception as cache_error:
+                logger.warning(f"Erro no cache de grounding: {cache_error}")
 
             # Configura o Gemini com grounding
             model = self.gemini_client
             
-            # Tenta usar grounding com busca na web
+            # Tenta usar grounding com busca na web (com timeout)
             try:
-                response = model.generate_content(
-                    prompt,
-                    tools=[{"google_search_retrieval": {}}],
-                    generation_config={
-                        "temperature": 0.1,
-                        "max_output_tokens": 2048,
-                    }
-                )
+                import signal
+                
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("Grounding timeout")
+                
+                # Timeout de 30 segundos para grounding
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(30)
+                
+                try:
+                    response = model.generate_content(
+                        prompt,
+                        tools=[{"google_search_retrieval": {}}],
+                        generation_config={
+                            "temperature": 0.1,
+                            "max_output_tokens": 1024,  # Reduzido para resposta mais rápida
+                        }
+                    )
+                finally:
+                    signal.alarm(0)  # Cancelar timeout
             except Exception as grounding_error:
                 # Se grounding falhar, usa busca normal
                 logger.warning(f"Grounding falhou, usando busca normal: {grounding_error}")
@@ -133,12 +169,21 @@ class LLMService:
                     ]
                 }
 
-                return {
+                result = {
                     'success': True,
                     'answer': response.text,
                     'grounding_metadata': grounding_metadata,
                     'execution_time': 0
                 }
+                
+                # Salvar no cache
+                try:
+                    with open(cache_file, 'w', encoding='utf-8') as f:
+                        json.dump(result, f, ensure_ascii=False, indent=2)
+                except Exception as cache_error:
+                    logger.warning(f"Erro ao salvar cache de grounding: {cache_error}")
+                
+                return result
             else:
                 return {
                     'success': False,

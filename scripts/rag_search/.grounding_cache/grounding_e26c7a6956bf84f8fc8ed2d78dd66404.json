@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "answer": "Um **teste de grounding otimizado** refere-se à aplicação de métodos e equipamentos avançados para medir a resistência de aterramento de forma mais **rápida, precisa e segura**.\n\nGeralmente, isso envolve:\n1.  **Método sem estacas (Stakeless/Clamp-on):** Utiliza um ou mais alicates para medir a resistência de aterramento sem a necessidade de estacas auxiliares, ideal para locais urbanos ou com pouco espaço.\n2.  **Instrumentos avançados:** Medidores digitais com filtragem de ruído, capacidade de múltiplas frequências e recursos de registro de dados para maior confiabilidade e eficiência.\n3.  **Técnicas que minimizam interferências:** Reduzem o impacto de correntes parasitas ou ruídos elétricos nas medições.\n\nO objetivo é aumentar a eficiência do processo de teste e a confiabilidade dos resultados, economizando tempo e recursos.",
+  "grounding_metadata": {
+    "grounding_chunks": [
+      {
+        "title": "Resultado da busca web",
+        "content": "Um **teste de grounding otimizado** refere-se à aplicação de métodos e equipamentos avançados para medir a resistência de aterramento de forma mais **rápida, precisa e segura**.\n\nGeralmente, isso envo...",
+        "url": "https://gemini.google.com"
+      }
+    ]
+  },
+  "execution_time": 0
+}

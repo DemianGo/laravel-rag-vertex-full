@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block title %}Planos e Preços - RAG System{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Header -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-8 text-center">
+            <h1 class="display-4 fw-bold text-primary mb-4">
+                <i class="fas fa-tag me-3"></i>Planos e Preços
+            </h1>
+            <p class="lead text-muted">
+                Escolha o plano ideal para suas necessidades. 
+                Todos os planos incluem acesso completo ao sistema RAG.
+            </p>
+        </div>
+    </div>
+
+    <!-- Pricing Cards -->
+    <div class="row g-4 justify-content-center">
+        <!-- Free Plan -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center p-4">
+                    <div class="mb-3">
+                        <i class="fas fa-gift fa-3x text-success"></i>
+                    </div>
+                    <h4 class="card-title">Free</h4>
+                    <div class="mb-3">
+                        <span class="display-6 fw-bold text-success">R$ 0</span>
+                        <span class="text-muted">/mês</span>
+                    </div>
+                    <p class="text-muted mb-4">Perfeito para testar o sistema</p>
+                    
+                    <ul class="list-unstyled mb-4">
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>100 tokens por mês</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>1 documento</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Suporte básico</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Acesso ao RAG Console</li>
+                    </ul>
+                    
+                    <button class="btn btn-outline-success w-100" onclick="selectPlan('free')">
+                        <i class="fas fa-arrow-right me-2"></i>Começar Grátis
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pro Plan -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 border-primary shadow">
+                <div class="card-header bg-primary text-white text-center">
+                    <span class="badge bg-warning text-dark">Mais Popular</span>
+                </div>
+                <div class="card-body text-center p-4">
+                    <div class="mb-3">
+                        <i class="fas fa-rocket fa-3x text-primary"></i>
+                    </div>
+                    <h4 class="card-title">Pro</h4>
+                    <div class="mb-3">
+                        <span class="display-6 fw-bold text-primary">R$ 15</span>
+                        <span class="text-muted">/mês</span>
+                    </div>
+                    <p class="text-muted mb-4">Ideal para uso profissional</p>
+                    
+                    <ul class="list-unstyled mb-4">
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>10.000 tokens por mês</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>50 documentos</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Suporte prioritário</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Processamento de vídeos</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>API personalizada</li>
+                    </ul>
+                    
+                    <button class="btn btn-primary w-100" onclick="selectPlan('pro')">
+                        <i class="fas fa-arrow-right me-2"></i>Escolher Pro
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enterprise Plan -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center p-4">
+                    <div class="mb-3">
+                        <i class="fas fa-crown fa-3x text-warning"></i>
+                    </div>
+                    <h4 class="card-title">Enterprise</h4>
+                    <div class="mb-3">
+                        <span class="display-6 fw-bold text-warning">R$ 30</span>
+                        <span class="text-muted">/mês</span>
+                    </div>
+                    <p class="text-muted mb-4">Para empresas que precisam de máxima performance</p>
+                    
+                    <ul class="list-unstyled mb-4">
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Tokens ilimitados</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Documentos ilimitados</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Suporte 24/7</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>API personalizada</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Integração customizada</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Analytics avançados</li>
+                    </ul>
+                    
+                    <button class="btn btn-warning w-100" onclick="selectPlan('enterprise')">
+                        <i class="fas fa-arrow-right me-2"></i>Escolher Enterprise
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Comparison -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <h3 class="text-center mb-4">Comparação de Recursos</h3>
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Recurso</th>
+                            <th class="text-center">Free</th>
+                            <th class="text-center">Pro</th>
+                            <th class="text-center">Enterprise</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Tokens por mês</td>
+                            <td class="text-center">100</td>
+                            <td class="text-center">10.000</td>
+                            <td class="text-center">Ilimitado</td>
+                        </tr>
+                        <tr>
+                            <td>Documentos</td>
+                            <td class="text-center">1</td>
+                            <td class="text-center">50</td>
+                            <td class="text-center">Ilimitado</td>
+                        </tr>
+                        <tr>
+                            <td>Processamento de vídeos</td>
+                            <td class="text-center"><i class="fas fa-times text-danger"></i></td>
+                            <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                            <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Suporte</td>
+                            <td class="text-center">Básico</td>
+                            <td class="text-center">Prioritário</td>
+                            <td class="text-center">24/7</td>
+                        </tr>
+                        <tr>
+                            <td>API personalizada</td>
+                            <td class="text-center"><i class="fas fa-times text-danger"></i></td>
+                            <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                            <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Integração customizada</td>
+                            <td class="text-center"><i class="fas fa-times text-danger"></i></td>
+                            <td class="text-center"><i class="fas fa-times text-danger"></i></td>
+                            <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- FAQ Section -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <h3 class="text-center mb-4">Perguntas Frequentes</h3>
+            <div class="accordion" id="faqAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                            Como funciona o sistema de tokens?
+                        </button>
+                    </h2>
+                    <div id="faq1" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body">
+                            Cada consulta ao sistema RAG consome tokens baseados na complexidade da pergunta e resposta. 
+                            Tokens são resetados mensalmente em todos os planos.
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                            Posso cancelar minha assinatura a qualquer momento?
+                        </button>
+                    </h2>
+                    <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body">
+                            Sim, você pode cancelar sua assinatura a qualquer momento. 
+                            O acesso será mantido até o final do período pago.
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                            Que tipos de documentos são suportados?
+                        </button>
+                    </h2>
+                    <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body">
+                            Suportamos mais de 15 formatos incluindo PDF, DOCX, TXT, CSV, HTML, XML, 
+                            imagens com OCR e vídeos do YouTube com transcrição automática.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Finalizar Pagamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="paymentContent">
+                    <!-- Conteúdo será carregado dinamicamente -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnProcessPayment">Processar Pagamento</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function selectPlan(plan) {
+    const plans = {
+        'free': {
+            name: 'Free',
+            price: 0,
+            features: ['100 tokens por mês', '1 documento', 'Suporte básico']
+        },
+        'pro': {
+            name: 'Pro',
+            price: 15,
+            features: ['10.000 tokens por mês', '50 documentos', 'Suporte prioritário', 'Processamento de vídeos']
+        },
+        'enterprise': {
+            name: 'Enterprise',
+            price: 30,
+            features: ['Tokens ilimitados', 'Documentos ilimitados', 'Suporte 24/7', 'API personalizada']
+        }
+    };
+    
+    const selectedPlan = plans[plan];
+    
+    if (plan === 'free') {
+        // Para plano free, não precisa de pagamento
+        processFreeUpgrade();
+    } else {
+        // Mostrar modal de pagamento
+        showPaymentModal(selectedPlan);
+    }
+}
+
+function processFreeUpgrade() {
+    $.post('/api/payments/create-payment', {
+        plan: 'free',
+        amount: 0
+    })
+    .done(function(response) {
+        showAlert('✅ Plano Free ativado com sucesso!', 'success');
+        setTimeout(() => {
+            window.location.href = '/rag-frontend';
+        }, 2000);
+    })
+    .fail(function(xhr) {
+        showAlert('❌ Erro ao ativar plano: ' + (xhr.responseJSON?.detail || 'Erro desconhecido'), 'danger');
+    });
+}
+
+function showPaymentModal(plan) {
+    const paymentContent = `
+        <div class="text-center mb-4">
+            <h4>Plano ${plan.name}</h4>
+            <div class="display-6 text-primary">R$ ${plan.price}/mês</div>
+        </div>
+        
+        <div class="mb-3">
+            <h6>Recursos incluídos:</h6>
+            <ul class="list-unstyled">
+                ${plan.features.map(feature => `<li><i class="fas fa-check text-success me-2"></i>${feature}</li>`).join('')}
+            </ul>
+        </div>
+        
+        <div class="mb-3">
+            <label class="form-label">Método de Pagamento</label>
+            <select class="form-select" id="paymentMethod">
+                <option value="credit_card">Cartão de Crédito</option>
+                <option value="pix">PIX</option>
+                <option value="boleto">Boleto Bancário</option>
+            </select>
+        </div>
+        
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            Pagamento processado via Mercado Pago com total segurança.
+        </div>
+    `;
+    
+    $('#paymentContent').html(paymentContent);
+    $('#paymentModal').modal('show');
+}
+
+$(document).ready(function() {
+    $('#btnProcessPayment').click(function() {
+        const plan = $('#paymentModal').data('plan');
+        const method = $('#paymentMethod').val();
+        
+        $.post('/api/payments/create-payment', {
+            plan: plan,
+            amount: plan === 'pro' ? 15 : 30,
+            payment_method: method
+        })
+        .done(function(response) {
+            $('#paymentModal').modal('hide');
+            showAlert('✅ Pagamento processado com sucesso!', 'success');
+            setTimeout(() => {
+                window.location.href = '/rag-frontend';
+            }, 2000);
+        })
+        .fail(function(xhr) {
+            showAlert('❌ Erro no pagamento: ' + (xhr.responseJSON?.detail || 'Erro desconhecido'), 'danger');
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -16,8 +16,8 @@ class RagPythonController extends Controller
      */
     public function pythonSearch(Request $request)
     {
-        // Aumenta timeout para queries complexas
-        set_time_limit(600); // 10 minutos
+        // Aumenta timeout para queries complexas (reduzido para grounding)
+        set_time_limit(120); // 2 minutos (reduzido de 10 para 2)
         try {
             // Validação dos parâmetros
             $query = $request->input('query');
@@ -32,6 +32,8 @@ class RagPythonController extends Controller
         $citations = max(0, min(10, intval($request->input('citations', 0))));
         $useFullDocument = filter_var($request->input('use_full_document', false), FILTER_VALIDATE_BOOLEAN);
             $useCache = filter_var($request->input('use_cache', true), FILTER_VALIDATE_BOOLEAN);
+            $enableWebSearch = filter_var($request->input('enable_web_search', false), FILTER_VALIDATE_BOOLEAN);
+            $forceGrounding = filter_var($request->input('force_grounding', false), FILTER_VALIDATE_BOOLEAN);
 
             if (!$query) {
                 return response()->json([
@@ -202,6 +204,14 @@ class RagPythonController extends Controller
                 $cmd[] = '--use-full-document';
             }
 
+            if ($enableWebSearch) {
+                $cmd[] = '--enable-web-search';
+            }
+
+            if ($forceGrounding) {
+                $cmd[] = '--force-grounding';
+            }
+
             // Adicionar configuração do banco via JSON
             $dbConfig = [
                 'host' => env('DB_HOST', 'localhost'),
@@ -261,7 +271,7 @@ class RagPythonController extends Controller
             // Preservar o search_method que vem do Python (não sobrescrever)
 
             Log::info('Busca Python RAG concluída', [
-                'success' => $result['success'] ?? false,
+                'success' => $result['ok'] ?? $result['success'] ?? false,
                 'chunks_found' => count($result['chunks'] ?? []),
                 'execution_time' => round($executionTime, 3)
             ]);

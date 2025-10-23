@@ -683,7 +683,7 @@
   <div class="modal" tabindex="-1" id="cfgModal"><div class="modal-dialog"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title">Configuração</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
-      <div class="mb-2"><label class="form-label">Base URL da API</label><input id="cfgBaseUrl" class="form-control" placeholder="ex.: http://localhost:8000 (vazio = mesma origem)"></div>
+      <div class="mb-2"><label class="form-label">Base URL da API</label><input id="cfgBaseUrl" class="form-control" placeholder="ex.: http://localhost:8002 (FastAPI)"></div>
       <div class="mb-2"><label class="form-label">Modelo padrão</label><input id="cfgModel" class="form-control" placeholder="gemini-2.5-flash"></div>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button><button class="btn btn-primary" id="cfgSave">Salvar</button></div>
@@ -718,11 +718,11 @@
   <script>
     // ======= CONFIG =======
     const LS = { baseUrl:"ragpro_base_url", model:"ragpro_model" };
-    function getBaseUrl(){ return localStorage.getItem(LS.baseUrl)||""; }
+    function getBaseUrl(){ return localStorage.getItem(LS.baseUrl)||"http://localhost:8002"; }
     function setBaseUrl(v){ localStorage.setItem(LS.baseUrl, v||""); updateLabels(); }
     function getModel(){ return localStorage.getItem(LS.model)||"gemini-2.5-flash"; }
     function setModel(v){ localStorage.setItem(LS.model, v||"gemini-2.5-flash"); updateLabels(); }
-    function updateLabels(){ document.getElementById("baseUrlLabel").textContent=getBaseUrl()||"(mesma origem)"; document.getElementById("modelLabel").textContent=getModel(); }
+    function updateLabels(){ document.getElementById("baseUrlLabel").textContent=getBaseUrl()||"http://localhost:8002"; document.getElementById("modelLabel").textContent=getModel(); }
     updateLabels();
 
     // ======= PRICING =======
@@ -1864,9 +1864,10 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
       const length = document.getElementById("pythonLength").value || "auto";
       const citations = parseInt(document.getElementById("pythonCitations").value) || 0;
       const useFullDocument = document.getElementById("pythonUseFullDocument").checked;
-      const useSmartMode = document.getElementById("pythonUseSmartMode").checked;
+      // Se grounding estiver ativado, forçar uso do rag_search.py (não smart_router)
+      const useSmartMode = document.getElementById("pythonUseSmartMode").checked && !enableWebSearch;
 
-      document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-info">🔍 Buscando com Python RAG...</div>';
+      document.getElementById("pythonStatus").innerHTML = '<div class="alert alert-info">🔍 Buscando com Python RAG...' + (enableWebSearch ? '<br><small>🌐 Grounding ativado - pode levar até 2 minutos</small>' : '') + '</div>';
       document.getElementById("pythonChunks").innerHTML = '';
       document.getElementById("pythonAnswer").innerHTML = '';
       document.getElementById("pythonMetadata").textContent = '';

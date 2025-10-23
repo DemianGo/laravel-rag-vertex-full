@@ -79,7 +79,9 @@ class RAGSearchSystem:
         format: str = "plain",
         length: str = "auto",
         citations: int = 0,
-        use_full_document: bool = False
+        use_full_document: bool = False,
+        enable_web_search: bool = False,
+        force_grounding: bool = False
     ) -> Dict[str, Any]:
         """
         Busca RAG completa com todos os modos de resposta
@@ -96,6 +98,8 @@ class RAGSearchSystem:
             length: Comprimento da resposta (auto/short/medium/long/xl)
             citations: Número de citações (0-10)
             use_full_document: Se true, usa TODO o documento (ignora busca por query)
+            enable_web_search: Se true, habilita busca na web (grounding)
+            force_grounding: Se true, força busca na web mesmo com resultados locais
             
         Returns:
             Dict com chunks encontrados e resposta gerada conforme contrato PROJECT_README.md
@@ -193,33 +197,35 @@ class RAGSearchSystem:
                 
                 if document_id and not document_has_embeddings:
                     print(f"[DEBUG] Documento {document_id} não tem embeddings, usando FTS diretamente", file=sys.stderr)
-                    chunks = self.fts_search.search(
+                    fts_result = self.fts_search.search(
                         query=query,
                         document_id=document_id,
                         top_k=top_k,
                         threshold=0.1
                     )
+                    chunks = fts_result.get('chunks', []) if isinstance(fts_result, dict) else fts_result
                     search_method = "fts_direct"
                 else:
                     # Buscar chunks similares com embeddings
-            chunks = self.vector_search.search(
-                query=query,
-                document_id=document_id,
-                top_k=top_k,
-                threshold=float(similarity_threshold)
-            )
+                    chunks = self.vector_search.search(
+                        query=query,
+                        document_id=document_id,
+                        top_k=top_k,
+                        threshold=float(similarity_threshold)
+                    )
                     search_method = "vector_search"
-            
+                    
                     # Se não encontrou nada com busca vetorial, tentar FTS como fallback
-            if not chunks:
+                    if not chunks:
                         print(f"[DEBUG] Busca vetorial não encontrou resultados, tentando FTS fallback", file=sys.stderr)
                         try:
-                            chunks = self.fts_search.search(
+                            fts_result = self.fts_search.search(
                                 query=query,
                                 document_id=document_id,
                                 top_k=top_k,
                                 threshold=0.1
                             )
+                            chunks = fts_result.get('chunks', []) if isinstance(fts_result, dict) else fts_result
                             search_method = "fts_fallback"
                             print(f"[DEBUG] FTS fallback encontrou {len(chunks)} chunks", file=sys.stderr)
                         except Exception as e:
@@ -232,17 +238,18 @@ class RAGSearchSystem:
                         fallback_queries = self._generate_fallback_queries(query)
                         for fallback_query in fallback_queries:
                             try:
-                                chunks = self.fts_search.search(
+                                fts_result = self.fts_search.search(
                                     query=fallback_query,
-                            document_id=document_id,
+                                    document_id=document_id,
                                     top_k=top_k,
                                     threshold=0.1
-                        )
+                                )
+                                chunks = fts_result.get('chunks', []) if isinstance(fts_result, dict) else fts_result
                                 if chunks:
                                     search_method = "fts_fallback_intelligent"
                                     print(f"[DEBUG] Busca inteligente com '{fallback_query}' encontrou {len(chunks)} chunks", file=sys.stderr)
                                     break
-                except Exception as e:
+                            except Exception as e:
                                 print(f"[DEBUG] Erro na busca inteligente: {str(e)}", file=sys.stderr)
             
             # 5. Guard para QUOTE: nunca retorna vazio
@@ -306,7 +313,7 @@ class RAGSearchSystem:
                     # Sem LLM: retornar conteúdo combinado
                     answer = f"Conteúdo completo do documento:\n\n{all_content}"
                 
-                used_chunks = [chunk.get('id') for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
                 
             elif mode == 'list' or (mode == 'auto' and ModeDetector.has_list_intent(query)):
                 # Modo LIST
@@ -331,7 +338,7 @@ class RAGSearchSystem:
                         print(f"[DEBUG] Erro ao refinar bullets: {str(e)}", file=sys.stderr)
                 
                 answer = ResponseFormatters.render_bullets_simple(bullets, format_type)
-                used_chunks = [chunk.get('id') for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
                 
             elif mode == 'table' or (mode == 'auto' and ModeDetector.has_table_intent(query)):
                 # Modo TABLE
@@ -354,7 +361,7 @@ class RAGSearchSystem:
                         print(f"[DEBUG] Erro ao refinar pares: {str(e)}", file=sys.stderr)
                 
                 answer = ResponseFormatters.render_table(pairs, format_type)
-                used_chunks = [chunk.get('id') for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
                 
             elif mode == 'quote' or (mode == 'auto' and ModeDetector.has_quote_intent(query)):
                 # Modo QUOTE
@@ -366,7 +373,7 @@ class RAGSearchSystem:
                 
                 quote = ResponseFormatters.ensure_double_quoted(quote)
                 answer = ResponseFormatters.render_quote(quote, format_type)
-                used_chunks = [chunk.get('id') for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
                 
             elif mode == 'summary' or (mode == 'auto' and ModeDetector.has_summary_intent(query)):
                 # Modo SUMMARY - Inteligente para queries genéricas
@@ -421,7 +428,7 @@ class RAGSearchSystem:
                 else:
                     answer = ResponseFormatters.render_bullets_simple(bullets, format_type)
                 
-                used_chunks = [chunk.get('id') for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
                 
             else:
                 # Modo DIRECT
@@ -436,12 +443,40 @@ class RAGSearchSystem:
                 else:
                     answer = combined
                 
-                used_chunks = [chunk.get('id') for chunk in chunks]
+                used_chunks = [chunk.get('id') if isinstance(chunk, dict) else chunk for chunk in chunks]
             
             # Construir sources
             sources = [f"chunk#{chunk_id}" for chunk_id in used_chunks]
             
-            # 8. Retornar resultado conforme contrato PROJECT_README.md
+            # 8. GROUNDING: Busca na web se habilitada
+            if enable_web_search and (force_grounding or not chunks or "não há informação suficiente" in answer.lower()):
+                print(f"[DEBUG] Executando grounding para query: {query}", file=sys.stderr)
+                try:
+                    # Prompt otimizado e mais direto para grounding
+                    grounding_prompt = f"""
+                    Pergunta: {query}
+                    
+                    Contexto do documento: {answer if answer else "Nenhuma informação encontrada no documento"}
+                    
+                    Busque na internet informações específicas para responder à pergunta. Seja conciso e direto.
+                    """
+                    
+                    grounding_result = self.llm.generate_with_grounding(grounding_prompt)
+                    
+                    if grounding_result.get('success') and grounding_result.get('answer'):
+                        web_answer = grounding_result.get('answer', '')
+                        if web_answer and web_answer.strip():
+                            answer = f"{answer}\n\n--- Informações adicionais da web ---\n{web_answer}"
+                            print(f"[DEBUG] Grounding executado com sucesso", file=sys.stderr)
+                        else:
+                            print(f"[DEBUG] Grounding retornou resposta vazia", file=sys.stderr)
+                    else:
+                        print(f"[DEBUG] Grounding falhou: {grounding_result.get('error', 'Erro desconhecido')}", file=sys.stderr)
+                        
+                except Exception as e:
+                    print(f"[DEBUG] Erro no grounding: {str(e)}", file=sys.stderr)
+            
+            # 9. Retornar resultado conforme contrato PROJECT_README.md
             processing_time = round(time.time() - start_time, 3)
             
             # Formatar resposta final
@@ -707,6 +742,20 @@ Exemplos:
     )
     
     parser.add_argument(
+        '--enable-web-search',
+        action='store_true',
+        default=False,
+        help='Habilitar busca na web (grounding)'
+    )
+    
+    parser.add_argument(
+        '--force-grounding',
+        action='store_true',
+        default=False,
+        help='Forçar busca na web mesmo com resultados locais'
+    )
+    
+    parser.add_argument(
         '--db-config',
         type=str,
         default=None,
@@ -752,7 +801,9 @@ def main():
             format=args.format,
             length=args.length,
             citations=args.citations,
-            use_full_document=args.use_full_document
+            use_full_document=args.use_full_document,
+            enable_web_search=args.enable_web_search,
+            force_grounding=args.force_grounding
         )
         
         # Output JSON para stdout (Laravel vai capturar isso)

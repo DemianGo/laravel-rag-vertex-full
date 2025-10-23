@@ -167,6 +167,72 @@ class RagController extends Controller
     // ---------- ENTERPRISE INGEST ----------
     public function ingest(Request $req)
     {
+        // Proxy para FastAPI (sistema real de ingestão)
+        try {
+            $fastApiUrl = 'http://localhost:8002/api/rag/ingest';
+            
+            // Preparar dados para o FastAPI
+            $formData = [];
+            
+            // Adicionar arquivo se presente
+            if ($req->hasFile('file')) {
+                $file = $req->file('file');
+                $formData['file'] = new \CURLFile($file->getRealPath(), $file->getMimeType(), $file->getClientOriginalName());
+            }
+            
+            // Adicionar outros campos
+            if ($req->input('title')) {
+                $formData['title'] = $req->input('title');
+            }
+            if ($req->input('text')) {
+                $formData['text'] = $req->input('text');
+            }
+            if ($req->input('url')) {
+                $formData['url'] = $req->input('url');
+            }
+            if ($req->input('tenant_slug')) {
+                $formData['tenant_slug'] = $req->input('tenant_slug');
+            }
+            
+            // Fazer requisição para o FastAPI
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $fastApiUrl);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $formData);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 300); // 5 minutos
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Accept: application/json'
+            ]);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+            
+            if ($error) {
+                throw new \Exception("Erro na comunicação com FastAPI: " . $error);
+            }
+            
+            // Retornar resposta do FastAPI
+            $responseData = json_decode($response, true);
+            return response()->json($responseData, $httpCode);
+            
+        } catch (\Exception $e) {
+            Log::error('Erro no proxy para FastAPI', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'ok' => false,
+                'error' => 'Erro interno do servidor: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function ingest_old(Request $req)
+    {
         // Optimize PHP settings for large file processing (up to 5000 pages)
         ini_set('max_execution_time', 0); // Sem limite de tempo para arquivos de até 5000 páginas
         ini_set('memory_limit', '4G'); // 4GB para arquivos de até 5000 páginas

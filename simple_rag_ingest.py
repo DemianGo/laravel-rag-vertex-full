@@ -66,7 +66,7 @@ async def rag_ingest(
                     "python3", 
                     "scripts/document_extraction/main_extractor.py",
                     temp_path
-                ], capture_output=True, text=True, timeout=60)
+                ], capture_output=True, text=True, timeout=300)
                 
                 if result.returncode == 0:
                     # Parse JSON response

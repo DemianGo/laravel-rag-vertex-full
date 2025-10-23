@@ -50,6 +50,9 @@ Route::middleware([ForceJsonForRag::class])->group(function () {
     Route::post('/rag/python-search', [\App\Http\Controllers\RagPythonController::class, 'pythonSearch']);
     Route::get('/rag/python-health', [\App\Http\Controllers\RagPythonController::class, 'pythonHealth']);
     
+    // Upload endpoint - public for RAG Console
+    Route::post('/rag/ingest', [RagController::class, 'ingest']);
+    
     // Feedback System (public for /rag-frontend/ compatibility)
     Route::post('/rag/feedback', [\App\Http\Controllers\RagFeedbackController::class, 'store']);
     Route::get('/rag/feedback/stats', [\App\Http\Controllers\RagFeedbackController::class, 'stats']);
@@ -97,7 +100,6 @@ Route::middleware(['web', 'auth.set'])->group(function () {
     Route::get('/docs/list', [RagController::class, 'listDocs']);
     Route::get('/docs/{id}', [RagController::class, 'getDocument']);
     Route::get('/docs/{id}/chunks', [RagController::class, 'getDocumentChunks']);
-    Route::post('/rag/ingest', [RagController::class, 'ingest']);
     Route::post('/rag/bulk-ingest', [\App\Http\Controllers\BulkIngestController::class, 'bulkIngest']);
     
     // Python RAG Integration (now protected)
