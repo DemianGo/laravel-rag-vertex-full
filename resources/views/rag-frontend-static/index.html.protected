@@ -1864,6 +1864,12 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
       const length = document.getElementById("pythonLength").value || "auto";
       const citations = parseInt(document.getElementById("pythonCitations").value) || 0;
       const useFullDocument = document.getElementById("pythonUseFullDocument").checked;
+      
+      // GROUNDING / WEB SEARCH PARAMETERS - DEFINING FIRST
+      const enableWebSearch = document.getElementById("pythonEnableWebSearch").checked;
+      const llmProvider = document.getElementById("pythonLlmProvider").value;
+      const forceGrounding = document.getElementById("pythonForceGrounding").checked;
+      
       // Se grounding estiver ativado, forçar uso do rag_search.py (não smart_router)
       const useSmartMode = document.getElementById("pythonUseSmartMode").checked && !enableWebSearch;
 
@@ -1873,10 +1879,6 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
       document.getElementById("pythonMetadata").textContent = '';
 
       try {
-        // GROUNDING / WEB SEARCH PARAMETERS
-        const enableWebSearch = document.getElementById("pythonEnableWebSearch").checked;
-        const llmProvider = document.getElementById("pythonLlmProvider").value;
-        const forceGrounding = document.getElementById("pythonForceGrounding").checked;
 
         const payload = {
           query: query,
@@ -1897,7 +1899,9 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
         
         if (docId) payload.document_id = docId;
 
+        console.log("🔍 Fazendo POST para /api/rag/python-search com payload:", payload);
         const data = await doFetchJSON("POST", "/api/rag/python-search", payload);
+        console.log("📥 Resposta recebida:", data);
         
         // Finalizar progresso
         clearInterval(progressInterval);

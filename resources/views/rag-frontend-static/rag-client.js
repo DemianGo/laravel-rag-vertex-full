@@ -9,7 +9,7 @@
     ingest:  BASE + '/rag/ingest',
     query:   BASE + '/rag/query',
     answer:  BASE + '/rag/answer',
-    docs:    BASE + '/api/docs/list',
+    docs:    'http://localhost:8002/api/docs/list',  // FastAPI direto
     ping:    BASE + '/rag/ping',
   };
 

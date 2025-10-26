@@ -231,7 +231,7 @@ class RAGSearchSystem:
                             print(f"[DEBUG] FTS fallback encontrou {len(chunks)} chunks", file=sys.stderr)
                         except Exception as e:
                             print(f"[DEBUG] Erro no FTS fallback: {str(e)}", file=sys.stderr)
-                
+                    
                     # 4.1. Fallback inteligente se não encontrou chunks (só para busca normal)
                     if not chunks:
                         print(f"[DEBUG] Nenhum chunk encontrado, tentando busca inteligente", file=sys.stderr)
@@ -450,7 +450,11 @@ class RAGSearchSystem:
             sources = [f"chunk#{chunk_id}" for chunk_id in used_chunks]
             
             # 8. GROUNDING: Busca na web se habilitada
-            if enable_web_search and (force_grounding or not chunks or "não há informação suficiente" in answer.lower()):
+            # Ativa grounding APENAS quando o usuário marcar o checkbox "Busca na Internet (Grounding)"
+            # OU quando force_grounding estiver marcado (mesmo com chunks)
+            should_ground = enable_web_search or force_grounding
+            
+            if should_ground:
                 print(f"[DEBUG] Executando grounding para query: {query}", file=sys.stderr)
                 try:
                     # Prompt otimizado e mais direto para grounding

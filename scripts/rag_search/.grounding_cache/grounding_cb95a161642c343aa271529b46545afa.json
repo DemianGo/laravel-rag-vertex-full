@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "answer": "O CEP para Castro Alves, 1004, Aclimação, São Paulo é: **01532-001**.\n",
+  "grounding_metadata": {
+    "grounding_chunks": [
+      {
+        "title": "Resultado da busca web",
+        "content": "O CEP para Castro Alves, 1004, Aclimação, São Paulo é: **01532-001**.\n...",
+        "url": "https://gemini.google.com"
+      }
+    ]
+  },
+  "execution_time": 0
+}
