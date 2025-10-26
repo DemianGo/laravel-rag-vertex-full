@@ -86,9 +86,15 @@ pip3 install PyJWT==2.8.0 || echo "⚠️  Erro ao instalar PyJWT (pode estar j�
 # 5) Start Python servers
 echo "==> Verificando e limpando processos conflitantes..."
 # Matar processos que possam estar usando as portas
+echo "   Matando processos nas portas 8000 e 8002..."
 pkill -f "video_server.py" 2>/dev/null || true
 pkill -f "fastapi_main.py" 2>/dev/null || true
+pkill -f "simple_rag_ingest.py" 2>/dev/null || true
 pkill -f "php artisan serve" 2>/dev/null || true
+
+# Matar processos específicos das portas
+lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+lsof -ti:8002 | xargs kill -9 2>/dev/null || true
 
 # Aguardar um momento para liberar as portas
 sleep 2

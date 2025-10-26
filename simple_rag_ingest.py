@@ -16,6 +16,7 @@ import subprocess
 from pathlib import Path
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from datetime import datetime
 
 # Importar sistema de timeout adaptativo
 sys.path.append(str(Path(__file__).parent / "scripts" / "rag_search"))
@@ -100,21 +101,24 @@ async def rag_ingest(request: Request):
                 result = subprocess.run([
                     "python3", 
                     "scripts/document_extraction/main_extractor.py",
-                    temp_path
+                    "--input", temp_path
                 ], capture_output=True, text=True, timeout=timeout_seconds)
                 
                 if result.returncode == 0:
                     # Parse JSON response
                     extraction_result = json.loads(result.stdout)
-                    content = extraction_result.get('content', '')
-                    doc_title = extraction_result.get('title', doc_title)
+                    content = extraction_result.get('extracted_text', '')
+                    doc_title = extraction_result.get('title', doc_title) if extraction_result.get('title') else doc_title
                 else:
                     # Fallback: usar conteúdo bruto
-                    content = content.decode('utf-8', errors='ignore')
+                    if isinstance(content, bytes):
+                        content = content.decode('utf-8', errors='ignore')
                     
             except Exception as e:
                 # Fallback: usar conteúdo bruto
-                content = content.decode('utf-8', errors='ignore')
+                print(f"[DEBUG] Erro na extração: {e}", file=sys.stderr)
+                if isinstance(content, bytes):
+                    content = content.decode('utf-8', errors='ignore')
             
             # Limpar arquivo temporário
             try:
@@ -159,48 +163,82 @@ async def rag_ingest(request: Request):
         if len(content.strip()) < 10:
             raise HTTPException(status_code=422, detail="Conteúdo muito curto. Mínimo 10 caracteres.")
         
-        # Usar sistema real de ingestão
+        # Salvar conteúdo extraído no banco de dados
+        document_id = None
+        chunks_created = 0
+        
         try:
-            # Chamar o script de ingestão real
-            import subprocess
-            import tempfile
-            import os
+            # Conectar ao banco
+            conn = psycopg2.connect(
+                dbname="laravel_rag_db",
+                user="raguser_new",
+                password="senhasegura123",
+                host="127.0.0.1",
+                port="5432"
+            )
+            cursor = conn.cursor()
             
-            # Criar arquivo temporário com o conteúdo
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as temp_file:
-                temp_file.write(content)
-                temp_file_path = temp_file.name
+            # Inserir documento
+            # Pega o nome do arquivo de forma segura
+            try:
+                file_name = file.filename if 'file' in locals() and file else 'unknown'
+            except:
+                try:
+                    file_name = files[0].filename if files and len(files) > 0 else 'unknown'
+                except:
+                    file_name = 'unknown'
             
-            # Chamar o script de ingestão real
-            cmd = [
-                'python3', 
-                'scripts/document_extraction/main_extractor.py',
-                '--file', temp_file_path,
-                '--title', doc_title,
-                '--tenant', tenant_slug or 'default'
-            ]
+            cursor.execute("""
+                INSERT INTO documents (title, source, uri, tenant_slug, metadata, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+                RETURNING id
+            """, (
+                doc_title,
+                'file',
+                file_name,
+                tenant_slug or 'default',
+                json.dumps({
+                    'language': 'pt',
+                    'file_type': 'unknown'
+                })
+            ))
             
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd='/var/www/html/laravel-rag-vertex-full')
+            document_id = cursor.fetchone()[0]
             
-            # Limpar arquivo temporário
-            os.unlink(temp_file_path)
+            # Garantir que content é string
+            if isinstance(content, bytes):
+                content = content.decode('utf-8', errors='ignore')
             
-            if result.returncode == 0:
-                # Parse da resposta do script
-                import json
-                ingest_result = json.loads(result.stdout)
-                document_id = ingest_result.get('document_id')
-                chunks_created = ingest_result.get('chunks_created', 1)
-            else:
-                # Fallback se script falhar
-                document_id = int(time.time())
-                chunks_created = max(1, len(content) // 1000)
+            # Criar chunks
+            chunks_text = [content[i:i+1000] for i in range(0, len(content), 1000)]
+            
+            for i, chunk_text in enumerate(chunks_text):
+                cursor.execute("""
+                    INSERT INTO chunks (document_id, content, chunk_index, metadata, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, NOW(), NOW())
+                """, (
+                    document_id,
+                    str(chunk_text),
+                    i,
+                    json.dumps({'type': 'text_chunk'})
+                ))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            chunks_created = len(chunks_text)
                 
         except Exception as e:
-            print(f"Erro ao processar com script real: {e}", file=sys.stderr)
-            # Fallback
-            document_id = int(time.time())
-            chunks_created = max(1, len(content) // 1000)
+            print(f"Erro ao salvar no banco: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            
+            # Fallback - RETORNA TIMESTAMP EM CASO DE ERRO
+            if document_id is None:
+                document_id = int(time.time())
+            if chunks_created == 0:
+                chunks_created = max(1, len(content) // 1000) if content else 1
         
         processing_time = time.time() - start_time
         
@@ -252,12 +290,11 @@ async def list_docs(request: Request):
         
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         
-        # Buscar documentos (últimos 100)
+        # Buscar TODOS os documentos (sem limite)
         cursor.execute("""
             SELECT id, title, source, created_at, metadata 
             FROM documents 
-            ORDER BY created_at DESC 
-            LIMIT 100
+            ORDER BY created_at DESC
         """)
         
         docs = cursor.fetchall()
@@ -278,11 +315,21 @@ async def list_docs(request: Request):
         cursor.close()
         conn.close()
         
-        return {
+        # Converter para lista de dicts e converter datetime para string
+        docs_list = []
+        for doc in docs:
+            doc_dict = dict(doc)
+            # Converter datetime para string
+            if 'created_at' in doc_dict and doc_dict['created_at']:
+                if isinstance(doc_dict['created_at'], datetime):
+                    doc_dict['created_at'] = doc_dict['created_at'].isoformat()
+            docs_list.append(doc_dict)
+        
+        return JSONResponse(content={
             "ok": True,
-            "docs": docs,
+            "docs": docs_list,
             "tenant": "default"
-        }
+        })
         
     except Exception as e:
         print(f"Erro ao listar documentos: {e}", file=sys.stderr)
