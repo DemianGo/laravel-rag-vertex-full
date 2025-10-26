@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "answer": "Desculpe, mas não posso fornecer informações específicas sobre um CEP sem acesso à internet. Recomendo que você consulte diretamente o site dos Correios ou utilize um serviço de busca de CEP online para obter a informação correta e atualizada. Posso ajudar com mais alguma coisa?",
+  "grounding_metadata": {
+    "grounding_chunks": [
+      {
+        "title": "Informações gerais",
+        "content": "Desculpe, mas não posso fornecer informações específicas sobre um CEP sem acesso à internet. Recomendo que você consulte diretamente o site dos Correios ou utilize um serviço de busca de CEP online pa...",
+        "url": "informações gerais"
+      }
+    ]
+  },
+  "execution_time": 0
+}

@@ -471,7 +471,16 @@ class RAGSearchSystem:
                     if isinstance(grounding_result, dict) and grounding_result.get('success') and grounding_result.get('answer'):
                         web_answer = grounding_result.get('answer', '')
                         if web_answer and web_answer.strip():
-                            answer = f"{answer}\n\n--- Informações adicionais da web ---\n{web_answer}"
+                            # Se a resposta do documento indica que não encontrou a informação específica,
+                            # usar APENAS a resposta do grounding (não concatenar)
+                            if answer and "não há informação suficiente" in answer.lower():
+                                answer = f"Informação não encontrada no documento.\n\n--- Informações obtidas via busca na web ---\n{web_answer}"
+                            elif answer and web_answer.startswith(answer[:50]):  # Se grounding está duplicando a resposta
+                                # Usar apenas a resposta do grounding se ela já contém a resposta inicial
+                                answer = f"Informações obtidas via busca na web:\n{web_answer}"
+                            else:
+                                # Se o documento tinha informações diferentes, concatenar
+                                answer = f"{answer}\n\n--- Informações adicionais da web ---\n{web_answer}"
                             print(f"[DEBUG] Grounding executado com sucesso", file=sys.stderr)
                         else:
                             print(f"[DEBUG] Grounding retornou resposta vazia", file=sys.stderr)
