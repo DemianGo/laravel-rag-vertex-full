@@ -79,18 +79,23 @@ class LLMService:
 
     def generate_with_grounding(self, prompt: str) -> Dict[str, Any]:
         """
-        Gera resposta com grounding (busca na web)
-        
-        TEMPORARIAMENTE usando OpenAI (sem busca web real, mas com capacidade de web search)
-        TODO: Implementar busca web real com OpenAI quando estiver disponível
+        Gera resposta com grounding do Gemini (busca na web real)
 
         Args:
-            prompt: Prompt para o LLM
+            prompt: Prompt para o Gemini
 
         Returns:
             Dicionário com resposta e metadados
         """
         try:
+            if not self.gemini_client:
+                return {
+                    'success': False,
+                    'error': 'Cliente Gemini não disponível',
+                    'answer': '',
+                    'grounding_metadata': {}
+                }
+            
             # Cache simples para grounding (evitar chamadas repetidas)
             import hashlib
             prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
@@ -115,38 +120,48 @@ class LLMService:
             except Exception as cache_error:
                 logger.warning(f"Erro no cache de grounding: {cache_error}")
 
-            # Usar OpenAI para grounding (por enquanto sem busca web real)
-            if self.provider == "openai" and self.openai_client:
+            # Configura o Gemini com grounding (busca web real)
+            model = self.gemini_client
+            
+            # Usar Gemini com grounding real
+            if self.provider == "gemini" and self.gemini_client:
                 try:
-                    # Adiciona instrução para buscar informações recentes
-                    web_prompt = f"{prompt}\n\nIMPORTANTE: Procure fornecer informações atualizadas e precisas. Se necessário, mencione que está usando informações gerais."
+                    # Tenta usar grounding com busca na web (com timeout)
+                    import signal
                     
-                    response = self.openai_client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "system", "content": "Você é um assistente que fornece informações atualizadas e precisas, buscando informações gerais sobre o tema quando necessário."},
-                            {"role": "user", "content": web_prompt}
-                        ],
-                        max_tokens=1024,
-                        temperature=0.1
-                    )
+                    def timeout_handler(signum, frame):
+                        raise TimeoutError("Grounding timeout")
                     
-                    answer_text = response.choices[0].message.content.strip()
+                    # Timeout de 30 segundos para grounding
+                    signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(30)
                     
-                    if answer_text:
+                    try:
+                        response = model.generate_content(
+                            prompt,
+                            tools=[{"google_search_retrieval": {}}],
+                            generation_config={
+                                "temperature": 0.1,
+                                "max_output_tokens": 1024,  # Reduzido para resposta mais rápida
+                            }
+                        )
+                    finally:
+                        signal.alarm(0)  # Cancelar timeout
+                        
+                    if response and response.text:
                         grounding_metadata = {
                             'grounding_chunks': [
                                 {
-                                    'title': 'Informações gerais',
-                                    'content': answer_text[:200] + '...' if len(answer_text) > 200 else answer_text,
-                                    'url': 'informações gerais'
+                                    'title': 'Resultado da busca web',
+                                    'content': response.text[:200] + '...',
+                                    'url': 'https://gemini.google.com'
                                 }
                             ]
                         }
 
                         result = {
                             'success': True,
-                            'answer': answer_text,
+                            'answer': response.text,
                             'grounding_metadata': grounding_metadata,
                             'execution_time': 0
                         }
@@ -162,22 +177,40 @@ class LLMService:
                     else:
                         return {
                             'success': False,
-                            'error': 'Resposta vazia do OpenAI',
+                            'error': 'Resposta vazia do Gemini',
                             'answer': '',
                             'grounding_metadata': {}
                         }
-                except Exception as openai_error:
-                    logger.error(f"Erro ao usar OpenAI para grounding: {openai_error}")
+                except Exception as grounding_error:
+                    # Se grounding falhar, usa busca normal
+                    logger.warning(f"Grounding falhou, usando busca normal: {grounding_error}")
+                    try:
+                        response = model.generate_content(
+                            prompt,
+                            generation_config={
+                                "temperature": 0.1,
+                                "max_output_tokens": 2048,
+                            }
+                        )
+                        if response and response.text:
+                            return {
+                                'success': True,
+                                'answer': response.text,
+                                'grounding_metadata': {},
+                                'execution_time': 0
+                            }
+                    except Exception as fallback_error:
+                        logger.error(f"Erro no fallback: {fallback_error}")
                     return {
                         'success': False,
-                        'error': f'Erro OpenAI: {str(openai_error)}',
+                        'error': f'Erro Gemini: {str(grounding_error)}',
                         'answer': '',
                         'grounding_metadata': {}
                     }
             else:
                 return {
                     'success': False,
-                    'error': 'Nenhum LLM disponível para grounding (OpenAI não configurado)',
+                    'error': 'Nenhum LLM disponível para grounding (Gemini não configurado)',
                     'answer': '',
                     'grounding_metadata': {}
                 }
