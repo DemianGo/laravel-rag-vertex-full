@@ -94,9 +94,30 @@ OPENAI_API_KEY=your_openai_key
 ```
 
 ### **6. Iniciar Servidor**
+
+**IMPORTANTE:** Este sistema usa arquitetura híbrida Laravel + FastAPI
+
+#### **Laravel (porta 8000)** - Frontend e autenticação:
 ```bash
 php artisan serve
 ```
+**Laravel APENAS serve:**
+- ✅ Views HTML (frontend)
+- ✅ Login/Registro (autenticação)
+- ✅ Admin Panel
+- ❌ NÃO processa APIs de RAG
+
+#### **FastAPI (porta 8002)** - Todo o sistema de RAG:
+```bash
+python3 simple_rag_ingest.py
+```
+**FastAPI processa TUDO:**
+- ✅ Upload de documentos (POST /api/rag/ingest)
+- ✅ Lista documentos (GET /api/docs/list)
+- ✅ Busca RAG (POST /api/rag/python-search)
+- ✅ Todas as operações de processamento
+
+**⚠️ IMPORTANTE:** Não use Laravel para APIs. Todo backend é FastAPI!
 
 ## 🎯 **Uso Rápido**
 
@@ -129,21 +150,54 @@ Para documentação detalhada, consulte:
 
 ## 🔧 **Arquitetura**
 
+### **⚠️ SEPARAÇÃO DE RESPONSABILIDADES:**
+
+#### **1. Laravel (Porta 8000) - Frontend e Autenticação:**
 ```
 Frontend (Laravel Blade + Bootstrap)
     ↓
-Backend (Laravel 12 + PHP 8.4)
+Laravel 12 + PHP 8.4
+    ├── Views HTML/CSS/JS (✅)
+    ├── Login/Registro (✅)
+    ├── Admin Panel (✅)
+    └── NÃO processa APIs (❌)
+```
+
+**Laravel APENAS serve:**
+- ✅ Views para HTML renderizado
+- ✅ Autenticação web (sessions)
+- ✅ Admin panel para gerenciamento
+- ❌ **NÃO processa APIs de RAG**
+
+#### **2. FastAPI (Porta 8002) - Todo o Backend:**
+```
+FastAPI (Python 3.12)
+    ↓
+APIs RAG + Processamento
+    ├── POST /api/rag/ingest (✅)
+    ├── GET /api/docs/list (✅)
+    ├── POST /api/rag/python-search (✅)
+    └── Todas as operações (✅)
     ↓
 Python Scripts (RAG + Extraction)
     ↓
 Database (PostgreSQL + Vector Search)
 ```
 
+**FastAPI processa TUDO:**
+- ✅ Upload de documentos
+- ✅ Listagem de documentos
+- ✅ Busca RAG
+- ✅ Processamento de vídeos
+- ✅ Geração de embeddings
+- ✅ Todas as operações de backend
+
 ### **Componentes Principais**
-- **Controllers**: 22 arquivos (RAG, Video, Documents, etc)
-- **Services**: 15+ serviços especializados
+- **Laravel Controllers**: 22 arquivos (apenas para views)
+- **FastAPI Endpoints**: APIs de processamento
+- **Python Scripts**: 100+ arquivos para RAG e extração
 - **Middleware**: Autenticação dual, planos, API keys
-- **Python Scripts**: 100+ arquivos para processamento
+- **Database**: PostgreSQL + Vector Search
 
 ## 📊 **Estatísticas do Projeto**
 

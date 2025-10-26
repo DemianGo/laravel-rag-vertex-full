@@ -12,7 +12,10 @@ import sys
 import os
 import json
 import time
+import subprocess
 from pathlib import Path
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 # Importar sistema de timeout adaptativo
 sys.path.append(str(Path(__file__).parent / "scripts" / "rag_search"))
@@ -85,7 +88,7 @@ async def rag_ingest(request: Request):
             
             # Usar script de extração existente com timeout adaptativo
             try:
-                import subprocess
+                pass  # subprocess já importado no topo
                 
                 # Calcular timeout adaptativo baseado no tamanho do arquivo
                 timeout_seconds = AdaptiveTimeout.calculate_timeout(len(content))
@@ -234,6 +237,132 @@ async def health():
     """Health check"""
     return {"ok": True, "service": "Simple RAG Ingest API"}
 
+@app.get("/api/docs/list")
+async def list_docs(request: Request):
+    """Lista documentos do banco de dados"""
+    try:
+        # Conectar ao PostgreSQL
+        conn = psycopg2.connect(
+            dbname="laravel_rag_db",
+            user="raguser_new",
+            password="senhasegura123",
+            host="127.0.0.1",
+            port="5432"
+        )
+        
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Buscar documentos (últimos 100)
+        cursor.execute("""
+            SELECT id, title, source, created_at, metadata 
+            FROM documents 
+            ORDER BY created_at DESC 
+            LIMIT 100
+        """)
+        
+        docs = cursor.fetchall()
+        
+        # Buscar contagem de chunks por documento
+        cursor.execute("""
+            SELECT document_id, COUNT(*) as count 
+            FROM chunks 
+            GROUP BY document_id
+        """)
+        
+        chunks_count = {row['document_id']: row['count'] for row in cursor.fetchall()}
+        
+        # Adicionar contagem de chunks a cada documento
+        for doc in docs:
+            doc['chunks'] = chunks_count.get(doc['id'], 0)
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "ok": True,
+            "docs": docs,
+            "tenant": "default"
+        }
+        
+    except Exception as e:
+        print(f"Erro ao listar documentos: {e}", file=sys.stderr)
+        return JSONResponse(
+            content={
+                "ok": False,
+                "error": f"Erro ao listar documentos: {str(e)}"
+            },
+            status_code=500
+        )
+
+@app.post("/api/rag/python-search")
+async def python_search(request: Request):
+    """Busca RAG usando o script Python rag_search.py"""
+    try:
+        data = await request.json()
+        
+        # Parâmetros obrigatórios
+        query = data.get('query')
+        document_id = data.get('document_id')
+        
+        if not query:
+            return JSONResponse(
+                content={"success": False, "error": "Parâmetro query é obrigatório"},
+                status_code=422
+            )
+        
+        # Parâmetros opcionais
+        top_k = data.get('top_k', 5)
+        threshold = data.get('threshold', 0.3)
+        mode = data.get('mode', 'auto')
+        format_type = data.get('format', 'plain')
+        enable_web_search = data.get('enable_web_search', False)
+        force_grounding = data.get('force_grounding', False)
+        
+        # Chama o script Python rag_search.py
+        cmd = [
+            'python3',
+            'scripts/rag_search/rag_search.py',
+            '--query', query,
+            '--document-id', str(document_id) if document_id else '',
+            '--top-k', str(top_k),
+            '--threshold', str(threshold),
+            '--mode', mode,
+            '--format', format_type
+        ]
+        
+        if enable_web_search:
+            cmd.append('--enable-web-search')
+        if force_grounding:
+            cmd.append('--force-grounding')
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd='/var/www/html/laravel-rag-vertex-full',
+            timeout=120
+        )
+        
+        if result.returncode == 0:
+            import json
+            response = json.loads(result.stdout)
+            return response
+        else:
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "error": f"Erro ao executar busca: {result.stderr}"
+                },
+                status_code=500
+            )
+            
+    except Exception as e:
+        print(f"Erro na busca RAG: {e}", file=sys.stderr)
+        return JSONResponse(
+            content={"success": False, "error": f"Erro: {str(e)}"},
+            status_code=500
+        )
+
 @app.get("/api/embeddings/file-info")
 async def file_info(filename: str):
     """Endpoint para informações do arquivo"""
@@ -265,5 +394,6 @@ if __name__ == "__main__":
     print("📱 Endpoints:")
     print("  POST /api/rag/ingest - Upload de documentos")
     print("  GET /api/rag/health - Health check")
+    print("  GET /api/docs/list - Lista documentos")
     print("  GET /docs - Documentação Swagger")
     uvicorn.run(app, host="0.0.0.0", port=8002)
