@@ -121,6 +121,15 @@ echo "FastAPI server PID: $FASTAPI_PID"
 sleep 3
 if curl -s http://localhost:8002/api/rag/health >/dev/null 2>&1; then
   echo "✅ Servidor FastAPI iniciado com sucesso"
+  
+  # WARM-UP: Aquecer o modelo Gemini para evitar cold start
+  echo "==> Aquecendo modelo Gemini (warm-up)..."
+  curl -s -X POST http://localhost:8002/api/rag/python-search \
+    -H "Content-Type: application/json" \
+    -d '{"query": "teste de warm-up", "document_id": null, "strictness": 3}' \
+    >/dev/null 2>&1 || true
+  
+  echo "✅ Warm-up concluído (cold start evitado)"
 else
   echo "⚠️  Servidor FastAPI pode não ter iniciado corretamente"
 fi

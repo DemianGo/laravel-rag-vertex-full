@@ -27,6 +27,19 @@ sys.path.append(str(Path(__file__).parent / "scripts"))
 
 app = FastAPI(title="Simple RAG Ingest API")
 
+# Instância global do RAG system (mantido em memória para performance)
+_rag_system = None
+
+def get_rag_system():
+    """Inicializa o sistema RAG em memória (singleton)"""
+    global _rag_system
+    if _rag_system is None:
+        print("[INIT] Inicializando sistema RAG...", file=sys.stderr)
+        from scripts.rag_search.rag_search import RAGSearchSystem
+        _rag_system = RAGSearchSystem()
+        print("[INIT] Sistema RAG inicializado!", file=sys.stderr)
+    return _rag_system
+
 # CORS para permitir chamadas do frontend
 app.add_middleware(
     CORSMiddleware,
@@ -341,9 +354,68 @@ async def list_docs(request: Request):
             status_code=500
         )
 
+@app.get("/api/docs/{doc_id}")
+async def get_document(doc_id: int):
+    """Retorna detalhes de um documento específico"""
+    try:
+        # Conectar ao PostgreSQL
+        conn = psycopg2.connect(
+            dbname="laravel_rag_db",
+            user="raguser_new",
+            password="senhasegura123",
+            host="127.0.0.1",
+            port="5432"
+        )
+        
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Buscar documento
+        cursor.execute("""
+            SELECT id, title, source, created_at, metadata 
+            FROM documents 
+            WHERE id = %s
+        """, (doc_id,))
+        
+        doc = cursor.fetchone()
+        
+        if not doc:
+            return JSONResponse(
+                content={"error": "Documento não encontrado"},
+                status_code=404
+            )
+        
+        # Buscar contagem de chunks
+        cursor.execute("""
+            SELECT COUNT(*) as count 
+            FROM chunks 
+            WHERE document_id = %s
+        """, (doc_id,))
+        
+        chunks_count = cursor.fetchone()['count']
+        
+        # Converter para dict
+        doc_dict = dict(doc)
+        if 'created_at' in doc_dict and doc_dict['created_at']:
+            if isinstance(doc_dict['created_at'], datetime):
+                doc_dict['created_at'] = doc_dict['created_at'].isoformat()
+        
+        doc_dict['chunks_count'] = chunks_count
+        
+        cursor.close()
+        conn.close()
+        
+        return JSONResponse(content=doc_dict)
+        
+    except Exception as e:
+        print(f"Erro ao buscar documento: {e}", file=sys.stderr)
+        return JSONResponse(
+            content={"error": f"Erro ao buscar documento: {str(e)}"},
+            status_code=500
+        )
+
 @app.post("/api/rag/python-search")
 async def python_search(request: Request):
-    """Busca RAG usando o script Python rag_search.py"""
+    """Busca RAG usando sistema em memória (performance)"""
     try:
         data = await request.json()
         
@@ -364,47 +436,30 @@ async def python_search(request: Request):
         format_type = data.get('format', 'plain')
         enable_web_search = data.get('enable_web_search', False)
         force_grounding = data.get('force_grounding', False)
+        strictness = data.get('strictness', 2)
         
-        # Chama o script Python rag_search.py
-        cmd = [
-            'python3',
-            'scripts/rag_search/rag_search.py',
-            '--query', query,
-            '--document-id', str(document_id) if document_id else '',
-            '--top-k', str(top_k),
-            '--threshold', str(threshold),
-            '--mode', mode,
-            '--format', format_type
-        ]
+        # Usar sistema RAG em memória
+        rag_system = get_rag_system()
         
-        if enable_web_search:
-            cmd.append('--enable-web-search')
-        if force_grounding:
-            cmd.append('--force-grounding')
-        
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            cwd='/var/www/html/laravel-rag-vertex-full',
-            timeout=120
+        result = rag_system.search(
+            query=query,
+            document_id=document_id,
+            top_k=top_k,
+            similarity_threshold=threshold,
+            include_answer=strictness < 3,
+            strictness=strictness,
+            mode=mode,
+            format=format_type,
+            enable_web_search=enable_web_search,
+            force_grounding=force_grounding
         )
         
-        if result.returncode == 0:
-            import json
-            response = json.loads(result.stdout)
-            return response
-        else:
-            return JSONResponse(
-                content={
-                    "success": False,
-                    "error": f"Erro ao executar busca: {result.stderr}"
-                },
-                status_code=500
-            )
+        return result
             
     except Exception as e:
         print(f"Erro na busca RAG: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             content={"success": False, "error": f"Erro: {str(e)}"},
             status_code=500

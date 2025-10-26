@@ -1,7 +1,11 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Carregar .env do diretório raiz do projeto (independente do CWD)
+project_root = Path(__file__).parent.parent.parent
+env_path = project_root / '.env'
+load_dotenv(dotenv_path=env_path)
 
 class Config:
     """Configurações do sistema RAG"""

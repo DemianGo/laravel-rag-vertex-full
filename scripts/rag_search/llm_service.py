@@ -28,8 +28,9 @@ class LLMService:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=self.config.GEMINI_API_KEY)
-                self.gemini_client = genai.GenerativeModel('gemini-2.5-flash')
-                logger.info("Cliente Gemini inicializado")
+                # Usar gemini-2.0-flash-exp que é mais rápido (já estava configurado no LlmService.php)
+                self.gemini_client = genai.GenerativeModel('gemini-2.0-flash-exp')
+                logger.info("Cliente Gemini inicializado com gemini-2.0-flash-exp")
             except ImportError:
                 logger.warning("google-generativeai não disponível")
             except Exception as e:
@@ -264,7 +265,16 @@ Resposta:"""
             Resposta do Gemini
         """
         try:
+            # Chamada direta do Gemini - sem timeout artificial
+            # O FastAPI já tem timeout de conexão configurado
+            logger.info("Chamando Gemini para gerar resposta...")
             response = self.gemini_client.generate_content(prompt)
+            
+            if not response or not response.text:
+                logger.warning("Resposta vazia do Gemini")
+                return "Não foi possível gerar uma resposta. Tente reformular a pergunta."
+            
+            logger.info(f"Resposta do Gemini recebida: {len(response.text)} caracteres")
             return response.text.strip()
 
         except Exception as e:
