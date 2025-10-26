@@ -33,16 +33,7 @@ app.add_middleware(
 )
 
 @app.post("/api/rag/ingest")
-async def rag_ingest(
-    request: Request,
-    file: UploadFile = File(None),
-    files: List[UploadFile] = File(None),
-    title: str = Form(None),
-    text: str = Form(None),
-    url: str = Form(None),
-    tenant_slug: str = Form("default"),
-    user_id: str = Form(None)
-):
+async def rag_ingest(request: Request):
     """
     Endpoint de ingest compatível com o Laravel
     Recebe: file (upload) OU text (texto direto) OU url
@@ -50,6 +41,18 @@ async def rag_ingest(
     """
     try:
         start_time = time.time()
+        
+        # Parse multipart form data
+        form = await request.form()
+        
+        # Support multiple file field names
+        file = form.get('file')
+        files = form.getlist('files[]') if not file else []
+        title = form.get('title')
+        text = form.get('text')
+        url = form.get('url')
+        tenant_slug = form.get('tenant_slug', 'default')
+        user_id = form.get('user_id')
         
         # Debug: verificar o que foi recebido
         print(f"[DEBUG] Request recebido:")

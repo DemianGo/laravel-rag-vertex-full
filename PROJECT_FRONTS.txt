@@ -1,0 +1,32 @@
+# FRONTENDS EM USO - Sistema RAG
+
+## 3 FRONTENDS ATIVOS:
+
+### 1. RAG Frontend (Principal) - APLICAÇÃO PRINCIPAL
+- URL: http://localhost:8000/rag-frontend
+- Arquivo: resources/views/rag-frontend-static/index.html.protected
+- Status: ✅ ATIVO
+- Tipo: Console RAG completo
+- Funcionalidades: Upload, RAG Search, Grounding, Métricas, Vídeos
+
+### 2. Admin Panel - PAINEL ADMINISTRATIVO
+- URL: http://localhost:8000/admin/
+- Arquivo: resources/views/admin/
+- Status: ✅ ATIVO
+- Tipo: Painel administrativo
+- Funcionalidades: Usuários, Documentos, Pagamentos, Configurações
+
+### 3. Home/Welcome - PÁGINA INICIAL
+- URL: http://localhost:8000/
+- Arquivo: resources/views/welcome.blade.php
+- Status: ✅ ATIVO
+- Tipo: Landing page
+- Funcionalidades: Login, Registro, Apresentação
+
+## FRONTENDS REMOVIDOS:
+- ❌ http://localhost:8000/rag.html (DELETADO)
+- ❌ http://localhost:8000/front (DELETADO)
+
+## IMPORTANTE:
+- Apenas trabalhar nos 3 frontends listados acima
+- Nenhum outro frontend deve ser mencionado na documentação

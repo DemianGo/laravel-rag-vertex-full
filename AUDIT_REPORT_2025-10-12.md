@@ -130,7 +130,7 @@
 | **public/rag-frontend/index.html** | ✅ | HTML | Sim | 1650+ linhas, 5 abas |
 | **public/rag-frontend/rag-client.js** | ✅ | JavaScript | Sim | API client completo |
 | **public/rag-frontend/file-validator.js** | ✅ | JavaScript | Sim | Validação 15+ formatos |
-| **public/front/** | ✅ | HTML/JS | Sim | Interface alternativa |
+| **N/A** | ❌ | Removido | Não | Frontend removido |
 | **resources/views/** | ✅ | Blade | Sim | Dashboard, Auth, Documents |
 
 **Total:** 2 frontends completos e funcionais
@@ -329,7 +329,7 @@ Nenhum problema crítico encontrado.
 ┌─────────────────────────────────────────────────────────────────┐
 │                    FRONTEND (2 interfaces)                      │
 │  ├─ public/rag-frontend/ (principal)                           │
-│  └─ public/front/ (alternativa)                                │
+│  └─ (removido)                                │
 └─────────────────────────┬───────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────────────┐

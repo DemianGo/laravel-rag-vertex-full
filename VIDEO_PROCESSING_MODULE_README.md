@@ -36,7 +36,7 @@ scripts/youtube_processor.py ✅
 
 ### **🔗 Integração com Frontend**
 
-O módulo foi integrado ao frontend existente em `/rag-frontend` (agora `/front`) na aba **Python RAG**, adicionando:
+O módulo foi integrado ao frontend principal em `/rag-frontend` na aba **Python RAG**, adicionando:
 
 - ✅ **Seção de Upload de Vídeo** com campo para URL do YouTube
 - ✅ **Botão de Processamento** com loading e feedback visual
@@ -115,7 +115,7 @@ VERTEX_AI_LOCATION=us-central1
 
 ### **🎯 Como Usar**
 
-1. **Acesse o Frontend**: `http://localhost:8000/front`
+1. **Acesse o Frontend**: `http://localhost:8000/rag-frontend`
 2. **Vá para aba "Python RAG"**
 3. **Na seção "Processamento de Vídeo YouTube"**:
    - Cole a URL do vídeo YouTube

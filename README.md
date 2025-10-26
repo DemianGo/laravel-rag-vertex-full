@@ -101,8 +101,9 @@ php artisan serve
 ## 🎯 **Uso Rápido**
 
 ### **1. Acesso ao Sistema**
-- **Página Principal**: `http://localhost:8000/documents`
-- **RAG Console**: `http://localhost:8000/rag-frontend/`
+- **Página Principal**: `http://localhost:8000/` (Home/Welcome)
+- **RAG Console**: `http://localhost:8000/rag-frontend/` (Aplicação Principal)
+- **Admin**: `http://localhost:8000/admin/` (Painel Administrativo)
 
 ### **2. Upload de Documentos**
 - Suporte a 15 formatos

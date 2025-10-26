@@ -64,7 +64,7 @@ Execute este prompt quando eu digitar: `/update-state` ou quando eu pedir "atual
 ### 1.3 Frontend
 
 **Varra TODO o diretório recursivamente:**
-- `public/front/`
+- (removido)
 - `public/rag-frontend/`
 - `resources/views/`
 - `resources/js/`
@@ -311,7 +311,7 @@ Baseado na auditoria, liste em ORDEM DE PRIORIDADE:
 
 | Pasta/Arquivo | Status | Tecnologia | Integrado com backend? |
 |---------------|--------|------------|----------------------|
-| public/front/ | ✅/🚧/❌ | HTML/JS/CSS | Sim/Não/Parcial |
+| (removido) | ❌ | Removido | Não |
 | public/rag-frontend/ | ✅/🚧/❌ | React/Vue/etc | Sim/Não/Parcial |
 
 ### Banco de Dados
