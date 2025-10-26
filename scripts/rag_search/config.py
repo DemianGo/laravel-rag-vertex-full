@@ -37,7 +37,7 @@ class Config:
     # Configurações de LLM
     GEMINI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY", os.getenv("GEMINI_API_KEY", ""))
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-    DEFAULT_LLM_PROVIDER = "gemini"  # gemini, openai, local
+    DEFAULT_LLM_PROVIDER = "openai"  # gemini, openai, local - TEMPORARIAMENTE OPENAI P/ GROUNDING
 
     # Configurações de timeout
     DATABASE_TIMEOUT = 30

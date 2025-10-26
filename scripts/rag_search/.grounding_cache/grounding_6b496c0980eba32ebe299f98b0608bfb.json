@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "answer": "O CEP da rua Castro Alves, número 1004, em São Paulo, é 01531-000.",
+  "grounding_metadata": {
+    "grounding_chunks": [
+      {
+        "title": "Informações gerais",
+        "content": "O CEP da rua Castro Alves, número 1004, em São Paulo, é 01531-000.",
+        "url": "informações gerais"
+      }
+    ]
+  },
+  "execution_time": 0
+}

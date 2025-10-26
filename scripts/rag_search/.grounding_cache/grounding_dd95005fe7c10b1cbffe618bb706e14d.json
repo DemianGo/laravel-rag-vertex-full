@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "answer": "O CEP do endereço fornecido é 01531-000. Essa informação foi confirmada através de fontes gerais disponíveis na internet.",
+  "grounding_metadata": {
+    "grounding_chunks": [
+      {
+        "title": "Informações gerais",
+        "content": "O CEP do endereço fornecido é 01531-000. Essa informação foi confirmada através de fontes gerais disponíveis na internet.",
+        "url": "informações gerais"
+      }
+    ]
+  },
+  "execution_time": 0
+}
