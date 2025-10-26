@@ -8,9 +8,10 @@ Processes embeddings in batches of 100 for 3x speedup
 import sys
 import json
 import os
+import psycopg2.extras
 from typing import List, Dict
 from embeddings_service import EmbeddingsService
-from database import DatabaseConnection
+from database import DatabaseManager
 
 BATCH_SIZE = 100
 
@@ -20,16 +21,19 @@ def generate_batch_embeddings(document_id: int) -> Dict:
     Much faster than one-by-one for large documents
     """
     try:
-        db = DatabaseConnection()
+        db = DatabaseManager()
         embeddings_service = EmbeddingsService()
         
         # Get all chunks without embeddings for this document
-        chunks = db.execute_query("""
-            SELECT id, content, chunk_index
-            FROM chunks
-            WHERE document_id = %s AND embedding IS NULL
-            ORDER BY chunk_index
-        """, (document_id,))
+        with db.get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
+                cursor.execute("""
+                    SELECT id, content, chunk_index
+                    FROM chunks
+                    WHERE document_id = %s AND embedding IS NULL
+                    ORDER BY chunk_index
+                """, (document_id,))
+                chunks = cursor.fetchall()
         
         if not chunks:
             return {
@@ -53,35 +57,41 @@ def generate_batch_embeddings(document_id: int) -> Dict:
                 embeddings = embeddings_service.generate_embeddings_batch(batch_texts)
                 
                 # Update database
-                for chunk_id, embedding in zip(batch_ids, embeddings):
-                    if embedding is not None:
-                        db.execute_update("""
-                            UPDATE chunks
-                            SET embedding = %s
-                            WHERE id = %s
-                        """, (embedding, chunk_id))
-                        processed += 1
-                    else:
-                        failed += 1
+                with db.get_connection() as conn:
+                    with conn.cursor() as cursor:
+                        for chunk_id, embedding in zip(batch_ids, embeddings):
+                            if embedding is not None:
+                                cursor.execute("""
+                                    UPDATE chunks
+                                    SET embedding = %s
+                                    WHERE id = %s
+                                """, (embedding, chunk_id))
+                                processed += 1
+                            else:
+                                failed += 1
+                        conn.commit()
                         
             except Exception as e:
                 print(f"Batch {i//BATCH_SIZE + 1} failed: {str(e)}", file=sys.stderr)
                 
                 # Fallback: process individually
-                for chunk_id, text in zip(batch_ids, batch_texts):
-                    try:
-                        embedding = embeddings_service.encode_text(text)
-                        if embedding is not None:
-                            db.execute_update("""
-                                UPDATE chunks
-                                SET embedding = %s
-                                WHERE id = %s
-                            """, (embedding, chunk_id))
-                            processed += 1
-                        else:
-                            failed += 1
-                    except:
-                        failed += 1
+                with db.get_connection() as conn:
+                    with conn.cursor() as cursor:
+                        for chunk_id, text in zip(batch_ids, batch_texts):
+                            try:
+                                embedding = embeddings_service.encode_text(text)
+                                if embedding is not None:
+                                    cursor.execute("""
+                                        UPDATE chunks
+                                        SET embedding = %s
+                                        WHERE id = %s
+                                    """, (embedding, chunk_id))
+                                    processed += 1
+                                else:
+                                    failed += 1
+                            except:
+                                failed += 1
+                        conn.commit()
         
         return {
             'success': True,

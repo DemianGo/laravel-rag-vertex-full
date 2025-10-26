@@ -363,6 +363,55 @@ async def python_search(request: Request):
             status_code=500
         )
 
+@app.post("/api/embeddings/generate")
+async def generate_embeddings(request: Request):
+    """Gera embeddings para todos os chunks de um documento"""
+    try:
+        data = await request.json()
+        document_id = data.get('document_id')
+        async_mode = data.get('async', False)
+        
+        if not document_id:
+            return JSONResponse(
+                content={"success": False, "error": "document_id é obrigatório"},
+                status_code=422
+            )
+        
+        # Chama o script Python batch_embeddings.py
+        cmd = [
+            'python3',
+            'scripts/rag_search/batch_embeddings.py',
+            str(document_id)
+        ]
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd='/var/www/html/laravel-rag-vertex-full',
+            timeout=300  # 5 minutos para documentos grandes
+        )
+        
+        if result.returncode == 0:
+            import json
+            response = json.loads(result.stdout)
+            return response
+        else:
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "error": f"Erro ao gerar embeddings: {result.stderr}"
+                },
+                status_code=500
+            )
+            
+    except Exception as e:
+        print(f"Erro ao gerar embeddings: {e}", file=sys.stderr)
+        return JSONResponse(
+            content={"success": False, "error": f"Erro: {str(e)}"},
+            status_code=500
+        )
+
 @app.get("/api/embeddings/file-info")
 async def file_info(filename: str):
     """Endpoint para informações do arquivo"""

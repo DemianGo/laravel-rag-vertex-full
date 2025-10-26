@@ -213,6 +213,7 @@ class RAGSearchSystem:
                         top_k=top_k,
                         threshold=float(similarity_threshold)
                     )
+                    chunks = chunks.get('chunks', []) if isinstance(chunks, dict) else (chunks if isinstance(chunks, list) else [])
                     search_method = "vector_search"
                     
                     # Se não encontrou nada com busca vetorial, tentar FTS como fallback
