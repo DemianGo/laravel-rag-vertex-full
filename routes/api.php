@@ -80,9 +80,6 @@ Route::middleware([ForceJsonForRag::class])->group(function () {
     Route::post('/embeddings/generate', [\App\Http\Controllers\UniversalEmbeddingController::class, 'generate']);
     Route::get('/embeddings/{documentId}/status', [\App\Http\Controllers\UniversalEmbeddingController::class, 'status']);
     Route::get('/embeddings/file-info', [\App\Http\Controllers\UniversalEmbeddingController::class, 'fileInfo']);
-    
-    // Document list (public for /rag-frontend/ compatibility)
-    Route::get('/docs/list', [RagController::class, 'listDocs']);
 });
 
 if (class_exists(\App\Http\Controllers\PdfQualityController::class)) {

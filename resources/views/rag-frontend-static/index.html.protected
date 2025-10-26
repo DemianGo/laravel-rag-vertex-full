@@ -2264,8 +2264,8 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
         // Ordena por ID decrescente (mais recentes primeiro)
         realDocs.sort((a, b) => b.id - a.id);
         
-        // Adiciona documentos reais
-        realDocs.slice(0, 15).forEach(doc => {
+        // Adiciona documentos reais (TODOS, sem limite)
+        realDocs.forEach(doc => {
           // Melhora a formatação do nome
           let displayName = doc.title;
           let fileIcon = '📄'; // ícone padrão

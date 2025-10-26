@@ -209,12 +209,12 @@ async def rag_ingest(request: Request):
             if isinstance(content, bytes):
                 content = content.decode('utf-8', errors='ignore')
             
-            # Criar chunks
+            # Criar chunks (usar 'ord' ao invés de 'chunk_index' e 'meta' ao invés de 'metadata')
             chunks_text = [content[i:i+1000] for i in range(0, len(content), 1000)]
             
             for i, chunk_text in enumerate(chunks_text):
                 cursor.execute("""
-                    INSERT INTO chunks (document_id, content, chunk_index, metadata, created_at, updated_at)
+                    INSERT INTO chunks (document_id, content, ord, meta, created_at, updated_at)
                     VALUES (%s, %s, %s, %s, NOW(), NOW())
                 """, (
                     document_id,

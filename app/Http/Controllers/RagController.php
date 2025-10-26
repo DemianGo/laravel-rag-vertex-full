@@ -87,7 +87,6 @@ class RagController extends Controller
         $docs = DB::table('documents')
             ->where('tenant_slug', $tenantSlug)
             ->orderByDesc('created_at')
-            ->limit(100)
             ->get(['id','title','source','created_at','metadata']);
 
         $counts = DB::table('chunks')
