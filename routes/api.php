@@ -59,6 +59,9 @@ Route::middleware([ForceJsonForRag::class])->group(function () {
     Route::get('/rag/feedback/recent', [\App\Http\Controllers\RagFeedbackController::class, 'recent']);
     
     // Bulk Operations & Document Management (public for /rag-frontend/ compatibility)
+    Route::get('/docs/list', [RagController::class, 'listDocs']);
+    Route::get('/docs/{id}', [RagController::class, 'getDocument']);
+    Route::get('/docs/{id}/chunks', [RagController::class, 'getDocumentChunks']);
     Route::delete('/docs/{id}', [\App\Http\Controllers\DocumentManagerController::class, 'delete']);
     Route::get('/docs/{id}/cache/stats', [\App\Http\Controllers\DocumentManagerController::class, 'cacheStats']);
     Route::delete('/docs/{id}/cache', [\App\Http\Controllers\DocumentManagerController::class, 'clearCache']);
@@ -98,8 +101,7 @@ Route::middleware(['auth:sanctum'])->prefix('user')->group(function () {
 // Using web middleware group to enable sessions
 Route::middleware(['web', 'auth.set'])->group(function () {
     // Removed /docs/list from here - moved to public group above
-    Route::get('/docs/{id}', [RagController::class, 'getDocument']);
-    Route::get('/docs/{id}/chunks', [RagController::class, 'getDocumentChunks']);
+    // Removed /docs/{id} and /docs/{id}/chunks - moved to public group above
     Route::post('/rag/bulk-ingest', [\App\Http\Controllers\BulkIngestController::class, 'bulkIngest']);
     
     // Python RAG Integration (now protected)
