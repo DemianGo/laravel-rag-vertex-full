@@ -90,6 +90,7 @@ if (class_exists(\App\Http\Controllers\PdfQualityController::class)) {
 }
 
 // API Key Management Routes (protected by auth middleware)
+Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/api-key/revoke', [\App\Http\Controllers\ApiKeyController::class, 'revoke']);
 });
 

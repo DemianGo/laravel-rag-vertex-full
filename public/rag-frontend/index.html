@@ -2666,7 +2666,7 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
   async function loadUserInfo() {
     try {
       // Busca dados do usuário e CSRF token
-      const csrfResponse = await fetch('/api/user/info', {
+      const csrfResponse = await fetch('http://localhost:8002/api/user/info', {
         credentials: 'same-origin' // Importante para enviar cookies de sessão
       });
       const userData = await csrfResponse.json();
