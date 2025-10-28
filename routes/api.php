@@ -90,10 +90,6 @@ if (class_exists(\App\Http\Controllers\PdfQualityController::class)) {
 }
 
 // API Key Management Routes (protected by auth middleware)
-Route::middleware(['auth:sanctum'])->prefix('user')->group(function () {
-    Route::get('/api-key', [\App\Http\Controllers\ApiKeyController::class, 'show']);
-    Route::post('/api-key/generate', [\App\Http\Controllers\ApiKeyController::class, 'generate']);
-    Route::post('/api-key/regenerate', [\App\Http\Controllers\ApiKeyController::class, 'regenerate']);
     Route::delete('/api-key/revoke', [\App\Http\Controllers\ApiKeyController::class, 'revoke']);
 });
 

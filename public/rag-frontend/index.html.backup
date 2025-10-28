@@ -2479,32 +2479,7 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
         const statusDiv = document.getElementById('pythonStatus');
         
         if (!isReady) {
-          const searchBtn = document.getElementById("pythonSearchBtn");
-          const statusDiv = document.getElementById("pythonStatus");
-          
-          if (!isReady) {
-            // Documento ainda processando - desabilitar botão
-            if (searchBtn) {
-              searchBtn.disabled = true;
-              searchBtn.innerHTML = "⏳ Aguardando processamento...";
-              searchBtn.classList.add("disabled");
-            }
-            if (statusDiv) {
-              statusDiv.innerHTML = `⏳ Documento ${docId} ainda está sendo processado...`;
-              statusDiv.className = "alert alert-warning";
-            }
-          } else {
-            // Documento pronto - habilitar botão
-            if (searchBtn) {
-              searchBtn.disabled = false;
-              searchBtn.innerHTML = "🔍 Buscar";
-              searchBtn.classList.remove("disabled");
-            }
-            if (statusDiv) {
-              statusDiv.innerHTML = `✅ Documento ${docId} pronto para busca!`;
-              statusDiv.className = "alert alert-success";
-            }
-          }
+          // Documento ainda processando - desabilitar botão e mostrar status
         } catch (error) {
           console.error("Erro ao verificar documento:", error);
           // Em caso de erro, habilitar botão por segurança
@@ -2515,6 +2490,14 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
             searchBtn.classList.remove("disabled");
           }
         }
+          if (searchBtn) {
+          }
+          if (statusDiv) {
+            statusDiv.innerHTML = `⏳ Documento ${docId} ainda está sendo processado...`;
+            statusDiv.className = 'alert alert-warning';
+          }
+          
+          // Iniciar verificação automática em background
           waitForDocumentProcessing(docId).catch(err => {
             console.error('Erro ao aguardar processamento:', err);
           });
