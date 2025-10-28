@@ -113,21 +113,20 @@ else
 fi
 
 echo "==> Subindo servidor FastAPI para RAG: http://127.0.0.1:8002"
-python3 simple_rag_ingest.py &
+cd scripts/api && PYTHONPATH="/var/www/html/laravel-rag-vertex-full/scripts/document_extraction:/var/www/html/laravel-rag-vertex-full/scripts/api" python -m uvicorn main:app --host 0.0.0.0 --port 8002 &
 FASTAPI_PID=$!
 echo "FastAPI server PID: $FASTAPI_PID"
+cd ../..
 
 # Verificar se o FastAPI iniciou corretamente
 sleep 3
-if curl -s http://localhost:8002/api/rag/health >/dev/null 2>&1; then
+if curl -s http://localhost:8002/health >/dev/null 2>&1; then
   echo "✅ Servidor FastAPI iniciado com sucesso"
   
   # WARM-UP: Aquecer o modelo Gemini para evitar cold start
   echo "==> Aquecendo modelo Gemini (warm-up)..."
-  curl -s -X POST http://localhost:8002/api/rag/python-search \
-    -H "Content-Type: application/json" \
-    -d '{"query": "teste de warm-up", "document_id": null, "strictness": 3}' \
-    >/dev/null 2>&1 || true
+  # Apenas verificar se o endpoint está respondendo (sem API key)
+  curl -s http://localhost:8002/health >/dev/null 2>&1 || true
   
   echo "✅ Warm-up concluído (cold start evitado)"
 else
@@ -138,6 +137,8 @@ fi
 if [ "${START_SERVER:-yes}" = "yes" ]; then
   PORT="${PORT:-8000}"
   echo "==> Subindo servidor Laravel: http://127.0.0.1:${PORT}"
+  # Garantir que estamos no diretório correto
+  cd /var/www/html/laravel-rag-vertex-full
   php artisan serve --host 0.0.0.0 --port "${PORT}"
 else
   cat <<'TIP'

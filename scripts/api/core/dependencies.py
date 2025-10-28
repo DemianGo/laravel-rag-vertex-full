@@ -22,13 +22,24 @@ class DependencyContainer:
         """Get Redis client instance."""
         if self._redis_client is None:
             try:
+                # Build connection parameters
+                connection_params = {
+                    "encoding": "utf-8",
+                    "decode_responses": True,
+                }
+                
+                # Add password if provided
+                if settings.redis_password:
+                    connection_params["password"] = settings.redis_password
+                
+                # Add SSL if enabled
+                if settings.redis_ssl:
+                    connection_params["ssl"] = True
+                
                 self._redis_client = redis.from_url(
                     settings.redis_url,
-                    password=settings.redis_password,
-                    ssl=settings.redis_ssl,
-                    encoding="utf-8",
-                    decode_responses=True,
-                    health_check_interval=30
+                    health_check_interval=30,
+                    **connection_params
                 )
                 # Test connection
                 await self._redis_client.ping()

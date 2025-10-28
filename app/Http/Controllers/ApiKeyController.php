@@ -74,14 +74,14 @@ class ApiKeyController extends Controller
 
         if (!$user->hasApiKey()) {
             return response()->json([
-                'has_api_key' => false,
+                'api_key' => null,
                 'message' => 'No API key found. Please generate one first.',
             ]);
         }
 
+        // For API requests, return the actual API key
         return response()->json([
-            'has_api_key' => true,
-            'masked_api_key' => $user->masked_api_key,
+            'api_key' => $user->api_key,
             'created_at' => $user->api_key_created_at?->toIso8601String(),
             'last_used_at' => $user->api_key_last_used_at?->toIso8601String(),
         ]);

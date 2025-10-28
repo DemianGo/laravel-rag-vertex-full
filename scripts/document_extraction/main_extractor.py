@@ -7,8 +7,13 @@ Automatically detects file type and routes to appropriate extractor.
 import argparse
 import json
 import sys
+import os
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+
+# Add current directory to path for local imports
+current_dir = Path(__file__).parent
+sys.path.insert(0, str(current_dir))
 
 # Import extractors
 from extract import extract_pdf_text

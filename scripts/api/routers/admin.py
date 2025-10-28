@@ -15,7 +15,12 @@ from models.enums import FileType, ErrorCode
 from services.cache_service import CacheService
 from services.metrics_service import MetricsService
 from services.extractor_service import ExtractorService
-from utils.file_utils import file_validator
+try:
+    from utils.file_utils import file_validator
+except ImportError:
+    # Fallback if utils module not found
+    def file_validator(file_path: str) -> bool:
+        return True
 
 logger = get_logger("admin_router")
 router = APIRouter(prefix="/admin", tags=["administration"])

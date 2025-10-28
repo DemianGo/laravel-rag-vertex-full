@@ -2290,9 +2290,25 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
   // Função para carregar documentos da API
   async function loadDocuments() {
     try {
-      const data = await doFetchJSON('GET', '/api/docs/list');
+      // Busca API key do usuário logado via Laravel
+      const apiKeyResponse = await fetch('/api/user/api-key', {
+        credentials: 'same-origin'
+      });
+      const apiKeyData = await apiKeyResponse.json();
       
-      if (data && data.docs && Array.isArray(data.docs)) {
+      if (!apiKeyData.api_key) {
+        throw new Error('API key não encontrada');
+      }
+      
+      // Busca documentos via FastAPI
+      const data = await fetch('http://localhost:8002/v1/user/docs/list', {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKeyData.api_key
+        }
+      }).then(response => response.json());
+      
+      if (data && data.documents && Array.isArray(data.documents)) {
         const pythonSelect = document.getElementById('pythonDocSelect');
         const answerSelect = document.getElementById('answerDocSelect');
         
@@ -2301,7 +2317,7 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
         answerSelect.innerHTML = '<option value="">Selecione um documento...</option>';
         
         // Filtra documentos: remove fixtures (ID >= 9000) e arquivos de teste
-        const realDocs = data.docs.filter(doc => {
+        const realDocs = data.documents.filter(doc => {
           return doc.id < 9000 && 
                  !doc.title.startsWith('test_') && 
                  !doc.title.startsWith('Fixture');
@@ -2702,9 +2718,22 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
   // Função para carregar informações do usuário autenticado
   async function loadUserInfo() {
     try {
-      // Busca dados do usuário e CSRF token
-      const csrfResponse = await fetch('/api/user/info', {
-        credentials: 'same-origin' // Importante para enviar cookies de sessão
+      // Busca API key do usuário logado via Laravel
+      const apiKeyResponse = await fetch('/api/user/api-key', {
+        credentials: 'same-origin'
+      });
+      const apiKeyData = await apiKeyResponse.json();
+      
+      if (!apiKeyData.api_key) {
+        throw new Error('API key não encontrada');
+      }
+      
+      // Busca dados do usuário via FastAPI
+      const csrfResponse = await fetch('http://localhost:8002/v1/user/info', {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKeyData.api_key
+        }
       });
       const userData = await csrfResponse.json();
       

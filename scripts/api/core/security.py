@@ -37,7 +37,26 @@ class APIKeyAuth:
 
     def is_valid_key(self, api_key: str) -> bool:
         """Check if API key is valid."""
-        return api_key in self.valid_keys
+        # Check against database
+        try:
+            import sys
+            from pathlib import Path
+            current_dir = Path(__file__).parent
+            rag_search_dir = current_dir.parent.parent / "rag_search"
+            sys.path.insert(0, str(rag_search_dir))
+            
+            from database import DatabaseManager
+            from config import Config
+            
+            db_manager = DatabaseManager()
+            with db_manager.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT id FROM users WHERE api_key = %s", (api_key,))
+                    result = cursor.fetchone()
+                    return result is not None
+        except Exception:
+            # Fallback to hardcoded keys if database fails
+            return api_key in self.valid_keys
 
     def get_key_info(self, api_key: str) -> dict:
         """Get information about an API key."""
@@ -58,6 +77,25 @@ api_key_auth = APIKeyAuth()
 
 def get_current_api_key(api_key: str = Depends(api_key_auth)) -> str:
     """Dependency to get current authenticated API key."""
+    return api_key
+
+
+def get_api_key_from_header(request: Request) -> str:
+    """Get API key from X-API-Key header."""
+    api_key = request.headers.get("X-API-Key")
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required in X-API-Key header"
+        )
+    
+    if not api_key_auth.is_valid_key(api_key):
+        logger.warning("Invalid API key attempted", api_key_prefix=api_key[:10])
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key"
+        )
+    
     return api_key
 
 

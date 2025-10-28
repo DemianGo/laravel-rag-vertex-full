@@ -12,7 +12,11 @@ High-performance, scalable API for document text extraction with enterprise feat
 
 import sys
 import os
-sys.path.append(os.path.dirname(__file__))
+from pathlib import Path
+
+# Add current directory to path for local imports
+current_dir = Path(__file__).parent
+sys.path.insert(0, str(current_dir))
 
 import time
 from contextlib import asynccontextmanager
@@ -36,7 +40,7 @@ from middleware.rate_limiting import RateLimitMiddleware, create_rate_limiter
 from middleware.request_id import RequestIDMiddleware
 
 # Router imports
-from routers import extraction, batch, health, admin
+from routers import extraction, batch, health, admin, user
 
 # Service imports
 from services.cache_service import CacheService
@@ -159,7 +163,7 @@ app.add_middleware(SecurityHeaders)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else [],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -369,6 +373,7 @@ app.include_router(health.router)  # No prefix, for /health
 app.include_router(extraction.router, prefix=settings.api_prefix)
 app.include_router(batch.router, prefix=settings.api_prefix)
 app.include_router(admin.router, prefix=settings.api_prefix)
+app.include_router(user.router, prefix=settings.api_prefix)
 
 
 # Root endpoint

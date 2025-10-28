@@ -25,6 +25,9 @@ class Config:
         "password": os.getenv("DB_PASSWORD", ""),
         "port": os.getenv("DB_PORT", "5432")
     }
+    
+    # Cursor factory para PostgreSQL
+    DB_CURSOR_FACTORY = None  # Will be set to psycopg2.extras.RealDictCursor
 
     # Configurações de embeddings
     EMBEDDINGS_MODEL = "sentence-transformers/all-mpnet-base-v2"
