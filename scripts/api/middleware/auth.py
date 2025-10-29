@@ -33,6 +33,11 @@ class AuthMiddleware:
 
         request = Request(scope, receive)
 
+        # Skip authentication for OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            await self.app(scope, receive, send)
+            return
+
         # Skip authentication for excluded paths
         if request.url.path in self.excluded_paths:
             await self.app(scope, receive, send)
