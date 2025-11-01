@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     environment: str = "development"
     debug: bool = False
-    api_port: int = 8001
+    api_port: int = 8002
 
     # API Configuration
     api_prefix: str = "/v1"

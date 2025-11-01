@@ -164,3 +164,49 @@ async def test_endpoint(request: Request):
 async def user_health_check():
     """Health check for the user router."""
     return {"status": "ok", "message": "User router is healthy"}
+
+@router.get("/docs/{doc_id}")
+async def get_document(doc_id: int, api_key: str = Depends(get_api_key_from_header)):
+    """Get a single document by ID"""
+    user_id = await get_user_id_from_api_key(api_key)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid API Key or User not found")
+
+    try:
+        with db_manager.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id, title, source, uri, tenant_slug, metadata, created_at, updated_at
+                    FROM documents 
+                    WHERE id = %s AND tenant_slug = %s
+                    """,
+                    (doc_id, f"user_{user_id}")
+                )
+                document = cursor.fetchone()
+
+                if not document:
+                    raise HTTPException(status_code=404, detail="Document not found")
+
+                # Get chunks count
+                cursor.execute("SELECT COUNT(*) FROM chunks WHERE document_id = %s", (doc_id,))
+                chunks_count = cursor.fetchone()[0]
+
+                document_dict = {
+                    "id": document[0],
+                    "title": document[1],
+                    "source": document[2],
+                    "uri": document[3],
+                    "tenant_slug": document[4],
+                    "metadata": document[5] if document[5] else {},
+                    "created_at": document[6].isoformat() if document[6] else None,
+                    "updated_at": document[7].isoformat() if document[7] else None,
+                    "chunks_count": chunks_count
+                }
+
+                return JSONResponse(content=document_dict)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error fetching document", doc_id=doc_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

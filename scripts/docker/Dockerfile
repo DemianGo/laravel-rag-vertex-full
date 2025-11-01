@@ -50,6 +50,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy application code
 COPY api/ ./api/
 COPY document_extraction/ ./document_extraction/
+COPY rag_search/ ./rag_search/
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/tmp && \

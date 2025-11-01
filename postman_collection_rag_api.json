@@ -1,0 +1,677 @@
+{
+	"info": {
+		"_postman_id": "rag-api-fastapi-2025",
+		"name": "RAG System FastAPI - Complete API",
+		"description": "Coleção completa para testar todos os endpoints RAG do FastAPI (porta 8002)\n\n**Autenticação**: Todos os endpoints (exceto health checks) requerem API Key no header:\n- `X-API-Key: sua_api_key_aqui`\n- OU `Authorization: Bearer sua_api_key_aqui`\n\n**Multi-tenant**: Sistema suporta milhares de usuários simultaneamente.\n\n**Endpoints principais**:\n- RAG Search com LLM e Grounding\n- Document Management\n- User Management\n- Health Checks",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8002/auth/register",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["auth", "register"]
+						},
+						"description": "Registra novo usuário e gera API key automaticamente. Formato: rag_ + 56 hex chars"
+					}
+				},
+				{
+					"name": "Login User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8002/auth/login",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["auth", "login"]
+						},
+						"description": "Login de usuário. Retorna API key. Se usuário não tiver API key, gera automaticamente."
+					}
+				},
+				{
+					"name": "Generate API Key",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8002/auth/api-key/generate",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["auth", "api-key", "generate"]
+						},
+						"description": "Gera nova API key para usuário autenticado. Formato: rag_ + 56 hex chars"
+					}
+				},
+				{
+					"name": "Regenerate API Key",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8002/auth/api-key/regenerate",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["auth", "api-key", "regenerate"]
+						},
+						"description": "Regenera API key (invalida a antiga). Formato: rag_ + 56 hex chars"
+					}
+				},
+				{
+					"name": "Get API Key",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8002/auth/api-key",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["auth", "api-key"]
+						},
+						"description": "Obtém API key atual do usuário autenticado"
+					}
+				},
+				{
+					"name": "Revoke API Key",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8002/auth/api-key/revoke",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["auth", "api-key", "revoke"]
+						},
+						"description": "Revoga (deleta) API key do usuário autenticado"
+					}
+				}
+			]
+		},
+		{
+			"name": "Health Checks",
+			"item": [
+				{
+					"name": "API Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8002/health",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "RAG Python Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8002/api/rag/python-health",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["api", "rag", "python-health"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "User Management",
+			"item": [
+				{
+					"name": "Get User Info",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8002/v1/user/info",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["v1", "user", "info"]
+						},
+						"description": "Obter informações do usuário autenticado (plan, tokens, documents)"
+					}
+				},
+				{
+					"name": "List User Documents",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8002/v1/user/docs/list",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["v1", "user", "docs", "list"]
+						},
+						"description": "Listar documentos do usuário (tenant isolation)"
+					}
+				}
+			]
+		},
+		{
+			"name": "RAG Search",
+			"item": [
+				{
+					"name": "Basic RAG Search",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"Quais são os principais pontos do documento?\",\n  \"document_id\": 1,\n  \"top_k\": 5,\n  \"threshold\": 0.3,\n  \"include_answer\": true,\n  \"strictness\": 2,\n  \"mode\": \"auto\",\n  \"format\": \"plain\",\n  \"length\": \"auto\",\n  \"citations\": 0,\n  \"use_full_document\": false,\n  \"use_smart_mode\": true,\n  \"enable_web_search\": false,\n  \"llm_provider\": \"gemini\",\n  \"force_grounding\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8002/api/rag/python-search",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["api", "rag", "python-search"]
+						},
+						"description": "Busca RAG básica sem grounding"
+					}
+				},
+				{
+					"name": "RAG Search with Grounding (Web Search)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"Qual é o preço atual do Bitcoin?\",\n  \"document_id\": null,\n  \"top_k\": 5,\n  \"threshold\": 0.3,\n  \"include_answer\": true,\n  \"strictness\": 2,\n  \"mode\": \"auto\",\n  \"format\": \"plain\",\n  \"length\": \"auto\",\n  \"citations\": 0,\n  \"use_full_document\": false,\n  \"use_smart_mode\": true,\n  \"enable_web_search\": true,\n  \"llm_provider\": \"gemini\",\n  \"force_grounding\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8002/api/rag/python-search",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["api", "rag", "python-search"]
+						},
+						"description": "Busca RAG com grounding ativado (busca na web via Gemini)"
+					}
+				},
+				{
+					"name": "RAG Search - Strictness 0 (Muito Permissivo)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"Resuma o documento\",\n  \"document_id\": 1,\n  \"top_k\": 8,\n  \"threshold\": 0.05,\n  \"include_answer\": true,\n  \"strictness\": 0,\n  \"mode\": \"summary\",\n  \"format\": \"markdown\",\n  \"length\": \"medium\",\n  \"citations\": 3,\n  \"use_full_document\": false,\n  \"use_smart_mode\": true,\n  \"enable_web_search\": false,\n  \"llm_provider\": \"gemini\",\n  \"force_grounding\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8002/api/rag/python-search",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["api", "rag", "python-search"]
+						},
+						"description": "Busca com strictness 0 (muito permissivo, sempre usa LLM)"
+					}
+				},
+				{
+					"name": "RAG Search - Strictness 3 (Sem LLM)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"Liste os principais tópicos\",\n  \"document_id\": 1,\n  \"top_k\": 10,\n  \"threshold\": 0.45,\n  \"include_answer\": false,\n  \"strictness\": 3,\n  \"mode\": \"list\",\n  \"format\": \"plain\",\n  \"length\": \"auto\",\n  \"citations\": 0,\n  \"use_full_document\": false,\n  \"use_smart_mode\": false,\n  \"enable_web_search\": false,\n  \"llm_provider\": \"gemini\",\n  \"force_grounding\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8002/api/rag/python-search",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["api", "rag", "python-search"]
+						},
+						"description": "Busca com strictness 3 (sem LLM, apenas chunks)"
+					}
+				},
+				{
+					"name": "RAG Search - Use Full Document",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"Resuma todo o conteúdo do documento\",\n  \"document_id\": 1,\n  \"top_k\": 50,\n  \"threshold\": 0.1,\n  \"include_answer\": true,\n  \"strictness\": 1,\n  \"mode\": \"summary\",\n  \"format\": \"markdown\",\n  \"length\": \"long\",\n  \"citations\": 5,\n  \"use_full_document\": true,\n  \"use_smart_mode\": true,\n  \"enable_web_search\": false,\n  \"llm_provider\": \"gemini\",\n  \"force_grounding\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8002/api/rag/python-search",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["api", "rag", "python-search"]
+						},
+						"description": "Busca usando documento completo (use_full_document=true)"
+					}
+				},
+				{
+					"name": "RAG Search - Different Modes",
+					"item": [
+						{
+							"name": "Mode: Auto",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									},
+									{
+										"key": "X-API-Key",
+										"value": "{{api_key}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"query\": \"O que diz o documento sobre certificações?\",\n  \"document_id\": 1,\n  \"top_k\": 5,\n  \"threshold\": 0.3,\n  \"include_answer\": true,\n  \"strictness\": 2,\n  \"mode\": \"auto\",\n  \"format\": \"plain\",\n  \"length\": \"auto\",\n  \"citations\": 0,\n  \"use_full_document\": false,\n  \"use_smart_mode\": true,\n  \"enable_web_search\": false,\n  \"llm_provider\": \"gemini\",\n  \"force_grounding\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8002/api/rag/python-search",
+									"protocol": "http",
+									"host": ["localhost"],
+									"port": "8002",
+									"path": ["api", "rag", "python-search"]
+								}
+							}
+						},
+						{
+							"name": "Mode: Direct",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									},
+									{
+										"key": "X-API-Key",
+										"value": "{{api_key}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"query\": \"Quais são os certificados mencionados?\",\n  \"document_id\": 1,\n  \"top_k\": 5,\n  \"threshold\": 0.3,\n  \"include_answer\": true,\n  \"strictness\": 2,\n  \"mode\": \"direct\",\n  \"format\": \"plain\",\n  \"length\": \"auto\",\n  \"citations\": 0,\n  \"use_full_document\": false,\n  \"use_smart_mode\": true,\n  \"enable_web_search\": false,\n  \"llm_provider\": \"gemini\",\n  \"force_grounding\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8002/api/rag/python-search",
+									"protocol": "http",
+									"host": ["localhost"],
+									"port": "8002",
+									"path": ["api", "rag", "python-search"]
+								}
+							}
+						},
+						{
+							"name": "Mode: Summary",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									},
+									{
+										"key": "X-API-Key",
+										"value": "{{api_key}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"query\": \"Resuma o documento\",\n  \"document_id\": 1,\n  \"top_k\": 8,\n  \"threshold\": 0.3,\n  \"include_answer\": true,\n  \"strictness\": 2,\n  \"mode\": \"summary\",\n  \"format\": \"markdown\",\n  \"length\": \"medium\",\n  \"citations\": 3,\n  \"use_full_document\": false,\n  \"use_smart_mode\": true,\n  \"enable_web_search\": false,\n  \"llm_provider\": \"gemini\",\n  \"force_grounding\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8002/api/rag/python-search",
+									"protocol": "http",
+									"host": ["localhost"],
+									"port": "8002",
+									"path": ["api", "rag", "python-search"]
+								}
+							}
+						},
+						{
+							"name": "Mode: Quote",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									},
+									{
+										"key": "X-API-Key",
+										"value": "{{api_key}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"query\": \"Cite as principais vantagens mencionadas\",\n  \"document_id\": 1,\n  \"top_k\": 5,\n  \"threshold\": 0.3,\n  \"include_answer\": true,\n  \"strictness\": 2,\n  \"mode\": \"quote\",\n  \"format\": \"plain\",\n  \"length\": \"auto\",\n  \"citations\": 5,\n  \"use_full_document\": false,\n  \"use_smart_mode\": true,\n  \"enable_web_search\": false,\n  \"llm_provider\": \"gemini\",\n  \"force_grounding\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8002/api/rag/python-search",
+									"protocol": "http",
+									"host": ["localhost"],
+									"port": "8002",
+									"path": ["api", "rag", "python-search"]
+								}
+							}
+						},
+						{
+							"name": "Mode: List",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									},
+									{
+										"key": "X-API-Key",
+										"value": "{{api_key}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"query\": \"Liste os tópicos principais\",\n  \"document_id\": 1,\n  \"top_k\": 10,\n  \"threshold\": 0.3,\n  \"include_answer\": true,\n  \"strictness\": 2,\n  \"mode\": \"list\",\n  \"format\": \"markdown\",\n  \"length\": \"auto\",\n  \"citations\": 0,\n  \"use_full_document\": false,\n  \"use_smart_mode\": true,\n  \"enable_web_search\": false,\n  \"llm_provider\": \"gemini\",\n  \"force_grounding\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8002/api/rag/python-search",
+									"protocol": "http",
+									"host": ["localhost"],
+									"port": "8002",
+									"path": ["api", "rag", "python-search"]
+								}
+							}
+						},
+						{
+							"name": "Mode: Table",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									},
+									{
+										"key": "X-API-Key",
+										"value": "{{api_key}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"query\": \"Crie uma tabela com os principais pontos\",\n  \"document_id\": 1,\n  \"top_k\": 8,\n  \"threshold\": 0.3,\n  \"include_answer\": true,\n  \"strictness\": 2,\n  \"mode\": \"table\",\n  \"format\": \"markdown\",\n  \"length\": \"auto\",\n  \"citations\": 0,\n  \"use_full_document\": false,\n  \"use_smart_mode\": true,\n  \"enable_web_search\": false,\n  \"llm_provider\": \"gemini\",\n  \"force_grounding\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8002/api/rag/python-search",
+									"protocol": "http",
+									"host": ["localhost"],
+									"port": "8002",
+									"path": ["api", "rag", "python-search"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RAG Search - With OpenAI Provider",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"Explique os principais pontos do documento\",\n  \"document_id\": 1,\n  \"top_k\": 5,\n  \"threshold\": 0.3,\n  \"include_answer\": true,\n  \"strictness\": 2,\n  \"mode\": \"auto\",\n  \"format\": \"plain\",\n  \"length\": \"auto\",\n  \"citations\": 0,\n  \"use_full_document\": false,\n  \"use_smart_mode\": true,\n  \"enable_web_search\": false,\n  \"llm_provider\": \"openai\",\n  \"force_grounding\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8002/api/rag/python-search",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8002",
+							"path": ["api", "rag", "python-search"]
+						},
+						"description": "Busca usando OpenAI como LLM provider (requer OPENAI_API_KEY)"
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8002",
+			"type": "string"
+		},
+		{
+			"key": "api_key",
+			"value": "SEU_API_KEY_AQUI",
+			"type": "string",
+			"description": "API Key do usuário. Obtenha via:\n1. POST /auth/register (cria conta e retorna API key)\n2. POST /auth/login (retorna API key existente ou gera nova)\n3. POST /auth/api-key/generate (gera nova API key)\n\nFormato: rag_ + 56 caracteres hexadecimais"
+		}
+	]
+}
+

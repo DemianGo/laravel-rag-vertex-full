@@ -75,12 +75,9 @@
           <small style="opacity: 0.8;">Tokens</small>
           <div class="fw-bold" id="userTokens">-/-</div>
         </div>
-        <form method="POST" action="/logout" class="mb-0">
-          <input type="hidden" name="_token" id="csrfToken" value="">
-          <button type="submit" class="btn btn-light btn-sm">
-            🚪 Sair
-          </button>
-        </form>
+        <button type="button" class="btn btn-light btn-sm" onclick="logout()">
+          🚪 Sair
+        </button>
       </div>
     </div>
 
@@ -772,23 +769,18 @@
     async function doFetchJSON(method,path,bodyObj){
       const url=buildUrl(path), t0=performance.now(); let status=-1, respHeaders={}, respJson=null, err=null;
       
-      // Preparar headers com CSRF token
+      // Preparar headers com API key do localStorage
       const headers = {"Content-Type":"application/json"};
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-      if (csrfToken) {
-        headers['X-CSRF-TOKEN'] = csrfToken;
-      }
-      
-      // Se bodyObj existe, adicionar _token
-      if (bodyObj && csrfToken) {
-        bodyObj._token = csrfToken;
+      const apiKey = localStorage.getItem('api_key');
+      if (apiKey) {
+        headers['X-API-Key'] = apiKey;
       }
       
       try{
         const res=await fetch(url,{ 
           method, 
           headers: headers, 
-          credentials: 'same-origin', // IMPORTANTE: Inclui cookies de sessão para autenticação
+          credentials: 'omit', // Não precisa mais de cookies
           body: bodyObj? JSON.stringify(bodyObj): undefined 
         });
         status=res.status; res.headers.forEach((v,k)=>{respHeaders[k]=v}); respJson=await res.json().catch(()=>({status:res.status,text:"Resposta não-JSON"})); return respJson;
@@ -805,7 +797,12 @@
         const xhr = new XMLHttpRequest();
         const t0 = performance.now();
         xhr.open(method, url, true);
-        xhr.withCredentials = true; // IMPORTANTE: Inclui cookies de sessão para autenticação
+        
+        // Adicionar API key ao header
+        const apiKey = localStorage.getItem('api_key');
+        if (apiKey) {
+          xhr.setRequestHeader('X-API-Key', apiKey);
+        }
         // progress total
         xhr.upload.addEventListener("progress", (e)=>{
           if(e.lengthComputable && onProgress){ onProgress(e.loaded, e.total); }
@@ -1386,21 +1383,17 @@
     // ======= LOAD LATEST DOCUMENT =======
     document.getElementById("btnLoadLatest").addEventListener("click", async ()=>{
       try{
-        // Busca API key do usuário logado via Laravel
-        const apiKeyResponse = await fetch('/api/user/api-key', {
-          credentials: 'same-origin'
-        });
-        const apiKeyData = await apiKeyResponse.json();
-        
-        if (!apiKeyData.api_key) {
-          throw new Error('API key não encontrada');
+        // Busca API key do localStorage
+        const apiKey = localStorage.getItem('api_key');
+        if (!apiKey) {
+          throw new Error('API key não encontrada. Faça login novamente.');
         }
         
         // Busca documentos via FastAPI
         const data = await fetch('http://localhost:8002/v1/user/docs/list', {
           headers: {
             'Content-Type': 'application/json',
-            'X-API-Key': apiKeyData.api_key
+            'X-API-Key': apiKey
           }
         }).then(response => response.json());
         
@@ -1474,12 +1467,6 @@
           if (model) fd.append("model", model);
           if (loc)   fd.append("location", loc);
           files.forEach(f => fd.append("files[]", f, f.name));
-
-          // Adiciona CSRF token
-          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-          if (csrfToken) {
-            fd.append("_token", csrfToken);
-          }
 
           const startTime = Date.now();
 
@@ -2306,21 +2293,18 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
   // Função para carregar documentos da API
   async function loadDocuments() {
     try {
-      // Busca API key do usuário logado via Laravel
-      const apiKeyResponse = await fetch('/api/user/api-key', {
-        credentials: 'same-origin'
-      });
-      const apiKeyData = await apiKeyResponse.json();
-      
-      if (!apiKeyData.api_key) {
-        throw new Error('API key não encontrada');
+      // Busca API key do localStorage
+      const apiKey = localStorage.getItem('api_key');
+      if (!apiKey) {
+        console.log('API key não encontrada. Usuário precisa fazer login.');
+        return;
       }
       
       // Busca documentos via FastAPI
       const data = await fetch('http://localhost:8002/v1/user/docs/list', {
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': apiKeyData.api_key
+          'X-API-Key': apiKey
         }
       }).then(response => response.json());
       
@@ -2698,24 +2682,31 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
   // Função para carregar informações do usuário autenticado
   async function loadUserInfo() {
     try {
-      // Busca API key do usuário logado via Laravel
-      const apiKeyResponse = await fetch('/api/user/api-key', {
-        credentials: 'same-origin'
-      });
-      const apiKeyData = await apiKeyResponse.json();
+      // Busca API key do localStorage (armazenada após login)
+      const apiKey = localStorage.getItem('api_key');
       
-      if (!apiKeyData.api_key) {
-        throw new Error('API key não encontrada');
+      if (!apiKey) {
+        // Redireciona para login se não tiver API key
+        window.location.href = '/auth/login.html';
+        return;
       }
       
       // Busca dados do usuário via FastAPI
-      const csrfResponse = await fetch('http://localhost:8002/v1/user/info', {
+      const userResponse = await fetch('http://localhost:8002/v1/user/info', {
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': apiKeyData.api_key
+          'X-API-Key': apiKey
         }
       });
-      const userData = await csrfResponse.json();
+      
+      if (!userResponse.ok) {
+        // API key inválida, limpa e redireciona
+        localStorage.removeItem('api_key');
+        window.location.href = '/auth/login.html';
+        return;
+      }
+      
+      const userData = await userResponse.json();
       
       if (userData && userData.user) {
         // Atualiza header com dados do usuário
@@ -2723,17 +2714,6 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
         document.getElementById('userEmail').textContent = userData.user.email;
         document.getElementById('userPlan').textContent = userData.user.plan.charAt(0).toUpperCase() + userData.user.plan.slice(1);
         document.getElementById('userTokens').textContent = userData.user.tokens_used + '/' + userData.user.tokens_limit;
-        
-        // Define CSRF token no formulário de logout E na meta tag
-        if (userData.csrf_token) {
-          document.getElementById('csrfToken').value = userData.csrf_token;
-          
-          // Atualiza meta tag também
-          const metaTag = document.querySelector('meta[name="csrf-token"]');
-          if (metaTag) {
-            metaTag.setAttribute('content', userData.csrf_token);
-          }
-        }
         
         console.log('✓ Informações do usuário carregadas:', userData.user.name);
       } else {
@@ -2974,6 +2954,18 @@ ${feedbacks.length > 0 ? feedbacks.map((f, i) => {
       searchBtn.classList.remove('disabled');
     }
   }
+
+  // Função de logout
+  async function logout() {
+    // Limpa API key do localStorage
+    localStorage.removeItem('api_key');
+    
+    // Redireciona para login
+    window.location.href = '/auth/login.html';
+  }
+
+  // Adicionar função logout global
+  window.logout = logout;
 </script>
 
 </body>

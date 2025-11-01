@@ -17,7 +17,9 @@ from models.responses import ExtractionResult, QualityMetrics, ErrorDetail, Erro
 
 # Import extractors from document_extraction module
 import sys
-sys.path.append(str(Path(__file__).parent.parent.parent / "document_extraction"))
+import os
+document_extraction_path = os.path.join(os.path.dirname(__file__), "..", "..", "document_extraction")
+sys.path.insert(0, document_extraction_path)
 
 from main_extractor import extract_document
 

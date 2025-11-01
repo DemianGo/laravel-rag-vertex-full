@@ -1,0 +1,12 @@
+# Frontend Dockerfile - Nginx servindo HTML estático
+FROM nginx:alpine
+
+# Copiar arquivos HTML estáticos
+COPY ../../public /usr/share/nginx/html
+
+# Expor porta 80
+EXPOSE 80
+
+# Nginx já inicia automaticamente
+CMD ["nginx", "-g", "daemon off;"]
+

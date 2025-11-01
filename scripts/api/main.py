@@ -40,7 +40,7 @@ from middleware.rate_limiting import RateLimitMiddleware, create_rate_limiter
 from middleware.request_id import RequestIDMiddleware
 
 # Router imports
-from routers import extraction, batch, health, admin, user
+from routers import extraction, batch, health, admin, user, rag, auth
 
 # Service imports
 from services.cache_service import CacheService
@@ -370,10 +370,12 @@ async def log_requests(request: Request, call_next):
 
 # Include routers
 app.include_router(health.router)  # No prefix, for /health
+app.include_router(auth.router)  # No prefix, uses /auth (public endpoints)
 app.include_router(extraction.router, prefix=settings.api_prefix)
 app.include_router(batch.router, prefix=settings.api_prefix)
 app.include_router(admin.router, prefix=settings.api_prefix)
 app.include_router(user.router, prefix=settings.api_prefix)
+app.include_router(rag.router)  # No prefix, uses /api/rag
 
 
 # Root endpoint

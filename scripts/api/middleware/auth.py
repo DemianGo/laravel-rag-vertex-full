@@ -19,11 +19,15 @@ class AuthMiddleware:
         self.app = app
         self.excluded_paths = {
             "/health",
+            "/health/simple",
             "/metrics",
             "/docs",
             "/redoc",
             "/openapi.json",
-            "/favicon.ico"
+            "/favicon.ico",
+            "/api/rag/python-health",  # RAG health check doesn't need auth
+            "/auth/register",  # Public registration endpoint
+            "/auth/login"  # Public login endpoint
         }
 
     async def __call__(self, scope, receive, send):
