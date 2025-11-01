@@ -28,10 +28,10 @@ def generate_batch_embeddings(document_id: int) -> Dict:
         with db.get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
                 cursor.execute("""
-                    SELECT id, content, chunk_index
+                    SELECT id, content, ord
                     FROM chunks
                     WHERE document_id = %s AND embedding IS NULL
-                    ORDER BY chunk_index
+                    ORDER BY ord
                 """, (document_id,))
                 chunks = cursor.fetchall()
         
@@ -56,16 +56,18 @@ def generate_batch_embeddings(document_id: int) -> Dict:
                 # Generate embeddings for entire batch at once
                 embeddings = embeddings_service.generate_embeddings_batch(batch_texts)
                 
-                # Update database
+                # Update database (convert to string for pgvector)
                 with db.get_connection() as conn:
                     with conn.cursor() as cursor:
                         for chunk_id, embedding in zip(batch_ids, embeddings):
-                            if embedding is not None:
+                            if embedding is not None and len(embedding) > 0:
+                                # Convert list to string format for pgvector
+                                embedding_str = '[' + ','.join(map(str, embedding)) + ']'
                                 cursor.execute("""
                                     UPDATE chunks
-                                    SET embedding = %s
+                                    SET embedding = %s::vector
                                     WHERE id = %s
-                                """, (embedding, chunk_id))
+                                """, (embedding_str, chunk_id))
                                 processed += 1
                             else:
                                 failed += 1
@@ -80,16 +82,19 @@ def generate_batch_embeddings(document_id: int) -> Dict:
                         for chunk_id, text in zip(batch_ids, batch_texts):
                             try:
                                 embedding = embeddings_service.encode_text(text)
-                                if embedding is not None:
+                                if embedding is not None and len(embedding) > 0:
+                                    # Convert list to string format for pgvector
+                                    embedding_str = '[' + ','.join(map(str, embedding)) + ']'
                                     cursor.execute("""
                                         UPDATE chunks
-                                        SET embedding = %s
+                                        SET embedding = %s::vector
                                         WHERE id = %s
-                                    """, (embedding, chunk_id))
+                                    """, (embedding_str, chunk_id))
                                     processed += 1
                                 else:
                                     failed += 1
-                            except:
+                            except Exception as e:
+                                print(f"Failed to process chunk {chunk_id}: {str(e)}", file=sys.stderr)
                                 failed += 1
                         conn.commit()
         

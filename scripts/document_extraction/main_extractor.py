@@ -21,6 +21,7 @@ from office_extractor import extract_office_document
 from text_extractor import extract_text_document
 from web_extractor import extract_web_document
 from extractors.image_extractor import ImageExtractor
+from image_extractor_wrapper import extract_from_image
 
 # Import Phase 3A modules
 from utils.detector import detect_document_type
@@ -131,17 +132,23 @@ def extract_document(file_path: str, detailed_analysis: bool = False, structure_
         elif file_type in ['html', 'xml']:
             result = extract_web_document(file_path)
         elif file_type == 'image':
-            # Extract text from image using OCR
-            image_extractor = ImageExtractor()
-            ocr_result = image_extractor.extract(file_path)
-            # Adapt OCR result to standard format
-            result = {
-                "success": ocr_result.get('success', False),
-                "extracted_text": ocr_result.get('content', {}).get('text_content', ''),
-                "error": None if ocr_result.get('success') else ocr_result.get('quality_report', {}).get('issues', ['OCR failed'])[0],
-                "ocr_metadata": ocr_result.get('content', {}).get('ocr_metadata', {}),
-                "quality_report": ocr_result.get('quality_report', {})
-            }
+            # Extract text from image using Advanced OCR (Google Vision + Tesseract)
+            try:
+                extracted_text = extract_from_image(file_path)
+                result = {
+                    "success": True,
+                    "extracted_text": extracted_text,
+                    "error": None
+                }
+            except Exception as e:
+                # Fallback to standard ImageExtractor
+                image_extractor = ImageExtractor()
+                ocr_result = image_extractor.extract(file_path)
+                result = {
+                    "success": ocr_result.get('success', False),
+                    "extracted_text": ocr_result.get('content', {}).get('text_content', ''),
+                    "error": None if ocr_result.get('success') else ocr_result.get('quality_report', {}).get('issues', ['OCR failed'])[0]
+                }
         else:
             return {
                 "success": False,

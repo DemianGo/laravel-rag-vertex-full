@@ -1,0 +1,1143 @@
+{
+  "info": {
+    "name": "RAG System API - FastAPI Complete",
+    "description": "All endpoints migrated from Laravel to FastAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      },
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8002",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "rag_abc123dev",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "",
+      "item": [
+        {
+          "name": "GET /",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": []
+            },
+            "description": "API root endpoint with basic information."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Api",
+      "item": [
+        {
+          "name": "POST /api/rag/python-search",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-search",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rag",
+                "python-search"
+              ]
+            },
+            "description": "Perform RAG search using Python scripts.\nSame functionality as Laravel RagPythonController.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /api/rag/python-health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/python-health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rag",
+                "python-health"
+              ]
+            },
+            "description": "Python RAG system health check"
+          }
+        },
+        {
+          "name": "POST /api/rag/ingest",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/ingest",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rag",
+                "ingest"
+              ]
+            },
+            "description": "Document ingestion endpoint compatible with Laravel\nAccepts: file upload, text, or URL\nReturns: same response format as Laravel",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/tmp/test.txt"
+                },
+                {
+                  "key": "title",
+                  "value": "Test Document",
+                  "type": "text"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /api/rag/embeddings/generate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/embeddings/generate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rag",
+                "embeddings",
+                "generate"
+              ]
+            },
+            "description": "Generate embeddings for all chunks of a document",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /api/rag/docs/{doc_id}/chunks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/docs/{doc_id}/chunks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rag",
+                "docs",
+                "{doc_id}",
+                "chunks"
+              ]
+            },
+            "description": "Get all chunks for a specific document"
+          }
+        },
+        {
+          "name": "POST /api/rag/feedback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/feedback",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rag",
+                "feedback"
+              ]
+            },
+            "description": "Save user feedback about a RAG response\nPOST /api/rag/feedback",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /api/rag/feedback/stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/feedback/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rag",
+                "feedback",
+                "stats"
+              ]
+            },
+            "description": "Get feedback statistics\nGET /api/rag/feedback/stats"
+          }
+        },
+        {
+          "name": "GET /api/rag/feedback/recent",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rag/feedback/recent",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rag",
+                "feedback",
+                "recent"
+              ]
+            },
+            "description": "Get recent feedbacks\nGET /api/rag/feedback/recent"
+          }
+        },
+        {
+          "name": "POST /api/video/ingest",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/video/ingest",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "video",
+                "ingest"
+              ]
+            },
+            "description": "Process video upload or URL\nPOST /api/video/ingest",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/tmp/test.txt"
+                },
+                {
+                  "key": "title",
+                  "value": "Test Document",
+                  "type": "text"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /api/video/info",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/video/info",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "video",
+                "info"
+              ]
+            },
+            "description": "Get video information without processing\nPOST /api/video/info",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /api/excel/query",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/excel/query",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "excel",
+                "query"
+              ]
+            },
+            "description": "Query Excel document using structured data\nPOST /api/excel/query\nBody: {\n    \"document_id\": 123,\n    \"query\": \"SUM of column X where Y > 10\"\n}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /api/excel/{document_id}/structure",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/excel/{document_id}/structure",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "excel",
+                "{document_id}",
+                "structure"
+              ]
+            },
+            "description": "Get structured metadata for a document\nGET /api/excel/{document_id}/structure"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Register a new user.\nCreates user account and generates API key automatically.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login user and return API key.\nIf user doesn't have API key, generates one automatically.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /auth/api-key/generate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/api-key/generate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "api-key",
+                "generate"
+              ]
+            },
+            "description": "Generate a new API key for the authenticated user.\nRequires valid API key in headers (for existing users).\nFor new users, API key is automatically generated during registration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /auth/api-key/regenerate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/api-key/regenerate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "api-key",
+                "regenerate"
+              ]
+            },
+            "description": "Regenerate API key (same as generate, but explicitly invalidates old one).\nRequires valid API key in headers.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "DELETE /auth/api-key/revoke",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/api-key/revoke",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "api-key",
+                "revoke"
+              ]
+            },
+            "description": "Revoke (delete) API key for the authenticated user.\nRequires valid API key in headers."
+          }
+        },
+        {
+          "name": "GET /auth/api-key",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/api-key",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "api-key"
+              ]
+            },
+            "description": "Get current API key for the authenticated user.\nRequires valid API key in headers."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Comprehensive health check endpoint.\n\nReturns detailed status of all system components."
+          }
+        },
+        {
+          "name": "GET /health/simple",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/health/simple",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "simple"
+              ]
+            },
+            "description": "Simple health check for load balancers.\nReturns 200 OK if service is running."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Live",
+      "item": [
+        {
+          "name": "GET /live",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/live",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "live"
+              ]
+            },
+            "description": "Liveness check for Kubernetes/container orchestration.\nReturns 200 if service is alive."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "GET /metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/metrics",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "metrics"
+              ]
+            },
+            "description": "Prometheus-compatible metrics endpoint.\n\nReturns metrics in Prometheus exposition format."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ready",
+      "item": [
+        {
+          "name": "GET /ready",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/ready",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ready"
+              ]
+            },
+            "description": "Readiness check for Kubernetes/container orchestration.\nReturns 200 if service is ready to handle requests."
+          }
+        }
+      ]
+    },
+    {
+      "name": "V1",
+      "item": [
+        {
+          "name": "POST /v1/extract/file",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/extract/file",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "extract",
+                "file"
+              ]
+            },
+            "description": "Extract text from uploaded document.\n\nSupports: PDF, DOCX, XLSX, PPTX, TXT, CSV, RTF, HTML, XML",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /v1/extract/url",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/extract/url",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "extract",
+                "url"
+              ]
+            },
+            "description": "Download file from URL and extract text.\n\nOnly HTTPS URLs are allowed for security.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /v1/extract/status/{job_id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/extract/status/{job_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "extract",
+                "status",
+                "{job_id}"
+              ]
+            },
+            "description": "Get status of an extraction job.\n\nReturns job information and optionally the extraction result."
+          }
+        },
+        {
+          "name": "POST /v1/batch/extract",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/batch/extract",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "batch",
+                "extract"
+              ]
+            },
+            "description": "Extract text from multiple files simultaneously.\n\nFeatures:\n- Parallel processing with configurable concurrency\n- Fail-fast option to stop on first error\n- Result merging for combined output\n- Webhook notifications for batch completion",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /v1/admin/cache/clear",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/admin/cache/clear",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "cache",
+                "clear"
+              ]
+            },
+            "description": "Clear cache entries matching the specified pattern.\n\nRequires administrative API key.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"test query\",\n  \"document_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /v1/admin/jobs/cleanup",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/admin/jobs/cleanup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "jobs",
+                "cleanup"
+              ]
+            },
+            "description": "Clean up old completed/failed jobs from memory.\n\nRemoves jobs older than specified hours."
+          }
+        },
+        {
+          "name": "GET /v1/admin/stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/admin/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "stats"
+              ]
+            },
+            "description": "Get comprehensive system statistics.\n\nReturns cache stats, job stats, and system metrics."
+          }
+        },
+        {
+          "name": "GET /v1/admin/formats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/admin/formats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "formats"
+              ]
+            },
+            "description": "Get information about supported file formats.\n\nReturns detailed format specifications and limitations."
+          }
+        },
+        {
+          "name": "GET /v1/user/info",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/user/info",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "user",
+                "info"
+              ]
+            },
+            "description": "Get user information including plan, tokens, and documents usage.\nRequires valid API key in headers."
+          }
+        },
+        {
+          "name": "GET /v1/user/docs/list",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/user/docs/list",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "user",
+                "docs",
+                "list"
+              ]
+            },
+            "description": "Get list of documents for the authenticated user.\nRequires valid API key in headers."
+          }
+        },
+        {
+          "name": "GET /v1/user/test",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/user/test",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "user",
+                "test"
+              ]
+            },
+            "description": "Test endpoint to verify CORS and basic functionality."
+          }
+        },
+        {
+          "name": "GET /v1/user/health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/user/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "user",
+                "health"
+              ]
+            },
+            "description": "Health check for the user router."
+          }
+        },
+        {
+          "name": "GET /v1/user/docs/{doc_id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/user/docs/{doc_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "user",
+                "docs",
+                "{doc_id}"
+              ]
+            },
+            "description": "Get a single document by ID"
+          }
+        }
+      ]
+    }
+  ]
+}

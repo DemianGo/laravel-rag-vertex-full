@@ -1,0 +1,150 @@
+[
+  {
+    "method": "get",
+    "path": "/metrics"
+  },
+  {
+    "method": "get",
+    "path": "/health"
+  },
+  {
+    "method": "get",
+    "path": "/health/simple"
+  },
+  {
+    "method": "get",
+    "path": "/ready"
+  },
+  {
+    "method": "get",
+    "path": "/live"
+  },
+  {
+    "method": "post",
+    "path": "/auth/register"
+  },
+  {
+    "method": "post",
+    "path": "/auth/login"
+  },
+  {
+    "method": "post",
+    "path": "/auth/api-key/generate"
+  },
+  {
+    "method": "post",
+    "path": "/auth/api-key/regenerate"
+  },
+  {
+    "method": "delete",
+    "path": "/auth/api-key/revoke"
+  },
+  {
+    "method": "get",
+    "path": "/auth/api-key"
+  },
+  {
+    "method": "post",
+    "path": "/v1/extract/file"
+  },
+  {
+    "method": "post",
+    "path": "/v1/extract/url"
+  },
+  {
+    "method": "get",
+    "path": "/v1/extract/status/{job_id}"
+  },
+  {
+    "method": "post",
+    "path": "/v1/batch/extract"
+  },
+  {
+    "method": "post",
+    "path": "/v1/admin/cache/clear"
+  },
+  {
+    "method": "get",
+    "path": "/v1/admin/jobs/cleanup"
+  },
+  {
+    "method": "get",
+    "path": "/v1/admin/stats"
+  },
+  {
+    "method": "get",
+    "path": "/v1/admin/formats"
+  },
+  {
+    "method": "get",
+    "path": "/v1/user/info"
+  },
+  {
+    "method": "get",
+    "path": "/v1/user/docs/list"
+  },
+  {
+    "method": "get",
+    "path": "/v1/user/test"
+  },
+  {
+    "method": "get",
+    "path": "/v1/user/health"
+  },
+  {
+    "method": "get",
+    "path": "/v1/user/docs/{doc_id}"
+  },
+  {
+    "method": "post",
+    "path": "/api/rag/python-search"
+  },
+  {
+    "method": "get",
+    "path": "/api/rag/python-health"
+  },
+  {
+    "method": "post",
+    "path": "/api/rag/ingest"
+  },
+  {
+    "method": "post",
+    "path": "/api/rag/embeddings/generate"
+  },
+  {
+    "method": "get",
+    "path": "/api/rag/docs/{doc_id}/chunks"
+  },
+  {
+    "method": "post",
+    "path": "/api/rag/feedback"
+  },
+  {
+    "method": "get",
+    "path": "/api/rag/feedback/stats"
+  },
+  {
+    "method": "get",
+    "path": "/api/rag/feedback/recent"
+  },
+  {
+    "method": "post",
+    "path": "/api/video/ingest"
+  },
+  {
+    "method": "post",
+    "path": "/api/video/info"
+  },
+  {
+    "method": "post",
+    "path": "/api/excel/query"
+  },
+  {
+    "method": "get",
+    "path": "/api/excel/{document_id}/structure"
+  },
+  {
+    "method": "get",
+    "path": "/"
+  }
+]

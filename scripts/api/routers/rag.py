@@ -491,8 +491,14 @@ async def rag_ingest(request: Request, api_key: str = Depends(get_api_key_from_h
         else:
             raise HTTPException(status_code=422, detail="Necessário: file, text ou url")
         
-        if len(content.strip()) < 10:
+        # Validate content - allow empty or short content for files (extraction may fail but file is valid)
+        # Only validate for direct text input
+        if text and len(content.strip()) < 10:
             raise HTTPException(status_code=422, detail="Conteúdo muito curto. Mínimo 10 caracteres.")
+        
+        # For files, if content is too short after extraction, use a default message
+        if (file or files) and len(content.strip()) < 10:
+            content = f"Arquivo processado: {doc_title}. Conteúdo extraído não disponível ou muito curto."
         
         # Get DB config from environment
         db_config = {
@@ -606,19 +612,35 @@ async def generate_embeddings(request: Request, api_key: str = Depends(get_api_k
         if not document_id:
             raise HTTPException(status_code=422, detail="document_id é obrigatório")
         
-        # Call batch_embeddings.py script
+        # Call batch_embeddings.py script directly
+        # Use absolute path from project root to avoid path issues
+        project_root = Path(__file__).resolve().parent.parent.parent.parent  # /var/www/html/laravel-rag-vertex-full
+        script_path = project_root / "scripts" / "rag_search" / "batch_embeddings.py"
+        
+        # Verify script exists
+        if not script_path.exists():
+            raise HTTPException(
+                status_code=500,
+                detail=f"Script not found: {script_path}"
+            )
+        
         cmd = [
             'python3',
-            'scripts/rag_search/batch_embeddings.py',
+            str(script_path),
             str(document_id)
         ]
         
-        project_root = Path(__file__).parent.parent.parent
+        # Set PYTHONPATH to include scripts directory
+        env = os.environ.copy()
+        env['PYTHONPATH'] = str(project_root / "scripts")
+        
+        # Run from rag_search directory
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            cwd=str(project_root),
+            cwd=str(project_root / "scripts" / "rag_search"),
+            env=env,
             timeout=300
         )
         
@@ -682,4 +704,164 @@ async def get_document_chunks(doc_id: int, api_key: str = Depends(get_api_key_fr
     except Exception as e:
         logger.error(f"Error fetching chunks: {e}")
         raise HTTPException(status_code=500, detail=f"Erro: {str(e)}")
+
+
+@router.post("/feedback")
+async def rag_feedback(
+    request: Request,
+    api_key: str = Depends(get_api_key_from_header)
+):
+    """
+    Save user feedback about a RAG response
+    POST /api/rag/feedback
+    """
+    try:
+        data = await request.json()
+        query = data.get('query')
+        document_id = data.get('document_id')
+        rating = data.get('rating')  # 1 = positive, -1 = negative
+        metadata = data.get('metadata', {})
+        
+        if not query or not rating:
+            raise HTTPException(status_code=422, detail="query and rating are required")
+        
+        if rating not in [1, -1]:
+            raise HTTPException(status_code=422, detail="rating must be 1 or -1")
+        
+        # Get DB config
+        db_config = {
+            "host": os.getenv("DB_HOST", "localhost"),
+            "database": os.getenv("DB_DATABASE", "laravel_rag"),
+            "user": os.getenv("DB_USERNAME", "postgres"),
+            "password": os.getenv("DB_PASSWORD", ""),
+            "port": os.getenv("DB_PORT", "5432")
+        }
+        
+        # Save feedback
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO rag_feedbacks (query, document_id, rating, metadata, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, NOW(), NOW())
+            RETURNING id
+        """, (query, document_id, rating, json.dumps(metadata)))
+        
+        feedback_id = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        logger.info("Feedback saved", feedback_id=feedback_id, rating=rating)
+        
+        return JSONResponse(content={
+            "ok": True,
+            "message": "Feedback salvo com sucesso",
+            "feedback_id": feedback_id
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Feedback save error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+@router.get("/feedback/stats")
+async def rag_feedback_stats(
+    api_key: str = Depends(get_api_key_from_header)
+):
+    """
+    Get feedback statistics
+    GET /api/rag/feedback/stats
+    """
+    try:
+        # Get DB config
+        db_config = {
+            "host": os.getenv("DB_HOST", "localhost"),
+            "database": os.getenv("DB_DATABASE", "laravel_rag"),
+            "user": os.getenv("DB_USERNAME", "postgres"),
+            "password": os.getenv("DB_PASSWORD", ""),
+            "port": os.getenv("DB_PORT", "5432")
+        }
+        
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor()
+        
+        # General stats
+        cursor.execute("SELECT COUNT(*) FROM rag_feedbacks")
+        total_feedbacks = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM rag_feedbacks WHERE rating = 1")
+        positive_feedbacks = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM rag_feedbacks WHERE rating = -1")
+        negative_feedbacks = cursor.fetchone()[0]
+        
+        satisfaction_rate = round((positive_feedbacks / total_feedbacks * 100), 2) if total_feedbacks > 0 else 0
+        
+        conn.close()
+        
+        return JSONResponse(content={
+            "ok": True,
+            "total_feedbacks": total_feedbacks,
+            "positive_feedbacks": positive_feedbacks,
+            "negative_feedbacks": negative_feedbacks,
+            "satisfaction_rate": satisfaction_rate
+        })
+        
+    except Exception as e:
+        logger.error(f"Feedback stats error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+@router.get("/feedback/recent")
+async def rag_feedback_recent(
+    api_key: str = Depends(get_api_key_from_header)
+):
+    """
+    Get recent feedbacks
+    GET /api/rag/feedback/recent
+    """
+    try:
+        # Get DB config
+        db_config = {
+            "host": os.getenv("DB_HOST", "localhost"),
+            "database": os.getenv("DB_DATABASE", "laravel_rag"),
+            "user": os.getenv("DB_USERNAME", "postgres"),
+            "password": os.getenv("DB_PASSWORD", ""),
+            "port": os.getenv("DB_PORT", "5432")
+        }
+        
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Get recent feedbacks (limit 50)
+        cursor.execute("""
+            SELECT id, query, document_id, rating, metadata, created_at
+            FROM rag_feedbacks
+            ORDER BY created_at DESC
+            LIMIT 50
+        """)
+        
+        feedbacks = cursor.fetchall()
+        conn.close()
+        
+        # Convert to list of dicts
+        feedbacks_list = []
+        for fb in feedbacks:
+            fb_dict = dict(fb)
+            if 'created_at' in fb_dict and fb_dict['created_at']:
+                if isinstance(fb_dict['created_at'], datetime):
+                    fb_dict['created_at'] = fb_dict['created_at'].isoformat()
+            feedbacks_list.append(fb_dict)
+        
+        return JSONResponse(content={
+            "ok": True,
+            "feedbacks": feedbacks_list
+        })
+        
+    except Exception as e:
+        logger.error(f"Recent feedbacks error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 

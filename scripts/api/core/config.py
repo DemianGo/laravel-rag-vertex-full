@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     rate_limit_burst: int = 20      # burst limit
 
     # File Processing
-    max_file_size: int = 50 * 1024 * 1024  # 50MB
+    max_file_size: int = 500 * 1024 * 1024  # 500MB (5000 pages support)
     allowed_file_types: List[str] = [
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -44,7 +44,13 @@ class Settings(BaseSettings):
         "text/csv",
         "text/html",
         "application/xml",
-        "text/xml"
+        "text/xml",
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/bmp",
+        "image/tiff",
+        "image/webp"
     ]
 
     # Redis Configuration
@@ -63,7 +69,7 @@ class Settings(BaseSettings):
     # Performance
     worker_processes: int = 1
     max_concurrent_requests: int = 100
-    request_timeout: int = 300  # 5 minutes
+    request_timeout: int = 1800  # 30 minutes (for 5000 pages)
 
     # Feature Flags
     enable_batch_processing: bool = True
